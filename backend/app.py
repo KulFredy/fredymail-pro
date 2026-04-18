@@ -379,6 +379,14 @@ async def delete_note(email_id: str):
 # Snooze
 # ---------------------------------------------------------------------------
 
+@app.get("/snooze/due")
+async def get_due_snoozes():
+    data = _load(SNOOZE_FILE)
+    now = int(time.time())
+    due = [{"id": k, "until": v} for k, v in data.items() if v <= now]
+    return {"due": due}
+
+
 @app.get("/snooze/{email_id}")
 async def get_snooze(email_id: str):
     data = _load(SNOOZE_FILE)
@@ -399,14 +407,6 @@ async def clear_snooze(email_id: str):
     data.pop(email_id, None)
     _save(SNOOZE_FILE, data)
     return {"status": "ok"}
-
-
-@app.get("/snooze/due")
-async def get_due_snoozes():
-    data = _load(SNOOZE_FILE)
-    now = int(time.time())
-    due = [{"id": k, "until": v} for k, v in data.items() if v <= now]
-    return {"due": due}
 
 
 # ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -230,7 +230,7 @@ def connect_imap() -> imaplib.IMAP4_SSL:
 def poll_once(state: dict) -> None:
     since_date = (
         datetime.now().replace(hour=0, minute=0, second=0)
-        - __import__("datetime").timedelta(days=FETCH_DAYS)
+        - timedelta(days=FETCH_DAYS)
     ).strftime("%d-%b-%Y")
 
     try:
