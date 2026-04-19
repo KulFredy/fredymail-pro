@@ -12,6 +12,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 load_dotenv()
@@ -289,6 +290,18 @@ async def reindex():
         r = client.patch(url, json=settings, headers=MEILI_HEADERS)
         r.raise_for_status()
         return {"status": "ok", "task": r.json()}
+
+
+# ---------------------------------------------------------------------------
+# Frontend
+# ---------------------------------------------------------------------------
+
+@app.get("/")
+async def serve_frontend():
+    p = Path(r"D:\msi\Desktop\fredymail-pro\frontend\index.html")
+    if p.exists():
+        return FileResponse(p, media_type="text/html")
+    raise HTTPException(status_code=404, detail="index.html bulunamadi")
 
 
 # ---------------------------------------------------------------------------
