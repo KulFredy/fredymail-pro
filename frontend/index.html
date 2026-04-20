@@ -1,0 +1,3918 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FredyMail Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+.icon-opt {
+  width: 34px; height: 34px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; cursor: pointer; transition: all var(--transition);
+}
+.icon-opt:hover { border-color: var(--border2); background: var(--surface); }
+.icon-opt.selected { border-color: var(--primary); background: var(--primary-dim); }
+
+/* Dynamic folder item */
+.dyn-folder {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px; border-radius: var(--r-sm);
+  cursor: pointer; color: var(--text2); font-size: 13px;
+  transition: all var(--transition); border: 1px solid transparent;
+  position: relative;
+}
+.dyn-folder:hover { background: var(--surface); color: var(--text); }
+.dyn-folder.active { background: var(--surface); color: var(--text); font-weight: 500; border-color: var(--border2); }
+.dyn-folder.active::before { content:''; position:absolute; left:0; top:22%; bottom:22%; width:2px; background:var(--primary); border-radius:0 2px 2px 0; }
+.dyn-folder-del { opacity:0; margin-left:auto; background:none; border:none; color:var(--danger); cursor:pointer; font-size:13px; padding:2px; transition:opacity var(--transition); }
+.dyn-folder:hover .dyn-folder-del { opacity:1; }
+
+/* Folder count badge */
+.folder-badge { font-size:10px; font-family:var(--font-m); color:var(--text3); background:var(--bg3); padding:1px 6px; border-radius:10px; margin-left:auto; }
+
+.sort-btn {
+  padding: 4px 10px; border-radius: var(--r-sm);
+  border: 1px solid var(--border); background: var(--bg3);
+  color: var(--text3); font-size: 11px; cursor: pointer;
+  font-family: var(--font-b); white-space: nowrap;
+  transition: all var(--transition);
+}
+.sort-btn:hover { background: var(--surface); color: var(--text); border-color: var(--border2); }
+.sort-btn.active-sort { background: var(--primary-dim); color: var(--primary); border-color: rgba(108,99,255,.3); font-weight: 600; }
+
+/* DRAG & DROP */
+.dyn-folder.drag-over, .nav-item.drag-over {
+  background: var(--primary-dim) !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+.mail-item-dragging, .thread-header.dragging {
+  opacity: 0.5; cursor: grabbing !important;
+}
+.th-drag-handle {
+  cursor: grab; color: var(--text3); font-size: 12px;
+  padding: 0 4px; opacity: 0; transition: opacity var(--transition);
+  flex-shrink: 0;
+}
+.thread-header:hover .th-drag-handle { opacity: 1; }
+
+/* CONTEXT MENU submenu */
+.ctx-has-sub { position: relative; }
+.ctx-menu {
+  position: fixed; z-index: 999;
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: var(--r); box-shadow: var(--shadow);
+  padding: 4px 0; min-width: 210px;
+  animation: popIn .15s ease;
+}
+.ctx-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 14px; cursor: pointer; font-size: 13px;
+  color: var(--text2); transition: background var(--transition);
+}
+.ctx-item:hover { background: var(--surface); color: var(--text); }
+.ctx-item.danger:hover { background: var(--danger-dim); color: var(--danger); }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+.ctx-ico { font-size: 14px; width: 16px; text-align: center; flex-shrink: 0; }
+
+/* AI ADVANCED */
+.ai-adv-btn {
+  font-size: 11px; font-family: var(--font-m);
+  color: var(--text3); background: var(--bg3);
+  border: 1px solid var(--border); padding: 3px 9px;
+  border-radius: 4px; cursor: pointer; transition: all var(--transition);
+}
+.ai-adv-btn:hover, .ai-adv-btn.active {
+  color: var(--primary); border-color: rgba(108,99,255,.3);
+  background: var(--primary-dim);
+}
+
+/* AI SOR POPUP backdrop close */
+.aib-head {
+  background: linear-gradient(135deg, var(--primary-dim), var(--accent-dim));
+  border-bottom: 1px solid rgba(108,99,255,.2);
+  padding: 10px 18px;
+  flex-shrink: 0;
+}
+.aib-inner {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg3); border: 1px solid rgba(108,99,255,.25);
+  border-radius: var(--r); padding: 8px 12px;
+}
+.aib-icon { color: var(--primary); font-size: 15px; flex-shrink: 0; }
+.aib-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text); font-family: var(--font-b); font-size: 13px;
+}
+.aib-input::placeholder { color: var(--text3); }
+.aib-suggestions { display: flex; gap: 5px; flex-shrink: 0; }
+.aib-sug {
+  font-size: 10px; font-family: var(--font-m); color: var(--primary);
+  background: var(--primary-dim); border: 1px solid rgba(108,99,255,.2);
+  padding: 3px 8px; border-radius: 10px; cursor: pointer; white-space: nowrap;
+  transition: all var(--transition);
+}
+.aib-sug:hover { background: var(--primary); color: #fff; }
+.aib-send {
+  background: var(--primary); border: none; color: #fff;
+  padding: 6px 14px; border-radius: var(--r-sm); cursor: pointer;
+  font-size: 12px; font-family: var(--font-b); font-weight: 500;
+  transition: all var(--transition); flex-shrink: 0;
+}
+.aib-send:hover { background: #5a52e8; }
+.aib-close {
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 16px; padding: 2px; flex-shrink: 0; transition: color var(--transition);
+}
+.aib-close:hover { color: var(--text); }
+.aib-result {
+  margin-top: 8px; padding: 10px 14px;
+  background: var(--bg2); border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+}
+.aib-result-inner {
+  font-size: 13px; line-height: 1.7; color: var(--text);
+  max-height: 120px; overflow-y: auto;
+}
+
+@keyframes slideUpCompose { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Compose placeholder */
+#composeBody:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text3); pointer-events: none;
+}
+
+/* ════════════════════════════════════════
+   TOKENS
+════════════════════════════════════════ */
+:root {
+  --bg: #080810;
+  --bg2: #0d0d1a;
+  --bg3: #12121f;
+  --surface: #18182c;
+  --surface2: #1e1e34;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.11);
+  --primary: #6c63ff;
+  --primary-dim: rgba(108,99,255,0.18);
+  --primary-glow: rgba(108,99,255,0.35);
+  --accent: #00d4aa;
+  --accent-dim: rgba(0,212,170,0.12);
+  --danger: #ff4d6d;
+  --danger-dim: rgba(255,77,109,0.12);
+  --warn: #ffb347;
+  --warn-dim: rgba(255,179,71,0.12);
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.12);
+  --cyan: #06b6d4;
+  --cyan-dim: rgba(6,182,212,0.12);
+  --purple: #a855f7;
+  --purple-dim: rgba(168,85,247,0.12);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59,130,246,0.12);
+  --text: #eaeaf5;
+  --text2: #9090b5;
+  --text3: #52526e;
+  --font-h: 'Syne', sans-serif;
+  --font-b: 'DM Sans', sans-serif;
+  --font-m: 'DM Mono', monospace;
+  --r: 10px;
+  --r-sm: 6px;
+  --r-xs: 4px;
+  --shadow: 0 8px 32px rgba(0,0,0,0.5);
+  --sidebar-w: 264px;
+  --list-w: 280px;
+  --transition: 0.18s ease;
+}
+
+body.light {
+  --bg: #f0f0f8;
+  --bg2: #ffffff;
+  --bg3: #f5f5fc;
+  --surface: #eaeaf5;
+  --surface2: #e0e0f0;
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.14);
+  --text: #111128;
+  --text2: #44445a;
+  --text3: #9090a8;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+body {
+  font-family: var(--font-b);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+  font-size: 14px;
+  transition: background var(--transition), color var(--transition);
+}
+
+/* ════════════════════════════════════════
+   SIDEBAR
+════════════════════════════════════════ */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.logo {
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.logo-mark {
+  width: 30px; height: 30px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  box-shadow: 0 0 18px var(--primary-glow);
+  flex-shrink: 0;
+}
+.logo-name { font-family: var(--font-h); font-weight: 700; font-size: 15px; letter-spacing: -.3px; }
+.logo-name em { font-style: normal; color: var(--primary); }
+.logo-pro {
+  margin-left: auto;
+  font-size: 9px; font-family: var(--font-m);
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(0,212,170,0.25);
+  padding: 2px 6px; border-radius: 3px; letter-spacing: .5px;
+}
+
+/* AI BAR */
+.ai-bar {
+  margin: 12px 12px 6px;
+  background: linear-gradient(135deg, var(--primary-dim), var(--accent-dim));
+  border: 1px solid rgba(108,99,255,.22);
+  border-radius: var(--r);
+  padding: 11px 13px;
+  cursor: pointer;
+  transition: all var(--transition);
+  overflow: hidden; position: relative;
+}
+.ai-bar::after {
+  content: '';
+  position: absolute; top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg,transparent,rgba(255,255,255,.04),transparent);
+  transition: left .5s;
+}
+.ai-bar:hover::after { left: 100%; }
+.ai-bar:hover { border-color: rgba(108,99,255,.45); }
+.ai-bar-label { font-size: 9px; font-family: var(--font-m); color: var(--primary); letter-spacing: .8px; text-transform: uppercase; margin-bottom: 4px; }
+.ai-bar-hint { font-size: 12px; color: var(--text2); }
+
+/* NAV */
+.nav-scroll { flex: 1; overflow-y: auto; }
+.nav-sec { padding: 10px 10px 4px; }
+.nav-lbl { font-size: 9px; font-family: var(--font-m); color: var(--text3); letter-spacing: 1.1px; text-transform: uppercase; padding: 0 8px; margin-bottom: 3px; }
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: var(--r-sm);
+  cursor: pointer; color: var(--text2); font-size: 13px;
+  transition: all var(--transition);
+  border: 1px solid transparent;
+  position: relative; user-select: none;
+}
+.nav-item:hover { background: var(--surface); color: var(--text); }
+.nav-item.active {
+  background: var(--surface); color: var(--text); font-weight: 500;
+  border-color: var(--border2);
+}
+.nav-item.active::before {
+  content: ''; position: absolute; left: 0; top: 22%; bottom: 22%;
+  width: 2px; background: var(--primary); border-radius: 0 2px 2px 0;
+}
+.nav-ico { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+.nav-cnt {
+  margin-left: auto; font-size: 10px; font-family: var(--font-m);
+  color: var(--text3); background: var(--bg3);
+  padding: 1px 7px; border-radius: 10px;
+}
+
+/* SENDER PANEL */
+.sender-panel {
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px 6px; cursor: pointer;
+}
+.panel-title { font-size: 9px; font-family: var(--font-m); color: var(--text3); letter-spacing: 1px; text-transform: uppercase; }
+.panel-toggle { font-size: 10px; color: var(--text3); transition: transform .2s; }
+.panel-toggle.open { transform: rotate(180deg); }
+.sender-list { overflow: hidden; max-height: 0; transition: max-height .3s ease; }
+.sender-list.open { max-height: 160px; overflow-y: auto; }
+.sender-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px; cursor: pointer; transition: background var(--transition);
+  border-left: 2px solid transparent;
+}
+.sender-row:hover { background: var(--surface); border-left-color: var(--accent); }
+.sender-ava {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0;
+  font-family: var(--font-h);
+}
+.sender-name { font-size: 12px; color: var(--text); font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sender-cnt { font-size: 10px; font-family: var(--font-m); color: var(--text3); }
+
+/* SIDEBAR BOTTOM */
+.sb-foot {
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+  display: flex; gap: 6px; flex-shrink: 0;
+}
+.sb-btn {
+  flex: 1; padding: 7px 6px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--text2); font-size: 12px;
+  cursor: pointer; text-align: center; transition: all var(--transition);
+  font-family: var(--font-b);
+}
+.sb-btn:hover { background: var(--surface); color: var(--text); border-color: var(--border2); }
+
+/* ════════════════════════════════════════
+   MAIN
+════════════════════════════════════════ */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* TOPBAR */
+.topbar {
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 11px 18px; display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.search-wrap {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 8px 13px; transition: all var(--transition);
+}
+.search-wrap:focus-within { border-color: rgba(108,99,255,.4); box-shadow: 0 0 0 3px rgba(108,99,255,.08); }
+.search-ico { color: var(--text3); font-size: 14px; }
+.search-inp {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text); font-family: var(--font-b); font-size: 13px;
+}
+.search-inp::placeholder { color: var(--text3); }
+.search-kbd { font-size: 9px; font-family: var(--font-m); color: var(--text3); background: var(--surface); border: 1px solid var(--border2); padding: 2px 5px; border-radius: 3px; }
+
+.tbtn {
+  padding: 7px 13px; border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); font-size: 12px; cursor: pointer;
+  font-family: var(--font-b); display: flex; align-items: center; gap: 5px;
+  transition: all var(--transition); white-space: nowrap;
+}
+.tbtn:hover { background: var(--surface); color: var(--text); border-color: var(--border2); }
+.tbtn.prim { background: var(--primary); color: #fff; border-color: transparent; }
+.tbtn.prim:hover { background: #5a52e8; box-shadow: 0 0 18px var(--primary-glow); }
+.tbtn.danger { background: var(--danger-dim); color: var(--danger); border-color: rgba(255,77,109,.2); }
+
+/* BULK BAR */
+.bulk-bar {
+  background: var(--primary-dim); border-bottom: 1px solid rgba(108,99,255,.2);
+  padding: 8px 18px; display: none; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.bulk-bar.show { display: flex; }
+.bulk-count { font-size: 13px; font-weight: 500; color: var(--primary); }
+.bulk-actions { display: flex; gap: 6px; margin-left: 8px; }
+.bulk-btn {
+  padding: 5px 12px; border-radius: var(--r-sm); border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text2); font-size: 12px; cursor: pointer;
+  font-family: var(--font-b); transition: all var(--transition);
+}
+.bulk-btn:hover { background: var(--bg); color: var(--text); }
+.bulk-btn.danger:hover { background: var(--danger-dim); color: var(--danger); border-color: rgba(255,77,109,.3); }
+.bulk-close { margin-left: auto; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; }
+
+/* FILTERBAR */
+.filterbar {
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 7px 18px; display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0; overflow-x: auto;
+}
+.pill {
+  padding: 4px 11px; border-radius: 20px; border: 1px solid var(--border);
+  background: transparent; color: var(--text2); font-size: 12px;
+  cursor: pointer; font-family: var(--font-b); white-space: nowrap;
+  transition: all var(--transition);
+}
+.pill:hover { border-color: var(--border2); color: var(--text); }
+.pill.active { background: var(--primary); color: #fff; border-color: transparent; font-weight: 500; }
+.pill.active-dim { background: var(--primary-dim); color: var(--primary); border-color: rgba(108,99,255,.25); }
+.fsep { width: 1px; height: 14px; background: var(--border); flex-shrink: 0; }
+
+/* TAG FILTER PILLS */
+.tag-pill {
+  padding: 3px 10px; border-radius: 10px; border: 1px solid var(--border);
+  background: transparent; color: var(--text3); font-size: 11px;
+  cursor: pointer; font-family: var(--font-m); white-space: nowrap;
+  transition: all var(--transition);
+}
+.tag-pill:hover { border-color: var(--border2); color: var(--text2); }
+.tag-pill.t-acil { color: var(--danger); border-color: rgba(255,77,109,.25); background: var(--danger-dim); }
+.tag-pill.t-influencer { color: var(--purple); border-color: rgba(168,85,247,.25); background: var(--purple-dim); }
+.tag-pill.t-icerik { color: var(--blue); border-color: rgba(59,130,246,.25); background: var(--blue-dim); }
+.tag-pill.t-fatura  { color: var(--green);  border-color: rgba(74,222,128,.25);  background: var(--green-dim); }
+.tag-pill.t-favori  { color: var(--warn);   border-color: rgba(255,179,71,.25);  background: var(--warn-dim); }
+.tag-pill.t-onemli  { color: var(--danger); border-color: rgba(255,77,109,.25);  background: var(--danger-dim); }
+.tag-pill.t-bekliyor{ color: var(--purple); border-color: rgba(168,85,247,.25);  background: var(--purple-dim); }
+
+.sort-sel {
+  margin-left: auto; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text2); padding: 4px 10px; border-radius: var(--r-sm);
+  font-size: 12px; outline: none; font-family: var(--font-b); cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ════════════════════════════════════════
+   CONTENT SPLIT
+════════════════════════════════════════ */
+.split { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+/* ════════════════════════════════════════
+   MAIL LIST
+════════════════════════════════════════ */
+.mail-list {
+  width: var(--list-w); border-right: 1px solid var(--border);
+  background: var(--bg); flex-shrink: 0; display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+.list-head {
+  padding: 10px 14px 8px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.list-title { font-family: var(--font-h); font-weight: 700; font-size: 13px; color: var(--text2); }
+.list-cnt { font-size: 10px; font-family: var(--font-m); color: var(--text3); }
+
+/* STATS MINI */
+.stats-mini {
+  display: none; padding: 8px 12px; gap: 8px;
+  background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.sm-card {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 7px 10px; text-align: center;
+}
+.sm-val { font-family: var(--font-h); font-size: 17px; font-weight: 700; color: var(--primary); }
+.sm-lbl { font-size: 9px; font-family: var(--font-m); color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-top: 1px; }
+
+.mail-items-wrap { flex: 1; overflow-y: auto; }
+
+/* THREAD GROUP */
+.thread-group { border-bottom: 1px solid var(--border); }
+.thread-header {
+  padding: 12px 14px; cursor: pointer; display: flex; gap: 10px;
+  align-items: flex-start; transition: background var(--transition); position: relative;
+}
+.thread-header:hover { background: var(--bg2); }
+.thread-header.selected-group { background: var(--surface); border-left: 2px solid var(--primary); padding-left: 12px; }
+
+.th-select {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 32px;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity var(--transition);
+}
+.thread-header:hover .th-select,
+.thread-header.sel .th-select { opacity: 1; }
+.th-checkbox {
+  width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid var(--border2);
+  background: var(--bg3); cursor: pointer; appearance: none;
+  transition: all var(--transition); flex-shrink: 0;
+}
+.th-checkbox:checked { background: var(--primary); border-color: var(--primary); }
+.th-checkbox:checked::after { content: '✓'; display: block; color: #fff; font-size: 10px; text-align: center; line-height: 13px; }
+
+.th-ava {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0;
+  font-family: var(--font-h);
+}
+.th-body { flex: 1; min-width: 0; }
+.th-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3px; }
+.th-sender { font-size: 13px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+.th-date { font-size: 10px; font-family: var(--font-m); color: var(--text3); flex-shrink: 0; }
+.th-subject { font-size: 12px; color: var(--text2); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-preview { font-size: 11px; color: var(--text3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.th-meta { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; align-items: center; }
+.th-tag {
+  font-size: 9px; font-family: var(--font-m);
+  padding: 1px 6px; border-radius: 3px;
+  background: var(--surface); color: var(--text3); border: 1px solid var(--border);
+}
+.th-tag.attach { color: var(--accent); border-color: rgba(0,212,170,.2); background: var(--accent-dim); }
+.th-tag.folder-tag { color: var(--primary); border-color: rgba(108,99,255,.2); background: var(--primary-dim); }
+.th-tag.snooze { color: var(--warn); border-color: rgba(255,179,71,.2); background: var(--warn-dim); }
+.th-tag.note { color: var(--green); border-color: rgba(74,222,128,.2); background: var(--green-dim); }
+.th-tag.unread-badge { color: var(--primary); border-color: var(--primary); background: var(--primary-dim); font-weight: 600; }
+.th-count {
+  font-size: 9px; font-family: var(--font-m); color: var(--text3);
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 1px 6px; border-radius: 10px; margin-left: auto;
+}
+
+/* USER-DEFINED TAG DOTS */
+.tag-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.tag-dot.acil        { background: var(--danger); }
+.tag-dot.influencer  { background: var(--purple); }
+.tag-dot.icerik      { background: var(--blue); }
+.tag-dot.toplanti    { background: var(--cyan); }
+.tag-dot.favori    { background: var(--warn); }
+.tag-dot.yolda       { background: var(--green); }
+
+/* UNREAD INDICATOR */
+.unread-line {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--primary);
+  border-radius: 0 2px 2px 0;
+}
+.thread-header.unread .th-sender { font-weight: 700; color: var(--text); }
+.thread-header.unread .th-subject { font-weight: 600; color: var(--text); }
+
+/* THREAD CHILDREN */
+.thread-children {
+  display: none; padding: 0 14px 10px 58px;
+  border-top: 1px solid var(--border);
+  background: rgba(108,99,255,.03);
+}
+.thread-children.open { display: block; }
+.tc-item {
+  padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer;
+  display: flex; gap: 8px; align-items: flex-start;
+  transition: background var(--transition); margin-bottom: 4px;
+  border: 1px solid transparent;
+}
+.tc-item:hover { background: var(--surface); border-color: var(--border); }
+.tc-item.selected { background: var(--surface); border-color: rgba(108,99,255,.3); }
+.tc-ava { width: 22px; height: 22px; border-radius: 50%; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--text3); flex-shrink: 0; font-family: var(--font-h); }
+.tc-body { flex: 1; min-width: 0; }
+.tc-top { display: flex; justify-content: space-between; }
+.tc-sender { font-size: 11px; font-weight: 500; color: var(--text2); }
+.tc-date { font-size: 10px; font-family: var(--font-m); color: var(--text3); }
+.tc-preview { font-size: 11px; color: var(--text3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; margin-top: 2px; }
+
+/* RESIZER */
+.resizer { width: 4px; background: var(--border); cursor: col-resize; transition: background var(--transition); flex-shrink: 0; }
+.resizer:hover, .resizer.drag { background: var(--primary); }
+
+/* ════════════════════════════════════════
+   READING PANE
+════════════════════════════════════════ */
+.reading-pane {
+  flex: 1; overflow-y: auto; background: var(--bg);
+  display: flex; flex-direction: column; position: relative; min-width: 0;
+}
+
+/* EMPTY */
+.empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: var(--text3); gap: 10px; padding: 40px; text-align: center;
+}
+.empty-ico {
+  width: 60px; height: 60px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 6px;
+}
+.empty-title { font-family: var(--font-h); font-size: 17px; color: var(--text2); font-weight: 600; }
+.empty-sub { font-size: 13px; line-height: 1.6; max-width: 250px; }
+.kbd-hints { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.kh { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text3); }
+.kbd { background: var(--surface); border: 1px solid var(--border2); padding: 2px 6px; border-radius: 3px; font-family: var(--font-m); font-size: 10px; color: var(--text2); }
+
+/* MAIL DETAIL */
+.mail-detail { display: none; padding: 26px 30px; flex: 1; }
+
+.md-subject {
+  font-family: var(--font-h); font-size: 21px; font-weight: 700;
+  color: var(--text); line-height: 1.3; margin-bottom: 16px;
+}
+
+.md-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 15px; background: var(--surface); border-radius: var(--r);
+  margin-bottom: 14px; border: 1px solid var(--border); gap: 10px; flex-wrap: wrap;
+}
+.md-sender-row { display: flex; align-items: center; gap: 10px; }
+.md-ava {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-h); font-size: 14px; font-weight: 700; color: #fff;
+}
+.md-name { font-weight: 600; font-size: 14px; }
+.md-info { font-size: 11px; color: var(--text3); margin-top: 2px; font-family: var(--font-m); }
+.md-date-str { font-size: 11px; color: var(--text3); font-family: var(--font-m); }
+
+/* AI TOOLBAR */
+.ai-tbar {
+  display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap;
+  padding: 9px 13px; background: var(--surface); border-radius: var(--r);
+  border: 1px solid var(--border);
+}
+.ai-tbtn {
+  display: flex; align-items: center; gap: 5px; padding: 5px 11px;
+  border-radius: var(--r-sm); border: 1px solid var(--border2);
+  background: var(--bg3); color: var(--text2); font-size: 12px;
+  cursor: pointer; font-family: var(--font-b); transition: all var(--transition);
+}
+.ai-tbtn:hover { background: var(--primary); color: #fff; border-color: transparent; box-shadow: 0 0 12px var(--primary-glow); }
+.ai-tbtn .kbd { font-size: 8px; }
+.ai-tbtn:hover .kbd { background: rgba(255,255,255,.15); border-color: transparent; color: rgba(255,255,255,.7); }
+
+/* NOTE BAR */
+.note-bar {
+  background: var(--green-dim); border: 1px solid rgba(74,222,128,.2);
+  border-radius: var(--r); padding: 10px 14px; margin-bottom: 14px;
+  display: none;
+}
+.note-bar.show { display: flex; gap: 10px; align-items: flex-start; }
+.note-ico { font-size: 13px; flex-shrink: 0; }
+.note-text { flex: 1; font-size: 13px; color: var(--text2); line-height: 1.5; }
+.note-edit-btn { font-size: 11px; color: var(--green); cursor: pointer; background: none; border: none; font-family: var(--font-b); padding: 0; }
+
+/* AI RESULT */
+.ai-result {
+  background: linear-gradient(135deg, var(--primary-dim), var(--accent-dim));
+  border: 1px solid rgba(108,99,255,.2);
+  border-radius: var(--r); padding: 14px 16px; margin-bottom: 14px; display: none;
+}
+.ai-result-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+.ai-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 8px var(--primary); animation: pulse 2s infinite; }
+.ai-lbl { font-size: 9px; font-family: var(--font-m); color: var(--primary); text-transform: uppercase; letter-spacing: .8px; }
+.ai-result-body { font-size: 13px; line-height: 1.75; color: var(--text); }
+
+/* STRUCTURED CARD */
+.struct-card {
+  background: var(--accent-dim); border: 1px solid rgba(0,212,170,.2);
+  border-radius: var(--r); padding: 13px 15px; margin-bottom: 14px;
+}
+.sc-title { font-size: 10px; font-family: var(--font-m); color: var(--accent); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.sc-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed rgba(0,212,170,.12); font-size: 13px; }
+.sc-row:last-child { border-bottom: none; }
+.sc-row span { color: var(--text3); }
+.sc-row strong { color: var(--text); }
+
+/* THREAD BODY BUBBLES */
+.thread-bubbles { display: flex; flex-direction: column; gap: 14px; padding-top: 16px; border-top: 1px solid var(--border); }
+.bubble-wrap { display: flex; gap: 10px; }
+.bubble-wrap.sent { flex-direction: row-reverse; }
+.bubble-ava {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; font-family: var(--font-h);
+  color: #fff; align-self: flex-end;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+.bubble-wrap.sent .bubble-ava { background: linear-gradient(135deg, var(--accent), #00a085); }
+.bubble-content { max-width: 85%; }
+.bubble-meta { font-size: 10px; font-family: var(--font-m); color: var(--text3); margin-bottom: 4px; }
+.bubble-wrap.sent .bubble-meta { text-align: right; }
+.bubble {
+  padding: 11px 14px; border-radius: 12px;
+  font-size: 13px; line-height: 1.7; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border);
+  border-bottom-left-radius: 3px;
+}
+.bubble-wrap.sent .bubble { background: var(--primary-dim); border-color: rgba(108,99,255,.2); border-bottom-right-radius: 3px; border-bottom-left-radius: 12px; }
+.bubble-quote { font-style: italic; color: var(--text3); border-left: 2px solid var(--border2); padding-left: 10px; margin-top: 6px; font-size: 12px; line-height: 1.5; }
+.bubble-quote-wrap { margin-top: 8px; }
+.bubble-quote-wrap summary { font-size: 11px; color: var(--text3); cursor: pointer; padding: 2px 0; }
+.bubble-sig { font-size: 11px; color: var(--text3); border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px; line-height: 1.5; }
+.bubble-body { line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+
+mark { background: rgba(108,99,255,.35); color: #fff; border-radius: 2px; padding: 0 2px; }
+body.light mark { color: #111; }
+
+/* ════════════════════════════════════════
+   AI CHAT PANEL
+════════════════════════════════════════ */
+.ai-panel {
+  position: fixed; right: 0; top: 0; bottom: 0; width: 370px;
+  background: var(--bg2); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+  z-index: 100; box-shadow: -6px 0 30px rgba(0,0,0,.3);
+}
+.ai-panel.open { transform: translateX(0); }
+
+.aip-head {
+  padding: 15px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.aip-title { font-family: var(--font-h); font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.ai-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 7px var(--accent); animation: pulse 2s infinite; }
+.aip-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 17px; padding: 3px; transition: color var(--transition); }
+.aip-close:hover { color: var(--text); }
+
+.ai-chat { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.chat-msg { display: flex; flex-direction: column; gap: 3px; }
+.chat-msg.user { align-items: flex-end; }
+.chat-msg.bot { align-items: flex-start; }
+.chat-bubble {
+  max-width: 88%; padding: 9px 13px; border-radius: 12px;
+  font-size: 13px; line-height: 1.6;
+}
+.chat-msg.user .chat-bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 3px; }
+.chat-msg.bot .chat-bubble { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+.chat-time { font-size: 9px; font-family: var(--font-m); color: var(--text3); }
+.ai-hit-list { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+.ai-hit-row { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 7px; cursor: pointer; transition: background .15s; }
+.ai-hit-row:hover { background: var(--bg2); }
+.ai-hit-num { font-size: 10px; color: var(--text3); font-family: var(--font-m); min-width: 16px; }
+.ai-hit-info { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.ai-hit-info strong { font-size: 12px; color: var(--text); font-weight: 600; line-height: 1.3; }
+.ai-hit-meta { font-size: 10px; color: var(--text3); font-family: var(--font-m); }
+.ai-hit-arr { font-size: 11px; color: var(--primary); opacity: .6; }
+
+.thinking { display: flex; gap: 4px; align-items: center; padding: 11px 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; border-bottom-left-radius: 3px; width: fit-content; }
+.td { width: 6px; height: 6px; background: var(--primary); border-radius: 50%; animation: think 1.4s infinite; }
+.td:nth-child(2) { animation-delay: .2s; }
+.td:nth-child(3) { animation-delay: .4s; }
+
+.aip-sugs { padding: 7px 13px; display: flex; gap: 5px; flex-wrap: wrap; border-top: 1px solid var(--border); }
+.aip-sug { font-size: 11px; color: var(--text2); background: var(--surface); border: 1px solid var(--border); padding: 4px 9px; border-radius: 10px; cursor: pointer; transition: all var(--transition); font-family: var(--font-b); }
+.aip-sug:hover { border-color: var(--primary); color: var(--primary); }
+
+.aip-input-row { padding: 10px 13px; border-top: 1px solid var(--border); display: flex; gap: 7px; flex-shrink: 0; }
+.aip-input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 11px; color: var(--text); font-family: var(--font-b); font-size: 13px; outline: none; transition: border-color var(--transition); resize: none; }
+.aip-input:focus { border-color: rgba(108,99,255,.4); }
+.aip-send { padding: 8px 13px; background: var(--primary); border: none; color: #fff; border-radius: var(--r-sm); cursor: pointer; font-size: 14px; transition: all var(--transition); flex-shrink: 0; }
+.aip-send:hover { background: #5a52e8; box-shadow: 0 0 14px var(--primary-glow); }
+
+/* ════════════════════════════════════════
+   MODALS
+════════════════════════════════════════ */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.65); backdrop-filter: blur(5px);
+  z-index: 200; align-items: center; justify-content: center;
+}
+.overlay.open { display: flex; }
+
+.modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 14px; max-width: 94vw; max-height: 90vh;
+  overflow-y: auto; box-shadow: var(--shadow), 0 0 50px var(--primary-glow);
+  animation: popIn .25s ease;
+}
+@keyframes popIn { from { transform: scale(.95) translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.m-head { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.m-title { font-family: var(--font-h); font-weight: 700; font-size: 16px; }
+.m-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 19px; padding: 3px; transition: color var(--transition); }
+.m-close:hover { color: var(--text); }
+.m-body { padding: 18px 22px; }
+.m-foot { padding: 12px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 7px; }
+
+.btn { padding: 8px 16px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font-b); transition: all var(--transition); border: 1px solid transparent; }
+.btn-ghost { background: var(--bg3); border-color: var(--border); color: var(--text2); }
+.btn-ghost:hover { background: var(--surface); color: var(--text); border-color: var(--border2); }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: #5a52e8; box-shadow: 0 0 18px var(--primary-glow); }
+.btn-danger { background: var(--danger); color: #fff; }
+
+.form-group { margin-bottom: 13px; }
+.form-label { font-size: 10px; font-family: var(--font-m); color: var(--text3); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 5px; display: block; }
+.form-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 8px 11px; color: var(--text);
+  font-family: var(--font-b); font-size: 13px; outline: none;
+  transition: border-color var(--transition);
+}
+.form-input:focus { border-color: rgba(108,99,255,.4); }
+.form-textarea { min-height: 120px; resize: vertical; }
+
+/* TAG GRID */
+.tag-grid { display: flex; gap: 7px; flex-wrap: wrap; }
+.tag-opt {
+  padding: 5px 13px; border-radius: 10px; cursor: pointer;
+  font-size: 12px; font-family: var(--font-m); border: 1px solid var(--border);
+  transition: all var(--transition); color: var(--text3);
+}
+.tag-opt:hover { border-color: var(--border2); color: var(--text2); }
+.tag-opt.sel-acil       { background: var(--danger-dim);  color: var(--danger);  border-color: rgba(255,77,109,.3); }
+.tag-opt.sel-influencer { background: var(--purple-dim); color: var(--purple); border-color: rgba(168,85,247,.3); }
+.tag-opt.sel-icerik     { background: var(--blue-dim);   color: var(--blue);   border-color: rgba(59,130,246,.3); }
+.tag-opt.sel-toplanti   { background: var(--cyan-dim);   color: var(--cyan);   border-color: rgba(6,182,212,.3); }
+.tag-opt.sel-favori   { background: var(--warn-dim);   color: var(--warn);   border-color: rgba(255,179,71,.3); }
+.tag-opt.sel-yolda      { background: var(--green-dim);  color: var(--green);  border-color: rgba(74,222,128,.3); }
+
+/* SNOOZE OPTIONS */
+.snooze-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.snooze-opt {
+  padding: 10px 13px; border-radius: var(--r); border: 1px solid var(--border);
+  background: var(--bg3); cursor: pointer; transition: all var(--transition);
+}
+.snooze-opt:hover { background: var(--surface); border-color: var(--border2); }
+.snooze-label { font-size: 13px; font-weight: 500; color: var(--text2); }
+.snooze-sub { font-size: 11px; color: var(--text3); margin-top: 2px; font-family: var(--font-m); }
+
+/* INDEX MODAL */
+.index-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 14px; }
+.idx-folder {
+  padding: 11px 13px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--r); cursor: pointer; transition: all var(--transition);
+  display: flex; align-items: center; gap: 9px;
+}
+.idx-folder:hover { border-color: var(--border2); background: var(--surface); }
+.idx-folder.sel { border-color: var(--primary); background: var(--primary-dim); }
+.idx-folder input { accent-color: var(--primary); width: 13px; height: 13px; }
+.idx-folder-name { font-size: 13px; font-weight: 500; }
+.idx-status { font-size: 12px; color: var(--text3); font-family: var(--font-m); padding: 8px 12px; background: var(--bg3); border-radius: var(--r-sm); border: 1px solid var(--border); margin-top: 10px; }
+
+/* CMD PALETTE */
+.cmd-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(6px);
+  z-index: 300; align-items: flex-start; justify-content: center; padding-top: 14vh;
+}
+.cmd-overlay.open { display: flex; }
+.cmd-box {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 13px; width: 540px; max-width: 94vw;
+  box-shadow: var(--shadow), 0 0 50px rgba(108,99,255,.2); overflow: hidden;
+  animation: popIn .2s ease;
+}
+.cmd-search { display: flex; align-items: center; gap: 9px; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+.cmd-search input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-size: 14px; font-family: var(--font-b); }
+.cmd-search input::placeholder { color: var(--text3); }
+.cmd-results { max-height: 300px; overflow-y: auto; }
+.cmd-sec { padding: 8px 13px 4px; font-size: 9px; font-family: var(--font-m); color: var(--text3); letter-spacing: 1px; text-transform: uppercase; }
+.cmd-item { display: flex; align-items: center; gap: 9px; padding: 9px 13px; cursor: pointer; transition: background var(--transition); font-size: 13px; color: var(--text2); }
+.cmd-item:hover, .cmd-item.focused { background: var(--surface); color: var(--text); }
+.cmd-ico { width: 26px; height: 26px; background: var(--bg3); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 13px; border: 1px solid var(--border); flex-shrink: 0; }
+.cmd-desc { font-size: 10px; font-family: var(--font-m); color: var(--text3); margin-left: auto; }
+.cmd-foot { padding: 7px 13px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
+.cmd-hint { font-size: 10px; color: var(--text3); display: flex; align-items: center; gap: 3px; font-family: var(--font-m); }
+
+/* LOADING */
+.loading-overlay { position: absolute; inset: 0; background: rgba(8,8,16,.6); display: none; align-items: center; justify-content: center; z-index: 5; backdrop-filter: blur(2px); }
+.spinner { width: 28px; height: 28px; border: 2px solid var(--border2); border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; }
+.list-spinner { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; gap: 10px; color: var(--text3); font-size: 13px; }
+
+/* SNOOZE BADGE (floating) */
+.snooze-reminder {
+  position: fixed; bottom: 18px; left: calc(var(--sidebar-w) + 18px);
+  background: var(--bg2); border: 1px solid rgba(255,179,71,.3);
+  border-radius: var(--r); padding: 12px 16px; z-index: 90;
+  display: none; align-items: center; gap: 10px; box-shadow: var(--shadow);
+  animation: toastIn .3s ease;
+}
+.snooze-reminder.show { display: flex; }
+
+/* TOAST */
+.toasts { position: fixed; bottom: 18px; right: 18px; z-index: 1000; display: flex; flex-direction: column; gap: 7px; pointer-events: none; }
+.toast { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r); padding: 11px 15px; font-size: 13px; color: var(--text); box-shadow: var(--shadow); min-width: 200px; display: flex; align-items: center; gap: 9px; pointer-events: all; animation: toastIn .3s ease; }
+.toast.ok { border-color: rgba(0,212,170,.3); }
+.toast.err { border-color: rgba(255,77,109,.3); }
+.toast.info { border-color: rgba(108,99,255,.3); }
+
+/* ANIMATIONS */
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+@keyframes think { 0%,80%,100% { transform: scale(.6); opacity: .4; } 40% { transform: scale(1); opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes toastIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ════════════════════════════════════════
+   MOBILE RESPONSIVE
+════════════════════════════════════════ */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-w: 100%;
+    --list-w: 100%;
+  }
+
+  body {
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* SIDEBAR — hidden by default, toggled */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 280px;
+    z-index: 500;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    box-shadow: 4px 0 20px rgba(0,0,0,.5);
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .sidebar-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 499;
+  }
+  .sidebar-backdrop.show { display: block; }
+
+  /* MAIN */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-top: 48px; /* mobile topbar height */
+  }
+
+  /* MOBILE TOPBAR */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 8px 12px;
+    gap: 7px;
+  }
+  .topbar .tbtn { display: none; }
+  .topbar .tbtn.prim { display: flex; padding: 7px 10px; font-size: 12px; }
+  #aiBtnToggle { display: flex; padding: 7px 10px; font-size: 12px; }
+
+  /* Mobile menu button */
+  .mobile-menu-btn {
+    display: flex !important;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--r-sm); padding: 7px 10px;
+    color: var(--text2); cursor: pointer; font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  /* FILTERBAR */
+  .filterbar {
+    padding: 6px 10px;
+    gap: 5px;
+  }
+  .filterbar .pill { font-size: 11px; padding: 3px 9px; }
+
+  /* AI INLINE BAR */
+  .ai-inline-bar { padding: 8px 10px; }
+  .aib-suggestions { display: none; }
+  .aib-inner { gap: 6px; }
+
+  /* SPLIT — mobile: list on top, detail below OR full screen */
+  .split {
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .mail-list {
+    width: 100% !important;
+    height: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+  .mail-list.mobile-hidden { display: none; }
+
+  /* RESIZER hidden on mobile */
+  .resizer { display: none; }
+
+  /* READING PANE */
+  .reading-pane {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 200;
+    background: var(--bg);
+  }
+  .reading-pane.mobile-open {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Mobile back button */
+  .mobile-back-btn {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--primary);
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  /* Mail detail padding */
+  .mail-detail { padding: 16px; }
+  .md-subject { font-size: 17px; }
+
+  /* AI toolbar scroll */
+  .ai-tbar { overflow-x: auto; flex-wrap: nowrap; }
+  .ai-tbtn { white-space: nowrap; font-size: 11px; padding: 5px 9px; }
+
+  /* AI Panel */
+  .ai-panel {
+    width: 100%;
+    top: auto;
+    bottom: 0;
+    height: 70vh;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: 14px 14px 0 0;
+    transform: translateY(100%);
+  }
+  .ai-panel.open { transform: translateY(0); }
+
+  /* Compose */
+  #composeWindow {
+    width: 100% !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* Modals */
+  .modal { width: 96vw !important; max-height: 85vh; }
+
+  /* Stats mini */
+  .stats-mini { gap: 6px; padding: 7px 10px; }
+  .sm-val { font-size: 15px; }
+
+  /* Toasts */
+  .toasts { left: 10px; right: 10px; bottom: 10px; }
+  .toast { min-width: unset; }
+
+  /* Snooze reminder */
+  .snooze-reminder { left: 10px; right: 10px; bottom: 10px; }
+}
+
+@media (min-width: 769px) {
+  .mobile-menu-btn { display: none !important; }
+  .mobile-back-btn { display: none !important; }
+  .sidebar-backdrop { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ SIDEBAR ══════════ -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">✦</div>
+    <div class="logo-name">Fredy<em>Mail</em></div>
+    <div class="logo-pro">PRO</div>
+    <button onclick="toggleMobileSidebar()" class="mobile-menu-btn" style="margin-left:auto;padding:4px 7px;font-size:14px;">✕</button>
+  </div>
+
+  <div class="ai-bar" onclick="openAI()">
+    <div class="ai-bar-label">⚡ Fredy AI</div>
+    <div class="ai-bar-hint">Soru sor, mail analiz et...</div>
+  </div>
+
+  <div class="nav-scroll">
+    <div class="nav-sec">
+      <div class="nav-lbl">Klasörler</div>
+      <div class="nav-item active" id="navAll" onclick="setFolder(null,null,this)">
+        <span class="nav-ico">📬</span> Tüm Mailler
+        <span class="nav-cnt" id="totalCount">—</span>
+      </div>
+      <!-- Dinamik IMAP klasörleri — JS tarafından doldurulur -->
+      <div id="dynamicFolders"></div>
+    </div>
+
+    <div class="nav-sec">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px;margin-bottom:4px;">
+        <span class="nav-lbl" style="padding:0;">Akıllı Klasörler</span>
+        <button onclick="openNewFolder()" title="Yeni klasör ekle" style="
+          background:none;border:none;color:var(--primary);cursor:pointer;
+          font-size:16px;padding:0;line-height:1;transition:opacity .15s;
+        " onmouseenter="this.style.opacity='.7'" onmouseleave="this.style.opacity='1'">⊕</button>
+      </div>
+      <!-- Sabit akıllı filtreler -->
+      <div class="nav-item" onclick="setFolder(null,'attachments',this)">
+        <span class="nav-ico">📎</span> Ekli Mailler
+      </div>
+      <div class="nav-item" onclick="setFolder(null,'invoices',this)">
+        <span class="nav-ico">🧾</span> Faturalar
+      </div>
+      <div class="nav-item" onclick="setFolder(null,'price_lists',this)">
+        <span class="nav-ico">💰</span> Fiyat Listeleri
+      </div>
+      <div class="nav-item" onclick="setFolder(null,'increworks',this)">
+        <span class="nav-ico">🏢</span> Increworks
+      </div>
+      <div class="nav-item" onclick="setFolder(null,'pdf',this)">
+        <span class="nav-ico">📄</span> PDF Eklentiler
+      </div>
+      <div class="nav-item" onclick="setFolder(null,'excel',this)">
+        <span class="nav-ico">📊</span> Excel Dosyaları
+      </div>
+      <div class="nav-item" onclick="showAwaitingPanel(this)" style="color:var(--warn)">
+        <span class="nav-ico">⏳</span> Yanıt Bekleyenler
+        <span class="nav-cnt" id="awaitingCount" style="color:var(--warn)">—</span>
+      </div>
+      <!-- Kullanıcının eklediği özel akıllı klasörler -->
+      <div id="customFolders"></div>
+    </div>
+
+    <div class="nav-sec">
+      <div class="nav-lbl">Etiket Filtreleri</div>
+      <div class="nav-item" onclick="setTagFilter('acil',this)">
+        <span class="nav-ico">🔴</span> Acil
+      </div>
+      <div class="nav-item" onclick="setTagFilter('influencer',this)">
+        <span class="nav-ico">💜</span> Influencerlar
+      </div>
+      <div class="nav-item" onclick="setTagFilter('icerik',this)">
+        <span class="nav-ico">🔵</span> İçerik Beklenilenler
+      </div>
+      <div class="nav-item" onclick="setTagFilter('toplanti',this)" style="position:relative;">
+        <span class="nav-ico">📅</span> Toplantılar
+        <button onclick="event.stopPropagation();openAddMeeting()" title="Toplantı Ekle" style="
+          margin-left:auto;background:none;border:none;color:var(--cyan);
+          cursor:pointer;font-size:13px;padding:0;opacity:0.7;transition:opacity .15s;
+        " onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.7'">⊕</button>
+      </div>
+      <div class="nav-item" onclick="setTagFilter('favori',this)">
+        <span class="nav-ico">⭐</span> Favoriler
+      </div>
+      <div class="nav-item" onclick="setTagFilter('yolda',this)">
+        <span class="nav-ico">🟢</span> Yoldaki Mallar
+      </div>
+    </div>
+
+    <!-- SENDER PANEL -->
+    <div class="sender-panel">
+      <div class="panel-header" onclick="toggleSenderPanel()">
+        <span class="panel-title">En Çok Yazışılanlar</span>
+        <span class="panel-toggle" id="senderToggle">▾</span>
+      </div>
+      <div class="sender-list" id="senderList"></div>
+    </div>
+
+  </div><!-- /nav-scroll -->
+
+  <div class="sb-foot">
+    <button class="sb-btn" onclick="openIndex()">⊕ İndeksle</button>
+    <button class="sb-btn" onclick="openCompose()">✏ Yaz</button>
+    <button class="sb-btn" onclick="toggleTheme()" title="Tema">◑</button>
+  </div>
+  <button onclick="performSearch()" style="
+    margin:0 12px 12px; padding:10px;
+    background:linear-gradient(135deg,var(--primary-dim),var(--accent-dim));
+    border:1px solid rgba(108,99,255,.25); border-radius:var(--r);
+    color:var(--primary); font-size:13px; font-weight:600;
+    cursor:pointer; font-family:var(--font-b);
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    transition:all var(--transition);
+  " onmouseenter="this.style.background='var(--primary)';this.style.color='#fff'"
+     onmouseleave="this.style.background='linear-gradient(135deg,var(--primary-dim),var(--accent-dim))';this.style.color='var(--primary)'">
+    ↻ Mailleri Yenile
+  </button>
+</div>
+
+<!-- ══════════ MAIN ══════════ -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()">☰</button>
+
+    <!-- AI SOR (SOL) -->
+    <div style="position:relative;flex-shrink:0;" id="aiSorWrap">
+      <button onclick="toggleAISorPopup()" id="aiSorBtn" style="
+        display:flex;align-items:center;gap:6px;padding:7px 14px;
+        background:linear-gradient(135deg,var(--primary),#8b5cf6);
+        border:none;border-radius:var(--r-sm);color:#fff;
+        font-size:13px;font-weight:600;cursor:pointer;
+        font-family:var(--font-b);white-space:nowrap;
+        box-shadow:0 0 16px var(--primary-glow);
+        transition:all var(--transition);
+      ">⚡ AI Sor</button>
+
+      <!-- POPUP -->
+      <div id="aiSorPopup" style="
+        display:none;position:absolute;top:calc(100% + 10px);left:0;
+        width:540px;background:var(--bg2);
+        border:1px solid rgba(108,99,255,.35);border-radius:var(--r);
+        box-shadow:var(--shadow),0 0 40px var(--primary-glow);
+        z-index:400;overflow:hidden;
+        animation:popIn .2s ease;
+      ">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);
+          background:linear-gradient(135deg,rgba(108,99,255,.12),rgba(0,212,170,.06));
+          display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;color:var(--primary);">✦</span>
+          <input type="text" id="aibInput"
+            placeholder="Listele, ara veya sor — büyük/küçük harf ve noktalama fark etmez"
+            style="flex:1;background:transparent;border:none;outline:none;
+              color:var(--text);font-family:var(--font-b);font-size:13px;"
+            onkeypress="if(event.key==='Enter')quickAsk()"
+            onkeydown="if(event.key==='Escape')closeAISorPopup()">
+          <button onclick="quickAsk()" style="
+            background:var(--primary);border:none;color:#fff;
+            padding:7px 16px;border-radius:var(--r-sm);cursor:pointer;
+            font-size:13px;font-weight:600;font-family:var(--font-b);
+            white-space:nowrap;transition:all var(--transition);
+          " onmouseenter="this.style.background='#5a52e8'" onmouseleave="this.style.background='var(--primary)'">↑ Sor</button>
+          <button onclick="closeAISorPopup()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px;">✕</button>
+        </div>
+        <!-- GELİŞMİŞ SEÇENEKLER -->
+        <div style="padding:7px 12px;border-bottom:1px solid var(--border);display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+          <span style="font-size:10px;font-family:var(--font-m);color:var(--text3);flex-shrink:0;">Mod:</span>
+          <button class="ai-adv-btn active" id="aiModeList"   onclick="setAIMode('list',this)">📋 Listele</button>
+          <button class="ai-adv-btn"        id="aiModeAI"     onclick="setAIMode('ai',this)">✦ AI Analiz</button>
+          <button class="ai-adv-btn"        id="aiModeAction" onclick="setAIMode('action',this)">⚡ Aksiyon</button>
+          <div style="width:1px;height:14px;background:var(--border);margin:0 3px;"></div>
+          <span style="font-size:10px;font-family:var(--font-m);color:var(--text3);flex-shrink:0;">Eşleşme:</span>
+          <button class="ai-adv-btn active" id="aiMatchAny"   onclick="setAIMatch('any',this)" title="Herhangi kelime geçiyorsa göster (OR)">Herhangi</button>
+          <button class="ai-adv-btn"        id="aiMatchAll"   onclick="setAIMatch('all',this)" title="Tüm kelimeler geçmeli (AND)">Tümü</button>
+          <button class="ai-adv-btn"        id="aiMatchExact" onclick="setAIMatch('exact',this)" title="Tam cümle arama">Tam</button>
+        </div>
+        <div style="padding:7px 12px;border-bottom:1px solid var(--border);display:flex;gap:5px;flex-wrap:wrap;">
+          <span class="aib-sug" onclick="quickAsk('Son 5 maili listele')">Son 5 mail</span>
+          <span class="aib-sug" onclick="quickAsk('Fatura maillerini listele')">Faturalar</span>
+          <span class="aib-sug" onclick="quickAsk('Increworks maillerini listele')">Increworks</span>
+          <span class="aib-sug" onclick="quickAsk('Viltrox siparişlerini listele')">Viltrox</span>
+          <span class="aib-sug" onclick="quickAsk('Roy dan gelen mailleri listele')">Roy</span>
+          <span class="aib-sug" onclick="quickAsk('Bu haftaki mailleri analiz et')">Haftalık özet</span>
+          <span class="aib-sug" onclick="quickAsk('kaç mail var istatistik')">İstatistik</span>
+          <span class="aib-sug" onclick="quickAsk('okunmamışları listele')">Okunmamış</span>
+        </div>
+        <div id="aibResult" style="display:none;max-height:300px;overflow-y:auto;">
+          <div id="aibResultText" style="padding:12px 14px;font-size:13px;line-height:1.7;color:var(--text);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="search-wrap">
+      <span class="search-ico">⌕</span>
+      <input type="text" class="search-inp" id="searchInp"
+        placeholder="Gönderen, konu veya içerik ara..."
+        onkeypress="if(event.key==='Enter')performSearch()">
+      <button onclick="document.getElementById('searchInp').value='';performSearch()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px;transition:color var(--transition);" onmouseenter="this.style.color='var(--danger)'" onmouseleave="this.style.color='var(--text3)'">✕</button>
+    </div>
+
+    <button class="tbtn" onclick="openIndex()">⊕ İndeksle</button>
+    <button class="tbtn prim" onclick="openCompose()">✏ Yeni Mail</button>
+    <button class="tbtn" onclick="openCmd()" title="⌘K" style="padding:7px 10px;font-family:var(--font-m);">⌘K</button>
+  </div>
+
+  <!-- BULK BAR -->
+  <div class="bulk-bar" id="bulkBar">
+    <span class="bulk-count"><span id="bulkCountNum">0</span> mail seçildi</span>
+    <div class="bulk-actions">
+      <button class="bulk-btn" onclick="bulkTag()">🏷 Etiketle</button>
+      <button class="bulk-btn" onclick="bulkSnooze()">⏰ Snooze</button>
+      <button class="bulk-btn" onclick="bulkArchive()">📦 Arşivle</button>
+      <button class="bulk-btn danger" onclick="bulkDelete()">🗑 Sil</button>
+    </div>
+    <button class="bulk-close" onclick="clearSelection()">✕</button>
+  </div>
+
+  <!-- FILTERBAR — yıl + tür -->
+  <div class="filterbar">
+    <div class="pill active" onclick="setYear('all',this)">Tüm</div>
+    <div class="pill" onclick="setYear('2026',this)">2026</div>
+    <div class="pill" onclick="setYear('2025',this)">2025</div>
+    <div class="pill" onclick="setYear('2024',this)">2024</div>
+    <div class="pill" onclick="setYear('2023',this)">2023</div>
+    <div class="fsep"></div>
+    <div class="pill" onclick="toggleAttType('pdf',this)">📄 PDF</div>
+    <div class="pill" onclick="toggleAttType('excel',this)">📊 Excel</div>
+    <div class="pill" onclick="toggleAttType('image',this)">🖼 Görsel</div>
+    <div id="activeFilters" style="display:flex;align-items:center;gap:4px;margin-left:6px;"></div>
+  </div>
+
+  <!-- SPLIT -->
+  <div class="split">
+
+    <!-- MAIL LIST -->
+    <div class="mail-list" id="mailList">
+      <div class="stats-mini" id="statsMini">
+        <div class="sm-card">
+          <div class="sm-val" id="smTotal">—</div>
+          <div class="sm-lbl">Toplam</div>
+        </div>
+        <div class="sm-card">
+          <div class="sm-val" id="smUnread" style="color:var(--accent)">—</div>
+          <div class="sm-lbl">Okunmamış</div>
+        </div>
+        <div class="sm-card">
+          <div class="sm-val" id="smSnooze" style="color:var(--warn)">—</div>
+          <div class="sm-lbl">Snooze</div>
+        </div>
+      </div>
+
+      <div class="list-head">
+        <span class="list-title" id="listTitle">Tüm Mailler</span>
+        <span class="list-cnt" id="listCnt">—</span>
+      </div>
+
+      <!-- SORT BAR — mail listesinin üstünde -->
+      <div style="display:flex;gap:3px;padding:6px 10px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;">
+        <button class="sort-btn active-sort" id="sortDate"    onclick="setSort('timestamp:desc',this)" title="En yeni önce">📅 ↓</button>
+        <button class="sort-btn"             id="sortDateAsc" onclick="setSort('timestamp:asc',this)"  title="En eski önce">📅 ↑</button>
+        <button class="sort-btn"             id="sortSender"  onclick="setSort('sender:asc',this)"     title="Gönderici A→Z">👤</button>
+        <button class="sort-btn"             id="sortSize"    onclick="setSort('size:desc',this)"      title="En büyük önce">💾</button>
+        <div style="flex:1;"></div>
+        <button onclick="performSearch()" style="background:none;border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:12px;padding:3px 8px;border-radius:var(--r-sm);transition:all var(--transition);" onmouseenter="this.style.color='var(--primary)'" onmouseleave="this.style.color='var(--text3)'" title="Yenile">↻</button>
+      </div>
+
+      <div class="mail-items-wrap" id="mailItemsWrap">
+        <div class="list-spinner">
+          <div class="spinner"></div>
+          <div>Yükleniyor...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESIZER -->
+    <div class="resizer" id="resizer"></div>
+
+    <!-- READING PANE -->
+    <div class="reading-pane" id="rightPane">
+      <div class="mobile-back-btn" onclick="closeMobileDetail()">← Geri</div>
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+      </div>
+
+      <!-- AWAITING REPLY PANEL -->
+      <div id="awaitingPanel" style="display:none; padding:26px 30px; flex:1; flex-direction:column;">
+        <div style="font-family:var(--font-h);font-size:20px;font-weight:700;margin-bottom:6px;">⏳ Yanıt Bekleyenler</div>
+        <div style="font-size:13px;color:var(--text3);margin-bottom:20px;line-height:1.5;">Gönderdiğin ama henüz cevap gelmemiş mailler. Analiz ediliyor...</div>
+        <div id="awaitingList"></div>
+      </div>
+
+      <div class="empty" id="emptyState">
+        <div class="empty-ico">✦</div>
+        <div class="empty-title">FredyMail Intelligence</div>
+        <div class="empty-sub">Mail seç veya Fredy AI'a sor</div>
+        <div class="kbd-hints">
+          <div class="kh"><span class="kbd">J/K</span> Gezin</div>
+          <div class="kh"><span class="kbd">S</span> Özetle</div>
+          <div class="kh"><span class="kbd">R</span> Yanıt</div>
+          <div class="kh"><span class="kbd">N</span> Not Ekle</div>
+          <div class="kh"><span class="kbd">Z</span> Snooze</div>
+          <div class="kh"><span class="kbd">T</span> Etiket</div>
+          <div class="kh"><span class="kbd">⌘K</span> Komut</div>
+        </div>
+      </div>
+
+      <div class="mail-detail" id="mailDetail">
+        <div class="md-subject" id="mdSubject"></div>
+        <div class="md-meta">
+          <div class="md-sender-row">
+            <div class="md-ava" id="mdAva">F</div>
+            <div>
+              <div class="md-name" id="mdSender"></div>
+              <div class="md-info" id="mdInfo"></div>
+            </div>
+          </div>
+          <div class="md-date-str" id="mdDate"></div>
+        </div>
+
+        <!-- NOTE BAR -->
+        <div class="note-bar" id="noteBar">
+          <span class="note-ico">📝</span>
+          <div class="note-text" id="noteText"></div>
+          <button class="note-edit-btn" onclick="openNote()">Düzenle</button>
+        </div>
+
+        <!-- AI TOOLBAR -->
+        <div class="ai-tbar">
+          <button class="ai-tbtn" onclick="requestAI('summary')">✦ Özetle <span class="kbd">S</span></button>
+          <button class="ai-tbtn" onclick="requestAI('draft')">✍ Yanıt Taslağı <span class="kbd">R</span></button>
+          <button class="ai-tbtn" onclick="requestAI('analyze')">🔍 Derinlemesine</button>
+          <button class="ai-tbtn" onclick="toggleFavorite()" id="favBtn">⭐ Favorilere Ekle</button>
+          <button class="ai-tbtn" onclick="openSnooze()">⏰ Snooze <span class="kbd">Z</span></button>
+          <button class="ai-tbtn" onclick="openTagModal()">🏷 Etiket <span class="kbd">T</span></button>
+          <button class="ai-tbtn" onclick="openNote()">📝 Not <span class="kbd">N</span></button>
+          <button class="ai-tbtn" onclick="copyMail()" style="margin-left:auto;">⊕ Kopyala</button>
+        </div>
+
+        <!-- AI RESULT -->
+        <div class="ai-result" id="aiResult">
+          <div class="ai-result-head">
+            <div class="ai-pulse"></div>
+            <span class="ai-lbl" id="aiLbl">Fredy AI</span>
+          </div>
+          <div class="ai-result-body" id="aiBody"></div>
+        </div>
+
+        <!-- STRUCTURED CARD -->
+        <div id="structCard"></div>
+
+        <!-- THREAD BUBBLES -->
+        <div class="thread-bubbles" id="threadBubbles"></div>
+      </div>
+    </div>
+
+  </div><!-- /split -->
+</div><!-- /main -->
+
+<!-- MOBILE BACKDROP -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleMobileSidebar()"></div>
+
+<!-- ══════════ AI PANEL ══════════ -->
+<div class="ai-panel" id="aiPanel">
+  <div class="aip-head">
+    <div class="aip-title">
+      <div class="ai-status-dot"></div>
+      Fredy AI
+    </div>
+    <button class="aip-close" onclick="closeAI()">✕</button>
+  </div>
+  <div class="ai-chat" id="aiChat">
+    <div class="chat-msg bot">
+      <div class="chat-bubble">Merhaba! Ben Fredy. Mail kutunu analiz etmemi, thread özetlememi veya soru sormamı isteyebilirsin. 👋</div>
+      <span class="chat-time">Şimdi</span>
+    </div>
+  </div>
+  <div class="aip-sugs" id="aipSugs">
+    <div class="aip-sug" onclick="askAI('Son 5 maili göster')">Son 5 mail</div>
+    <div class="aip-sug" onclick="askAI('Bu haftaki fatura maillerini özetle')">Fatura özeti</div>
+    <div class="aip-sug" onclick="askAI('Increworks son yazışmalar')">Increworks</div>
+    <div class="aip-sug" onclick="askAI('Cevap vermediğim mailler var mı?')">Bekleyenler</div>
+  </div>
+  <div class="aip-input-row">
+    <textarea class="aip-input" id="aipInput" rows="1"
+      placeholder="Fredy'ye sor..."
+      onkeypress="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAI()}"
+      oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,90)+'px'"></textarea>
+    <button class="aip-send" onclick="sendAI()">↑</button>
+  </div>
+</div>
+
+<!-- ══════════ TOPLANTI EKLE MODAL ══════════ -->
+<div class="overlay" id="meetingOverlay">
+  <div class="modal" style="width:440px">
+    <div class="m-head">
+      <div class="m-title">📅 Toplantı Ekle</div>
+      <button class="m-close" onclick="closeOverlay('meetingOverlay')">✕</button>
+    </div>
+    <div class="m-body">
+      <div class="form-group">
+        <label class="form-label">Toplantı Başlığı</label>
+        <input type="text" class="form-input" id="meetingTitle" placeholder="Örn: Increworks Haftalık Toplantı">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group">
+          <label class="form-label">Tarih</label>
+          <input type="date" class="form-input" id="meetingDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Saat</label>
+          <input type="time" class="form-input" id="meetingTime" value="10:00">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notlar</label>
+        <textarea class="form-input form-textarea" id="meetingNote" style="min-height:80px" placeholder="Toplantı notları, gündem..."></textarea>
+      </div>
+      <!-- Mevcut mail ile ilişkilendir -->
+      <div id="meetingMailRef" style="display:none;padding:8px 12px;background:var(--bg3);border-radius:var(--r-sm);border:1px solid var(--border);font-size:12px;color:var(--text3);">
+        📧 Bu toplantı seçili mail ile ilişkilendirilecek
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost" onclick="closeOverlay('meetingOverlay')">İptal</button>
+      <button class="btn btn-primary" onclick="saveMeeting()">📅 Toplantı Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ YENİ KLASÖR MODAL ══════════ -->
+<div class="overlay" id="newFolderOverlay">
+  <div class="modal" style="width:420px">
+    <div class="m-head">
+      <div class="m-title">⊕ Yeni Akıllı Klasör</div>
+      <button class="m-close" onclick="closeOverlay('newFolderOverlay')">✕</button>
+    </div>
+    <div class="m-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">
+        Sık kullandığın aramaları klasöre dönüştür. Tıklayınca otomatik arama yapar.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Klasör Adı</label>
+        <input type="text" class="form-input" id="newFolderName" placeholder="Örn: Roy Siparişleri, Viltrox, Klodin...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Arama Terimi / Filtre</label>
+        <input type="text" class="form-input" id="newFolderQuery" placeholder="Örn: roy, viltrox sipariş, klodin...">
+        <div style="font-size:11px;color:var(--text3);margin-top:5px;">Bu klasöre tıklandığında bu terimle arama yapılır.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">İkon</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;" id="iconPicker">
+          <span class="icon-opt selected" data-icon="📁" onclick="selectIcon(this)">📁</span>
+          <span class="icon-opt" data-icon="⭐" onclick="selectIcon(this)">⭐</span>
+          <span class="icon-opt" data-icon="🏷" onclick="selectIcon(this)">🏷</span>
+          <span class="icon-opt" data-icon="👤" onclick="selectIcon(this)">👤</span>
+          <span class="icon-opt" data-icon="🏢" onclick="selectIcon(this)">🏢</span>
+          <span class="icon-opt" data-icon="💼" onclick="selectIcon(this)">💼</span>
+          <span class="icon-opt" data-icon="📦" onclick="selectIcon(this)">📦</span>
+          <span class="icon-opt" data-icon="💰" onclick="selectIcon(this)">💰</span>
+          <span class="icon-opt" data-icon="🔔" onclick="selectIcon(this)">🔔</span>
+          <span class="icon-opt" data-icon="📌" onclick="selectIcon(this)">📌</span>
+          <span class="icon-opt" data-icon="🎯" onclick="selectIcon(this)">🎯</span>
+          <span class="icon-opt" data-icon="🔑" onclick="selectIcon(this)">🔑</span>
+        </div>
+      </div>
+      <!-- Klasörü belirli IMAP klasörüyle sınırla -->
+      <div class="form-group">
+        <label class="form-label">IMAP Klasörü (opsiyonel)</label>
+        <select class="form-input" id="newFolderImap" style="cursor:pointer;">
+          <option value="">Tüm klasörler</option>
+          <option value="INBOX">INBOX</option>
+          <option value="Sent">Sent</option>
+        </select>
+        <div id="imapFolderOptions"></div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost" onclick="closeOverlay('newFolderOverlay')">İptal</button>
+      <button class="btn btn-primary" onclick="saveNewFolder()">⊕ Klasör Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ INDEX MODAL ══════════ -->
+<div class="overlay" id="indexOverlay">
+  <div class="modal" style="width:480px">
+    <div class="m-head">
+      <div class="m-title">⊕ Mail İndeksleme</div>
+      <button class="m-close" onclick="closeOverlay('indexOverlay')">✕</button>
+    </div>
+    <div class="m-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Klasör seç, mailler Meilisearch'e aktarılır.</p>
+      <div class="index-grid">
+        <div class="idx-folder sel" onclick="toggleIdxFolder(this)">
+          <input type="checkbox" checked><div><div class="idx-folder-name">📥 Gelen Kutusu</div></div>
+        </div>
+        <div class="idx-folder" onclick="toggleIdxFolder(this)">
+          <input type="checkbox"><div><div class="idx-folder-name">📤 Gönderilenler</div></div>
+        </div>
+        <div class="idx-folder" onclick="toggleIdxFolder(this)">
+          <input type="checkbox"><div><div class="idx-folder-name">📝 Taslaklar</div></div>
+        </div>
+        <div class="idx-folder" onclick="toggleIdxFolder(this)">
+          <input type="checkbox"><div><div class="idx-folder-name">🗑 Spam</div></div>
+        </div>
+      </div>
+      <div class="idx-status">ℹ Mevcut indeks: <span style="color:var(--accent)" id="idxCount">—</span> mail</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost" onclick="closeOverlay('indexOverlay')">İptal</button>
+      <button class="btn btn-primary" onclick="startIndex()">⚡ İndeksle</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ COMPOSE MODAL (OUTLOOK STYLE) ══════════ -->
+<div class="overlay" id="composeOverlay" style="align-items:flex-end;justify-content:flex-end;padding:0;">
+  <div id="composeWindow" style="
+    width: 620px; height: 580px;
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: 12px 12px 0 0;
+    display: flex; flex-direction: column;
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.5);
+    animation: slideUpCompose .25s ease;
+    margin-right: 20px;
+    overflow: hidden;
+  ">
+    <!-- COMPOSE HEADER -->
+    <div style="background: var(--primary); padding: 10px 16px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
+      <span style="font-family:var(--font-h);font-weight:600;font-size:14px;color:#fff;">✏ Yeni E-posta</span>
+      <div style="display:flex;gap:6px;">
+        <button onclick="toggleComposeSize()" title="Küçült/Büyüt" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:13px;">⊡</button>
+        <button onclick="closeOverlay('composeOverlay')" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:14px;">✕</button>
+      </div>
+    </div>
+    <!-- FIELDS -->
+    <div style="flex-shrink:0; border-bottom:1px solid var(--border);">
+      <div style="display:flex;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);">
+        <span style="font-size:12px;font-family:var(--font-m);color:var(--text3);width:40px;flex-shrink:0;">Kime</span>
+        <input id="composeTo" type="text" placeholder="alici@domain.com" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-b);font-size:13px;">
+        <span style="font-size:11px;color:var(--text3);cursor:pointer;padding:2px 6px;background:var(--surface);border-radius:3px;border:1px solid var(--border);" onclick="toggleCC()">CC/BCC</span>
+      </div>
+      <div id="ccRow" style="display:none;flex-direction:column;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);">
+          <span style="font-size:12px;font-family:var(--font-m);color:var(--text3);width:40px;flex-shrink:0;">CC</span>
+          <input id="composeCC" type="text" placeholder="cc@domain.com" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-b);font-size:13px;">
+        </div>
+        <div style="display:flex;align-items:center;padding:8px 16px;">
+          <span style="font-size:12px;font-family:var(--font-m);color:var(--text3);width:40px;flex-shrink:0;">BCC</span>
+          <input id="composeBCC" type="text" placeholder="bcc@domain.com" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-b);font-size:13px;">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;padding:8px 16px;">
+        <span style="font-size:12px;font-family:var(--font-m);color:var(--text3);width:40px;flex-shrink:0;">Konu</span>
+        <input id="composeSubj" type="text" placeholder="E-posta konusu..." style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-b);font-size:13px;font-weight:500;">
+      </div>
+    </div>
+    <!-- TOOLBAR -->
+    <div style="display:flex;gap:2px;padding:6px 12px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;">
+      <button onclick="fmtDoc('bold')" title="Kalın" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:3px;cursor:pointer;font-weight:700;font-size:12px;">B</button>
+      <button onclick="fmtDoc('italic')" title="İtalik" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:3px;cursor:pointer;font-style:italic;font-size:12px;">I</button>
+      <button onclick="fmtDoc('underline')" title="Altı çizili" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:3px;cursor:pointer;text-decoration:underline;font-size:12px;">U</button>
+      <div style="width:1px;background:var(--border);margin:0 4px;"></div>
+      <button onclick="fmtDoc('insertUnorderedList')" title="Liste" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:3px;cursor:pointer;font-size:12px;">• Liste</button>
+      <button onclick="fmtDoc('insertOrderedList')" title="Numaralı liste" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:3px;cursor:pointer;font-size:12px;">1. Liste</button>
+      <div style="width:1px;background:var(--border);margin:0 4px;"></div>
+      <select onchange="fmtDoc('fontSize',this.value);this.value=''" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:2px 6px;border-radius:3px;font-size:11px;outline:none;">
+        <option value="">Yazı Boyutu</option>
+        <option value="2">Küçük</option>
+        <option value="3">Normal</option>
+        <option value="4">Büyük</option>
+        <option value="5">Çok Büyük</option>
+      </select>
+      <button onclick="insertSignature()" title="İmza ekle" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:auto;">✍ İmza</button>
+    </div>
+    <!-- BODY -->
+    <div id="composeBody" contenteditable="true" style="
+      flex:1; overflow-y:auto; padding:14px 18px;
+      color:var(--text); font-family:var(--font-b); font-size:14px;
+      line-height:1.7; outline:none; min-height:0;
+    " data-placeholder="Mesajınızı buraya yazın..."></div>
+    <!-- FOOTER -->
+    <div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;background:var(--bg3);">
+      <button onclick="sendCompose()" style="background:var(--primary);color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;font-family:var(--font-b);display:flex;align-items:center;gap:6px;transition:all .15s;" onmouseenter="this.style.background='#5a52e8'" onmouseleave="this.style.background='var(--primary)'">🚀 Gönder</button>
+      <button onclick="saveDraft()" style="background:var(--surface);color:var(--text2);border:1px solid var(--border);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-family:var(--font-b);">💾 Taslak</button>
+      <label style="background:var(--surface);color:var(--text2);border:1px solid var(--border);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-family:var(--font-b);">
+        📎 Ekle <input type="file" multiple style="display:none" onchange="addAttachments(this)">
+      </label>
+      <div id="attachList" style="flex:1;display:flex;gap:4px;flex-wrap:wrap;"></div>
+      <button onclick="closeOverlay('composeOverlay')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:20px;padding:0;margin-left:auto;">🗑</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ TAG MODAL ══════════ -->
+<div class="overlay" id="tagOverlay">
+  <div class="modal" style="width:380px">
+    <div class="m-head">
+      <div class="m-title">🏷 Etiket Yönetimi</div>
+      <button class="m-close" onclick="closeOverlay('tagOverlay')">✕</button>
+    </div>
+    <div class="m-body">
+      <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Bu mail için etiket seç (çoklu seçim yapılabilir):</p>
+      <div class="tag-grid">
+        <div class="tag-opt" data-tag="acil"       onclick="toggleTagOpt(this)">🔴 Acil</div>
+        <div class="tag-opt" data-tag="influencer" onclick="toggleTagOpt(this)">💜 Influencerlar</div>
+        <div class="tag-opt" data-tag="icerik"     onclick="toggleTagOpt(this)">🔵 İçerik Beklenilenler</div>
+        <div class="tag-opt" data-tag="toplanti"   onclick="toggleTagOpt(this)">📅 Toplantılar</div>
+        <div class="tag-opt" data-tag="favori"     onclick="toggleTagOpt(this)">⭐ Favoriler</div>
+        <div class="tag-opt" data-tag="yolda"      onclick="toggleTagOpt(this)">🟢 Yoldaki Mallar</div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost" onclick="closeOverlay('tagOverlay')">İptal</button>
+      <button class="btn btn-primary" onclick="saveTag()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ NOTE MODAL ══════════ -->
+<div class="overlay" id="noteOverlay">
+  <div class="modal" style="width:420px">
+    <div class="m-head">
+      <div class="m-title">📝 Hızlı Not</div>
+      <button class="m-close" onclick="closeOverlay('noteOverlay')">✕</button>
+    </div>
+    <div class="m-body">
+      <div class="form-group">
+        <label class="form-label">Bu mail hakkında notun</label>
+        <textarea class="form-input form-textarea" id="noteInput" style="min-height:100px" placeholder="Aklındaki notları buraya yaz..."></textarea>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost" onclick="clearNote()">Notu Sil</button>
+      <button class="btn btn-ghost" onclick="closeOverlay('noteOverlay')">İptal</button>
+      <button class="btn btn-primary" onclick="saveNote()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ SNOOZE MODAL ══════════ -->
+<div class="overlay" id="snoozeOverlay">
+  <div class="modal" style="width:400px">
+    <div class="m-head">
+      <div class="m-title">⏰ Snooze</div>
+      <button class="m-close" onclick="closeOverlay('snoozeOverlay')">✕</button>
+    </div>
+    <div class="m-body">
+      <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Mail ne zaman tekrar gösterilsin?</p>
+      <div class="snooze-grid">
+        <div class="snooze-opt" onclick="setSnooze(1)"><div class="snooze-label">1 Saat Sonra</div><div class="snooze-sub" id="snooze1h"></div></div>
+        <div class="snooze-opt" onclick="setSnooze(4)"><div class="snooze-label">4 Saat Sonra</div><div class="snooze-sub" id="snooze4h"></div></div>
+        <div class="snooze-opt" onclick="setSnooze(24)"><div class="snooze-label">Yarın</div><div class="snooze-sub" id="snooze24h"></div></div>
+        <div class="snooze-opt" onclick="setSnooze(72)"><div class="snooze-label">3 Gün Sonra</div><div class="snooze-sub" id="snooze72h"></div></div>
+        <div class="snooze-opt" onclick="setSnooze(168)"><div class="snooze-label">Gelecek Hafta</div><div class="snooze-sub" id="snooze168h"></div></div>
+        <div class="snooze-opt" onclick="setSnooze(0,'custom')"><div class="snooze-label">Özel Tarih</div><div class="snooze-sub">Saat seç</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ CMD PALETTE ══════════ -->
+<div class="cmd-overlay" id="cmdOverlay" onclick="closeOverlay('cmdOverlay')">
+  <div class="cmd-box" onclick="event.stopPropagation()">
+    <div class="cmd-search">
+      <span style="color:var(--text3);font-size:15px;">⌘</span>
+      <input type="text" id="cmdInp" placeholder="Komut veya arama..." oninput="filterCmds(this.value)" onkeydown="cmdNav(event)">
+    </div>
+    <div class="cmd-results" id="cmdResults">
+      <div class="cmd-sec">Hızlı Eylemler</div>
+      <div class="cmd-item" onclick="openAI();closeOverlay('cmdOverlay')"><div class="cmd-ico">✦</div>Fredy AI Aç<span class="cmd-desc">A</span></div>
+      <div class="cmd-item" onclick="openCompose();closeOverlay('cmdOverlay')"><div class="cmd-ico">✏</div>Yeni Mail Yaz<span class="cmd-desc">C</span></div>
+      <div class="cmd-item" onclick="openIndex();closeOverlay('cmdOverlay')"><div class="cmd-ico">⊕</div>Mail İndeksle</div>
+      <div class="cmd-item" onclick="requestAI('summary');closeOverlay('cmdOverlay')"><div class="cmd-ico">✦</div>Seçili Maili Özetle<span class="cmd-desc">S</span></div>
+      <div class="cmd-item" onclick="requestAI('draft');closeOverlay('cmdOverlay')"><div class="cmd-ico">✍</div>Yanıt Taslağı<span class="cmd-desc">R</span></div>
+      <div class="cmd-item" onclick="openSnooze();closeOverlay('cmdOverlay')"><div class="cmd-ico">⏰</div>Snooze<span class="cmd-desc">Z</span></div>
+      <div class="cmd-item" onclick="openTagModal();closeOverlay('cmdOverlay')"><div class="cmd-ico">🏷</div>Etiket Ekle<span class="cmd-desc">T</span></div>
+      <div class="cmd-sec">Klasörler</div>
+      <div class="cmd-item" onclick="setFolder(null,null,document.getElementById('navAll'));closeOverlay('cmdOverlay')"><div class="cmd-ico">📬</div>Tüm Mailler</div>
+      <div class="cmd-item" onclick="setFolder('INBOX',null,document.querySelectorAll('.nav-item')[1]);closeOverlay('cmdOverlay')"><div class="cmd-ico">📥</div>Gelen Kutusu</div>
+      <div class="cmd-item" onclick="setFolder(null,'invoices',null);closeOverlay('cmdOverlay')"><div class="cmd-ico">🧾</div>Faturalar</div>
+      <div class="cmd-sec">Ayarlar</div>
+      <div class="cmd-item" onclick="toggleTheme();closeOverlay('cmdOverlay')"><div class="cmd-ico">◑</div>Tema Değiştir</div>
+    </div>
+    <div class="cmd-foot">
+      <span class="cmd-hint"><span class="kbd">↑↓</span>Gezin</span>
+      <span class="cmd-hint"><span class="kbd">Enter</span>Seç</span>
+      <span class="cmd-hint"><span class="kbd">Esc</span>Kapat</span>
+    </div>
+  </div>
+</div>
+
+<!-- SNOOZE REMINDER -->
+<div class="snooze-reminder" id="snoozeReminder">
+  <span>⏰</span>
+  <span id="snoozeReminderText" style="font-size:13px;color:var(--text)">Snooze'lu mail var</span>
+  <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="document.getElementById('snoozeReminder').classList.remove('show')">Kapat</button>
+</div>
+
+<!-- TOASTS -->
+<div class="toasts" id="toasts"></div>
+
+<!-- ══════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════ -->
+<script>
+const API = 'https://fredymailsearch.online';
+
+// ── STATE ──────────────────────────
+let state = {
+  folder: null,
+  year: 'all',
+  filterType: null,
+  tagFilter: null,
+  attType: null,
+  results: [],
+  grouped: [],        // [{subject, hits:[]}]
+  currentGroup: null, // group index
+  currentHit: null,   // hit index within group
+  selected: new Set(), // selected mail IDs for bulk
+  totalHits: 0
+};
+
+// ── SERVER-BACKED STORE (in-memory cache + API) ──────
+const Cache = { tags:{}, notes:{}, snoozes:{}, reads:{} };
+
+async function loadAllMeta() {
+  try {
+    const [t,n,s,r] = await Promise.all([
+      fetch(`${API}/tags`).then(r=>r.json()),
+      fetch(`${API}/notes`).then(r=>r.json()),
+      fetch(`${API}/snooze`).then(r=>r.json()),
+      fetch(`${API}/reads`).then(r=>r.json()),
+    ]);
+    Cache.tags    = t || {};
+    Cache.notes   = n || {};
+    Cache.snoozes = s || {};
+    Cache.reads   = r || {};
+  } catch(e) {
+    console.warn('Meta load failed, using empty cache', e);
+  }
+}
+
+const LS = {
+  tags:    () => Cache.tags,
+  notes:   () => Cache.notes,
+  snoozes: () => Cache.snoozes,
+  reads:   () => Cache.reads,
+  saveTag: async (id, tags) => {
+    Cache.tags[id] = tags;
+    await fetch(`${API}/tags`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mail_id: id, tags}) });
+  },
+  saveNote: async (id, note) => {
+    if (note) Cache.notes[id] = note; else delete Cache.notes[id];
+    await fetch(`${API}/notes`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mail_id: id, note: note||''}) });
+  },
+  saveSnooze: async (id, ts) => {
+    Cache.snoozes[id] = ts;
+    await fetch(`${API}/snooze`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mail_id: id, snooze_ts: ts}) });
+  },
+  markRead: async (id) => {
+    Cache.reads[id] = true;
+    await fetch(`${API}/reads`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mail_id: id}) });
+  },
+  isRead: (id) => Cache.reads[id] === true,
+};
+
+// ── INIT ──────────────────────────
+window.onload = () => {
+  // loadAllMeta async, performSearch'i bloklamasın
+  loadAllMeta().catch(e => console.warn('Meta yüklenemedi:', e));
+  loadCustomFolders();
+  performSearch();           // hemen başlat
+  loadDynamicFolders();      // arka planda klasörleri çek
+  loadAwaitingReply();
+  checkSnoozeReminders();
+  setInterval(checkSnoozeReminders, 60000);
+  updateSnoozeOptions();
+};
+
+// ── THEME ──────────────────────────
+function toggleTheme() {
+  document.body.classList.toggle('light');
+  toast('Tema değiştirildi', 'ok');
+}
+
+// ── FOLDER / FILTER ──────────────
+const TITLES = {
+  null: 'Tüm Mailler', INBOX: 'Gelen Kutusu', Sent: 'Gönderilenler',
+  attachments: 'Ekli Mailler', invoices: 'Faturalar', price_lists: 'Fiyat Listeleri',
+  increworks: 'Increworks', pdf: 'PDF Eklentiler', excel: 'Excel Dosyaları'
+};
+
+function setFolder(folder, filterType, el) {
+  state.folder = folder;
+  state.filterType = filterType;
+  state.tagFilter = null;
+  hideAwaitingPanel();
+  if (el) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+  }
+  document.getElementById('listTitle').textContent = TITLES[folder || filterType] || 'Mailler';
+  performSearch();
+}
+
+function setTagFilter(tag, el) {
+  state.tagFilter = state.tagFilter === tag ? null : tag;
+  state.folder = null; state.filterType = null;
+  hideAwaitingPanel();
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (state.tagFilter) el.classList.add('active');
+  document.getElementById('listTitle').textContent = tag.charAt(0).toUpperCase() + tag.slice(1) + ' Etiketi';
+  renderFromCache();
+}
+
+function setYear(year, el) {
+  state.year = year;
+  document.querySelectorAll('.filterbar .pill').forEach(p => {
+    if (['Tüm Zamanlar','2026','2025','2024','2023'].some(y => p.textContent.includes(y)))
+      p.classList.remove('active');
+  });
+  el.classList.add('active');
+  performSearch();
+}
+
+function toggleAttType(type, el) {
+  state.attType = state.attType === type ? null : type;
+  el.classList.toggle('active-dim');
+  // remove active from other att pills
+  document.querySelectorAll('.filterbar .pill').forEach(p => {
+    if (['PDF','Excel','Görsel'].some(t => p.textContent.includes(t)) && p !== el)
+      p.classList.remove('active-dim');
+  });
+  updateActiveFilters();
+  performSearch();
+}
+
+function updateActiveFilters() {
+  const c = document.getElementById('activeFilters');
+  c.innerHTML = '';
+  const active = [];
+  if (state.year !== 'all') active.push({ lbl: state.year, clr: 'var(--primary)' });
+  if (state.folder) active.push({ lbl: state.folder, clr: 'var(--accent)' });
+  if (state.filterType) active.push({ lbl: state.filterType, clr: 'var(--warn)' });
+  if (state.attType) active.push({ lbl: state.attType.toUpperCase(), clr: 'var(--green)' });
+  if (active.length > 1) {
+    const span = document.createElement('span');
+    span.style.cssText = `font-size:10px;font-family:var(--font-m);color:var(--text3);padding:0 4px;`;
+    span.textContent = `AND (${active.length} filtre aktif)`;
+    c.appendChild(span);
+  }
+}
+
+// ── SEARCH ──────────────────────────
+async function performSearch() {
+  const q = document.getElementById('searchInp').value || '';
+  const activeSortBtn = document.querySelector('.sort-btn.active-sort');
+  const sort = activeSortBtn ? activeSortBtn.getAttribute('onclick').match(/'([^']+)'/)?.[1] || 'timestamp:desc' : 'timestamp:desc';
+  const wrap = document.getElementById('mailItemsWrap');
+  const overlay = document.getElementById('loadingOverlay');
+
+  wrap.innerHTML = '<div class="list-spinner"><div class="spinner"></div><div>Aranıyor...</div></div>';
+  overlay.style.display = 'flex';
+  updateActiveFilters();
+
+  let aq = q;
+  const ft = state.filterType || state.attType;
+  if (ft === 'attachments') aq += ' "[EKLENTİLER]"';
+  else if (ft === 'invoices') aq += ' fatura OR invoice OR "e-fatura"';
+  else if (ft === 'price_lists') aq += ' "fiyat listesi" OR "price list"';
+  else if (ft === 'increworks') aq += ' increworks';
+  else if (ft === 'pdf') aq += ' "[EKLENTİLER]" .pdf';
+  else if (ft === 'excel') aq += ' "[EKLENTİLER]" .xls';
+  else if (ft === 'image') aq += ' "[EKLENTİLER]" .jpg OR .png';
+
+  try {
+    const body = { q: aq.trim(), limit: state.year !== 'all' ? 1000 : 50, offset: 0, sort, ai_mode: false };
+    if (state.folder) body.folder = state.folder;
+    if (state.year !== 'all') body.year = parseInt(state.year);  // Server-side yıl filtresi
+
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 15000); // 15s timeout
+    const res = await fetch(`${API}/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body), signal: ctrl.signal
+    });
+    clearTimeout(timeout);
+    const data = await res.json();
+    state.results = data.hits || [];
+    state.totalHits = data.estimatedTotalHits || 0;
+
+    // Build sender stats
+    if (data.facets?.sender) buildSenderPanel(data.facets.sender);
+
+    // Stats mini
+    if (!q && !state.folder && !state.filterType) {
+      document.getElementById('statsMini').style.display = 'flex';
+      document.getElementById('smTotal').textContent = state.totalHits.toLocaleString('tr');
+      document.getElementById('totalCount').textContent = state.totalHits;
+      const snoozeCount = Object.keys(LS.snoozes()).length;
+      document.getElementById('smSnooze').textContent = snoozeCount;
+      const unreadCount = state.results.filter(h => !LS.isRead(h.id)).length;
+      document.getElementById('smUnread').textContent = unreadCount + '+';
+    } else {
+      document.getElementById('statsMini').style.display = 'none';
+    }
+
+    // ── Client-side year + tag filter ──
+    let filtered = state.results;
+
+    if (state.year !== 'all') {
+      const yr = parseInt(state.year);
+      filtered = filtered.filter(h => {
+        if (!h.date) return false;
+        try {
+          const d = new Date(h.date);
+          if (!isNaN(d)) return d.getFullYear() === yr;
+          // Try extracting year from string like "2026" anywhere in date field
+          return String(h.date).includes(String(yr));
+        } catch(e) { return false; }
+      });
+    }
+
+    if (state.tagFilter) {
+      const tags = LS.tags();
+      filtered = filtered.filter(h => tags[h.id]?.includes(state.tagFilter));
+    }
+
+    // Group by subject
+    state.grouped = groupBySubject(filtered);
+    renderGrouped();
+
+    const total = data.estimatedTotalHits || 0;
+    const shown = filtered.length;
+    const hasMore = data.hasMore && state.year === 'all' && !state.tagFilter;
+    document.getElementById('listCnt').textContent =
+      total > shown ? `${shown.toLocaleString('tr')} / ${total.toLocaleString('tr')}` : `${shown.toLocaleString('tr')} sonuç`;
+
+    // "Daha fazla yükle" butonu
+    const existingMore = document.getElementById('loadMoreBtn');
+    if (existingMore) existingMore.remove();
+    if (hasMore) {
+      const btn = document.createElement('div');
+      btn.id = 'loadMoreBtn';
+      btn.style.cssText = 'padding:14px;text-align:center;border-top:1px solid var(--border);';
+      btn.innerHTML = `<button onclick="loadMore(${data.nextOffset},'${sort}')" style="
+        background:var(--primary-dim);border:1px solid rgba(108,99,255,.25);
+        color:var(--primary);padding:8px 20px;border-radius:var(--r-sm);
+        cursor:pointer;font-size:13px;font-family:var(--font-b);font-weight:500;
+        transition:all var(--transition);
+      " onmouseenter="this.style.background='var(--primary)';this.style.color='#fff'"
+         onmouseleave="this.style.background='var(--primary-dim)';this.style.color='var(--primary)'">
+        ↓ Daha fazla yükle (${(total - shown).toLocaleString('tr')} daha)
+      </button>`;
+      document.getElementById('mailItemsWrap').appendChild(btn);
+    }
+
+  } catch(e) {
+    const isTimeout = e.name === 'AbortError';
+    const msg = isTimeout
+      ? '⏱ Sunucu 15 saniyede yanıt vermedi. Uvicorn çalışıyor mu?'
+      : `⚠ ${e.message}`;
+    wrap.innerHTML = `<div style="padding:20px;color:var(--danger);font-size:13px;text-align:center;">
+      ${msg}<br>
+      <small style="color:var(--text3);margin-top:8px;display:block;">
+        Kontrol: <a href="${API}/health" target="_blank" style="color:var(--primary);">/health</a> aç
+      </small>
+      <button onclick="performSearch()" style="margin-top:10px;background:var(--primary);border:none;color:#fff;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;">↻ Tekrar Dene</button>
+    </div>`;
+    toast(isTimeout ? 'Sunucu yanıt vermedi' : 'API bağlantı hatası', 'err');
+  } finally {
+    overlay.style.display = 'none';
+  }
+}
+
+function renderFromCache() {
+  let filtered = state.results;
+  if (state.tagFilter) {
+    const tags = LS.tags();
+    filtered = state.results.filter(h => tags[h.id]?.includes(state.tagFilter));
+  }
+  state.grouped = groupBySubject(filtered);
+  renderGrouped();
+  document.getElementById('listCnt').textContent = `${filtered.length} sonuç`;
+}
+
+// ── GROUPING ──────────────────────
+function cleanSubject(s) {
+  return (s || '').replace(/^(Re:|Fwd?:|İlt:|FW:|RE:|FWD:)\s*/gi, '').trim().toLowerCase();
+}
+
+function groupBySubject(hits) {
+  const map = new Map();
+  hits.forEach(h => {
+    const key = cleanSubject(h.subject);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(h);
+  });
+  return Array.from(map.values());
+}
+
+// ── RENDER GROUPED ──────────────
+function renderGrouped() {
+  const wrap = document.getElementById('mailItemsWrap');
+  wrap.innerHTML = '';
+  if (state.grouped.length === 0) {
+    wrap.innerHTML = `<div style="padding:28px;text-align:center;color:var(--text3);font-size:13px;">Sonuç bulunamadı</div>`;
+    return;
+  }
+  state.grouped.forEach((group, gi) => {
+    const primary = group[0];
+    const isRead = group.every(h => LS.isRead(h.id));
+    const isUnread = !isRead;
+    const tags = LS.tags()[primary.id] || [];
+    const note = LS.notes()[primary.id];
+    const snooze = LS.snoozes()[primary.id];
+    const hasAttach = group.some(h => (h.body||'').includes('[EKLENTİLER]'));
+    const snoozeDue = snooze && snooze < Date.now();
+
+    const sender = (primary.sender || 'Bilinmiyor').replace(/"(.+)".*/,'$1').trim();
+    const initial = sender.match(/[a-zA-ZğüşıöçĞÜŞİÖÇ]/)?.[0]?.toUpperCase() || '?';
+
+    let dateStr = '';
+    try {
+      const d = new Date(primary.date);
+      if (!isNaN(d)) dateStr = d.toLocaleDateString('tr-TR', {day:'2-digit',month:'short'});
+    } catch(e){}
+
+    const body = primary._formatted?.body || primary.body || '';
+    const snippet = body.replace(/<(?!\/?mark>)[^>]+>/g,'').slice(0,100);
+
+    const el = document.createElement('div');
+    el.className = 'thread-group';
+    el.id = `grp_${gi}`;
+
+    // TAG DOTS
+    const tagDots = tags.map(t => `<span class="tag-dot ${t}"></span>`).join('');
+
+    el.innerHTML = `
+      <div class="thread-header${isUnread?' unread':''}" id="th_${gi}">
+        ${isUnread ? '<div class="unread-line"></div>' : ''}
+        <div class="th-select">
+          <input type="checkbox" class="th-checkbox" id="chk_${gi}" onclick="event.stopPropagation();toggleSelect(${gi},this)">
+        </div>
+        <div class="th-ava">${initial}</div>
+        <div class="th-body">
+          <div class="th-top">
+            <span class="th-sender">${sender}</span>
+            <span class="th-date">${dateStr}</span>
+          </div>
+          <div class="th-subject">${primary._formatted?.subject || primary.subject || 'Konu Yok'}</div>
+          <div class="th-preview">${snippet}…</div>
+          <div class="th-meta">
+            ${primary.folder ? `<span class="th-tag folder-tag">${primary.folder}</span>` : ''}
+            ${hasAttach ? `<span class="th-tag attach">📎</span>` : ''}
+            ${snooze ? `<span class="th-tag snooze">⏰</span>` : ''}
+            ${note ? `<span class="th-tag note">📝</span>` : ''}
+            ${tags.map(t=>`<span class="th-tag">${t}</span>`).join('')}
+            ${tagDots}
+            ${group.length > 1 ? `<span class="th-count">${group.length} mesaj</span>` : ''}
+          </div>
+        </div>
+      </div>
+      ${group.length > 1 ? `
+        <div class="thread-children" id="tc_${gi}">
+          ${group.map((h,hi) => {
+            const s = (h.sender||'').replace(/"(.+)".*/,'$1').trim();
+            const ini = s.match(/[a-zA-ZğüşıöçĞÜŞİÖÇ]/)?.[0]?.toUpperCase()||'?';
+            let ds=''; try{const d=new Date(h.date);if(!isNaN(d))ds=d.toLocaleDateString('tr-TR',{day:'2-digit',month:'short'});}catch(e){}
+            const prev=(h.body||'').slice(0,80);
+            return `<div class="tc-item" id="tc_${gi}_${hi}" onclick="showHit(${gi},${hi},this)">
+              <div class="tc-ava">${ini}</div>
+              <div class="tc-body">
+                <div class="tc-top"><span class="tc-sender">${s}</span><span class="tc-date">${ds}</span></div>
+                <div class="tc-preview">${prev}…</div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>` : ''}
+    `;
+
+    // Click on header
+    el.querySelector(`#th_${gi}`).addEventListener('click', (e) => {
+      if (e.target.type === 'checkbox') return;
+      if (group.length > 1) {
+        const tc = document.getElementById(`tc_${gi}`);
+        tc.classList.toggle('open');
+        showHit(gi, 0, el.querySelector(`#th_${gi}`));
+      } else {
+        showHit(gi, 0, el.querySelector(`#th_${gi}`));
+      }
+    });
+
+    // Right-click context menu — DELEGATION ile tek noktadan
+    // (contextmenu event'i bubbling yapıyor ama bazen overlap elementler yakalıyor)
+    // Ayrıca her render sonrası listener sorununu önlüyor
+
+    // Drag & drop — mail listeden sidebar klasörüne
+    const thEl = el.querySelector(`#th_${gi}`);
+    thEl.setAttribute('draggable', 'true');
+    thEl.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', String(gi));
+      e.dataTransfer.effectAllowed = 'move';
+      thEl.classList.add('dragging');
+    });
+    thEl.addEventListener('dragend', () => thEl.classList.remove('dragging'));
+
+    wrap.appendChild(el);
+  });
+  setTimeout(initSidebarDropZones, 100);
+}
+
+// Event delegation — contextmenu on mailItemsWrap (daha sağlam)
+document.addEventListener('DOMContentLoaded', () => {
+  const wrap = document.getElementById('mailItemsWrap');
+  if (wrap) {
+    wrap.addEventListener('contextmenu', (e) => {
+      const th = e.target.closest('.thread-header');
+      if (!th) return;
+      const gi = parseInt(th.id.replace('th_', ''));
+      if (!isNaN(gi)) {
+        e.preventDefault();
+        e.stopPropagation();
+        showContextMenu(e, gi);
+      }
+    }, true);  // capture phase
+  }
+});
+
+function initSidebarDropZones() {
+  // All nav-items and dyn-folders become drop targets
+  document.querySelectorAll('.nav-item, .dyn-folder').forEach(el => {
+    el.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const gi = parseInt(e.dataTransfer.getData('text/plain'));
+      if (isNaN(gi)) return;
+
+      // Determine target folder from element
+      const folder = el.dataset.folder || el.textContent.trim().replace(/[📬📥📤📎🧾💰🏢📄📊⏳\s]/g,'').trim();
+      if (!folder) return;
+
+      ctxTargetGroup = gi;
+      ctxMoveToFolder(folder);
+    });
+  });
+}
+
+
+// ── SHOW HIT ──────────────────────
+function showHit(gi, hi, el) {
+  // deselect visual
+  document.querySelectorAll('.thread-header').forEach(h => h.classList.remove('selected-group'));
+  document.querySelectorAll('.tc-item').forEach(t => t.classList.remove('selected'));
+  if (el.classList.contains('thread-header')) el.classList.add('selected-group');
+  else if (el.classList.contains('tc-item')) el.classList.add('selected');
+
+  state.currentGroup = gi;
+  state.currentHit = hi;
+
+  const hit = state.grouped[gi][hi];
+  LS.markRead(hit.id);  // async, fire-and-forget
+
+  // Remove unread style from header
+  const th = document.getElementById(`th_${gi}`);
+  if (th) { th.classList.remove('unread'); th.querySelector('.unread-line')?.remove(); }
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('mailDetail').style.display = 'block';
+  document.getElementById('aiResult').style.display = 'none';
+
+  const sender = hit.sender || 'Bilinmiyor';
+  const initial = sender.match(/[a-zA-ZğüşıöçĞÜŞİÖÇ]/)?.[0]?.toUpperCase() || '?';
+
+  document.getElementById('mdSubject').innerHTML = hit._formatted?.subject || hit.subject || 'Konu Yok';
+  document.getElementById('mdSender').textContent = sender;
+  document.getElementById('mdAva').textContent = initial;
+
+  let dateStr = '';
+  try { const d = new Date(hit.date); if (!isNaN(d)) dateStr = d.toLocaleString('tr-TR'); else dateStr = hit.date||''; } catch(e){}
+  document.getElementById('mdDate').textContent = dateStr;
+  document.getElementById('mdInfo').textContent = `📁 ${hit.folder||'—'} · 💾 ${fmtBytes(hit.size)}`;
+
+  // NOTE
+  const noteBar = document.getElementById('noteBar');
+  const note = LS.notes()[hit.id];
+  if (note) {
+    document.getElementById('noteText').textContent = note;
+    noteBar.classList.add('show');
+  } else {
+    noteBar.classList.remove('show');
+  }
+
+  // STRUCTURED CARD
+  buildStructCard(hit);
+
+  // THREAD BUBBLES
+  buildThreadBubbles(gi, hi, hit);
+
+  // Favori butonu ve toplantı auto-detect
+  updateFavBtn(hit.id);
+  checkMeetingKeywords(hit);
+
+  document.getElementById('rightPane').scrollTop = 0;
+
+  // Mobile: show reading pane full screen
+  if (isMobile()) {
+    document.getElementById('rightPane').classList.add('mobile-open');
+    document.getElementById('mailList').classList.add('mobile-hidden');
+  }
+}
+
+// ── STRUCT CARD ──────────────────
+function buildStructCard(hit) {
+  const c = document.getElementById('structCard');
+  const subj = (hit.subject||'').toLowerCase();
+  if (subj.includes('sipariş')||subj.includes('order')||subj.includes('fatura')||subj.includes('invoice')) {
+    const type = subj.includes('fatura')||subj.includes('invoice') ? 'Fatura' : 'Sipariş';
+    // Try to extract price-like patterns from body
+    const body = hit.body || '';
+    const prices = body.match(/[\d.,]+\s*(TL|USD|EUR|₺|\$|€)/gi) || [];
+    const refNos = body.match(/[A-Z0-9]{6,}/g)?.slice(0,2) || [];
+
+    c.innerHTML = `<div class="struct-card">
+      <div class="sc-title">📦 ${type} Tespiti</div>
+      <div class="sc-row"><span>Belge Tipi</span><strong>${type}</strong></div>
+      <div class="sc-row"><span>Gönderen</span><strong>${hit.sender||'—'}</strong></div>
+      <div class="sc-row"><span>Tarih</span><strong>${hit.date||'—'}</strong></div>
+      ${prices.length ? `<div class="sc-row"><span>Tespit Edilen Tutarlar</span><strong>${prices.slice(0,3).join(', ')}</strong></div>` : ''}
+      ${refNos.length ? `<div class="sc-row"><span>Referans No</span><strong>${refNos.join(', ')}</strong></div>` : ''}
+    </div>`;
+  } else {
+    c.innerHTML = '';
+  }
+}
+
+// ── THREAD BUBBLES ───────────────
+function buildThreadBubbles(gi, selectedHi, primaryHit) {
+  const container = document.getElementById('threadBubbles');
+  container.innerHTML = '';
+  const group = state.grouped[gi];
+
+  // SELF email (sent by Fatih)
+  const selfEmail = 'fatih@zoomithalat.com';
+
+  group.forEach((hit, hi) => {
+    const rawBody = hit._formatted?.body || hit.body || '';
+    const sender = (hit.sender||'Bilinmiyor').replace(/"(.+)".*/,'$1').trim();
+    const initial = sender.match(/[a-zA-ZğüşıöçĞÜŞİÖÇ]/)?.[0]?.toUpperCase() || '?';
+    const isSent = (hit.folder||'').toLowerCase().includes('sent') || (hit.sender||'').includes(selfEmail);
+
+    let dateStr = '';
+    try { const d = new Date(hit.date); if (!isNaN(d)) dateStr = d.toLocaleString('tr-TR'); } catch(e){}
+
+    // Parse body: split on quoted text markers
+    const parts = parseEmailBody(rawBody);
+
+    const wrap = document.createElement('div');
+    wrap.className = `bubble-wrap ${isSent ? 'sent' : ''}`;
+    wrap.style.cursor = 'pointer';
+    wrap.onclick = () => {
+      document.querySelectorAll('.tc-item').forEach(t => t.classList.remove('selected'));
+      const tc = document.getElementById(`tc_${gi}_${hi}`);
+      if (tc) tc.classList.add('selected');
+    };
+
+    let quotePart = '';
+    if (parts.quote) {
+      quotePart = `<details class="bubble-quote-wrap"><summary>Önceki mesajı göster</summary><div class="bubble-quote">${parts.quote.slice(0,600)}${parts.quote.length>600?'…':''}</div></details>`;
+    }
+    let sigPart = '';
+    if (parts.sig) {
+      sigPart = `<div class="bubble-sig">${parts.sig.replace(/\n/g,'<br>')}</div>`;
+    }
+
+    wrap.innerHTML = `
+      <div class="bubble-ava">${initial}</div>
+      <div class="bubble-content">
+        <div class="bubble-meta">${sender} · ${dateStr}</div>
+        <div class="bubble ${hi === selectedHi ? 'selected' : ''}">
+          <div class="bubble-body">${parts.main.replace(/\n/g,'<br>')}</div>
+          ${sigPart}
+          ${quotePart}
+        </div>
+      </div>`;
+
+    container.appendChild(wrap);
+  });
+}
+
+function parseEmailBody(raw) {
+  // Strip HTML tags except <mark> for highlighting
+  let clean = raw.replace(/<br\s*\/?>/gi, '\n')
+                 .replace(/<\/p>/gi, '\n\n')
+                 .replace(/<(?!\/?mark>)[^>]+>/g, ' ')
+                 .replace(/&nbsp;/g, ' ')
+                 .replace(/&amp;/g, '&')
+                 .replace(/&lt;/g, '<')
+                 .replace(/&gt;/g, '>')
+                 .replace(/&quot;/g, '"')
+                 .replace(/[ \t]+/g, ' ')
+                 .replace(/\n{3,}/g, '\n\n')
+                 .trim();
+
+  // Quote detection patterns (email thread markers)
+  const quotePatterns = [
+    /\n-{3,}\s*(Original Message|Orijinal İleti|Forwarded)/i,
+    /\nOn .{5,100} wrote:/i,
+    /\n_{3,}/,
+    /\nFrom:\s*.+\nSent:/i,
+    /\nKimden:\s*.+\nGönderilen:/i,
+    /\n>{1,}/m,
+  ];
+
+  // Signature detection patterns
+  const sigPatterns = [
+    /\n--\s*\n/,
+    /\nSaygılarımla[,.]?\s*\n/i,
+    /\nİyi çalışmalar[,.]?\s*\n/i,
+    /\nTeşekkürler[,.]?\s*\n/i,
+    /\nBest [Rr]egards[,.]?\s*\n/i,
+    /\nKind [Rr]egards[,.]?\s*\n/i,
+    /\nThanks[,.]?\s*\n/i,
+    /\nOfis:\s*\+/i,
+    /\nT:\s*\(?\d{3}/i,
+  ];
+
+  let quoteIdx = clean.length;
+  let sigIdx = clean.length;
+
+  for (const pat of quotePatterns) {
+    const m = clean.search(pat);
+    if (m > 50 && m < quoteIdx) quoteIdx = m;
+  }
+  for (const pat of sigPatterns) {
+    const m = clean.search(pat);
+    if (m > 50 && m < sigIdx) sigIdx = m;
+  }
+
+  const splitIdx = Math.min(quoteIdx, sigIdx);
+  const main = clean.slice(0, splitIdx).trim();
+  const quote = quoteIdx < clean.length ? clean.slice(quoteIdx).trim() : '';
+  const sig = (sigIdx < clean.length && sigIdx < quoteIdx) ? clean.slice(sigIdx, quoteIdx).trim() : '';
+
+  return { main, quote, sig };
+}
+
+// ── AI ACTIONS ───────────────────
+async function requestAI(action) {
+  if (state.currentGroup === null) { toast('Önce bir mail seçin', 'info'); return; }
+  const hit = state.grouped[state.currentGroup][state.currentHit || 0];
+  const panel = document.getElementById('aiResult');
+  const body = document.getElementById('aiBody');
+  const lbl = document.getElementById('aiLbl');
+
+  const labels = { summary: '✦ Fredy Özeti', draft: '✍ Yanıt Taslağı', analyze: '🔍 Derin Analiz' };
+  lbl.textContent = labels[action] || 'Fredy AI';
+  body.innerHTML = '<span style="color:var(--text3)">Analiz ediliyor...</span>';
+  panel.style.display = 'block';
+  document.getElementById('rightPane').scrollTop = 0;
+
+  try {
+    const res = await fetch(`${API}/ai_action`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action === 'analyze' ? 'summary' : action, mail_sender: hit.sender, mail_subject: hit.subject, mail_body: hit.body })
+    });
+    const data = await res.json();
+    body.innerHTML = data.text.replace(/\n/g,'<br>');
+  } catch(e) {
+    body.innerHTML = '<span style="color:var(--danger)">Hata oluştu.</span>';
+  }
+}
+
+function copyMail() {
+  if (state.currentGroup === null) return;
+  const hit = state.grouped[state.currentGroup][state.currentHit || 0];
+  navigator.clipboard?.writeText(`Konu: ${hit.subject}\nKimden: ${hit.sender}\n\n${hit.body}`);
+  toast('Panoya kopyalandı', 'ok');
+}
+
+// ── AI PANEL ─────────────────────
+function openAI() { document.getElementById('aiPanel').classList.add('open'); }
+function closeAI() { document.getElementById('aiPanel').classList.remove('open'); }
+
+function askAI(msg) { document.getElementById('aipInput').value = msg; sendAI(); }
+
+async function sendAI() {
+  const inp = document.getElementById('aipInput');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = ''; inp.style.height = 'auto';
+
+  appendChat('user', msg);
+  document.getElementById('aipSugs').style.display = 'none';
+  const thinking = appendThinking();
+
+  try {
+    const res = await fetch(`${API}/ai_chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg })
+    });
+    const data = await res.json();
+    removeThinking(thinking);
+
+    const replyText = data.reply || 'Yanıt alınamadı.';
+    const hits = data.hits || [];
+
+    if (hits.length > 0) {
+      appendChatWithHits(replyText, hits);
+    } else {
+      appendChat('bot', replyText);
+    }
+  } catch(e) {
+    removeThinking(thinking);
+    appendChat('bot', 'Bağlantı hatası oluştu. API çalışıyor mu?');
+  }
+}
+
+function buildAIListReply(hits) {
+  let out = `${hits.length} mail buldum:\n\n`;
+  hits.forEach((h,i) => {
+    const sender = (h.sender||'').replace(/"(.+)".*/,'$1').trim();
+    let dateStr = '';
+    try {
+      const d = new Date(h.date || h.timestamp * 1000);
+      if (!isNaN(d)) dateStr = d.toLocaleDateString('tr-TR',{day:'2-digit',month:'short',year:'numeric'});
+    } catch(e){}
+    out += `${i+1}. **${h.subject||'Konu Yok'}**\n   ${sender}${dateStr ? ' · ' + dateStr : ''}\n\n`;
+  });
+  return out;
+}
+
+function appendChatWithHits(replyText, hits) {
+  const chat = document.getElementById('aiChat');
+  const div = document.createElement('div');
+  div.className = 'chat-msg bot';
+  const time = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+
+  const hitRows = hits.slice(0,15).map((h,i) => {
+    const sender = (h.sender||'').replace(/"(.+)".*/,'$1').trim();
+    let dateStr = '';
+    try {
+      const ts = h.timestamp ? h.timestamp * 1000 : null;
+      const d = ts ? new Date(ts) : new Date(h.date);
+      if (!isNaN(d)) dateStr = d.toLocaleDateString('tr-TR',{day:'2-digit',month:'short',year:'numeric'});
+    } catch(e){}
+    const subj = (h.subject||'Konu Yok').slice(0,55);
+    return `<div class="ai-hit-row" onclick="aiJumpToMail('${h.id}','${(h.subject||'').replace(/'/g,'\\\'').replace(/"/g,'&quot;')}')">
+      <span class="ai-hit-num">${i+1}</span>
+      <span class="ai-hit-info">
+        <strong>${subj}</strong>
+        <span class="ai-hit-meta">${sender}${dateStr?' · '+dateStr:''}</span>
+      </span>
+      <span class="ai-hit-arr">→</span>
+    </div>`;
+  }).join('');
+
+  div.innerHTML = `<div class="chat-bubble">
+    ${replyText.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')}
+    <div class="ai-hit-list">${hitRows}</div>
+  </div><span class="chat-time">${time}</span>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function aiJumpToMail(mailId, subject) {
+  // Search for the email in current results first
+  const groupKeys = Object.keys(state.grouped || {});
+  for (const gi of groupKeys) {
+    const group = state.grouped[gi];
+    const hit = group.find(h => h.id === mailId);
+    if (hit) {
+      const hi = group.indexOf(hit);
+      const el = document.getElementById(`th_${gi}`);
+      showHit(parseInt(gi), hi, el);
+      return;
+    }
+  }
+  // Not in current view — search by query and open
+  try {
+    const res = await fetch(`${API}/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: subject.slice(0,40), limit: 20 })
+    });
+    const data = await res.json();
+    const found = (data.hits||[]).find(h => h.id === mailId);
+    if (found) {
+      state.grouped = { 0: [found] };
+      state.hits = [found];
+      renderList(state.hits);
+      showHit(0, 0, document.getElementById('th_0'));
+    } else {
+      toast('Mail mevcut görünümde bulunamadı', 'info');
+    }
+  } catch(e) {
+    toast('Mail açılamadı', 'err');
+  }
+}
+
+function appendChat(role, text) {
+  const chat = document.getElementById('aiChat');
+  const div = document.createElement('div');
+  div.className = `chat-msg ${role}`;
+  const time = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+  div.innerHTML = `<div class="chat-bubble">${text.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')}</div><span class="chat-time">${time}</span>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+function appendThinking() {
+  const chat = document.getElementById('aiChat');
+  const div = document.createElement('div');
+  div.className = 'chat-msg bot';
+  div.innerHTML = `<div class="thinking"><div class="td"></div><div class="td"></div><div class="td"></div></div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+function removeThinking(el) { el?.remove(); }
+
+// ── TAG SYSTEM ───────────────────
+let pendingTagHitId = null;
+
+function openTagModal() {
+  if (state.currentGroup === null) { toast('Önce bir mail seçin', 'info'); return; }
+  const hit = state.grouped[state.currentGroup][state.currentHit || 0];
+  pendingTagHitId = hit.id;
+  const existing = LS.tags()[hit.id] || [];
+
+  document.querySelectorAll('.tag-opt').forEach(opt => {
+    const tag = opt.dataset.tag;
+    opt.className = 'tag-opt' + (existing.includes(tag) ? ` sel-${tag}` : '');
+  });
+  openOverlay('tagOverlay');
+}
+
+function toggleTagOpt(el) {
+  const tag = el.dataset.tag;
+  const existing = LS.tags()[pendingTagHitId] || [];
+  if (el.classList.contains(`sel-${tag}`)) {
+    el.className = 'tag-opt';
+  } else {
+    el.className = `tag-opt sel-${tag}`;
+  }
+}
+
+async function saveTag() {
+  const selected = [];
+  document.querySelectorAll('.tag-opt').forEach(opt => {
+    const tag = opt.dataset.tag;
+    if (opt.classList.contains(`sel-${tag}`)) selected.push(tag);
+  });
+  await LS.saveTag(pendingTagHitId, selected);
+  closeOverlay('tagOverlay');
+  toast(`Etiket kaydedildi: ${selected.join(', ') || 'Temizlendi'}`, 'ok');
+  renderFromCache();
+  showHit(state.currentGroup, state.currentHit || 0, document.getElementById(`th_${state.currentGroup}`) || {classList:{contains:()=>false}});
+}
+
+// ── NOTES ────────────────────────
+function openNote() {
+  if (state.currentGroup === null) { toast('Önce bir mail seçin', 'info'); return; }
+  const hit = state.grouped[state.currentGroup][state.currentHit || 0];
+  document.getElementById('noteInput').value = LS.notes()[hit.id] || '';
+  openOverlay('noteOverlay');
+}
+
+async function saveNote() {
+  if (state.currentGroup === null) return;
+  const hit = state.grouped[state.currentGroup][state.currentHit || 0];
+  const note = document.getElementById('noteInput').value.trim();
+  await LS.saveNote(hit.id, note || null);
+  closeOverlay('noteOverlay');
+  toast(note ? 'Not kaydedildi' : 'Not silindi', 'ok');
+  const noteBar = document.getElementById('noteBar');
+  if (note) { document.getElementById('noteText').textContent = note; noteBar.classList.add('show'); }
+  else { noteBar.classList.remove('show'); }
+  renderFromCache();
+}
+
+function clearNote() {
+  document.getElementById('noteInput').value = '';
+  saveNote();
+}
+
+// ── SNOOZE ───────────────────────
+function updateSnoozeOptions() {
+  const opts = [1,4,24,72,168];
+  opts.forEach(h => {
+    const el = document.getElementById(`snooze${h}h`);
+    if (el) {
+      const d = new Date(Date.now() + h * 3600000);
+      el.textContent = d.toLocaleString('tr-TR', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short' });
+    }
+  });
+}
+
+function openSnooze() {
+  if (state.currentGroup === null) { toast('Önce bir mail seçin', 'info'); return; }
+  updateSnoozeOptions();
+  openOverlay('snoozeOverlay');
+}
+
+async function setSnooze(hours) {
+  if (state.currentGroup === null) return;
+  const hit = state.grouped[state.currentGroup][state.currentHit || 0];
+  const ts = Date.now() + hours * 3600000;
+  await LS.saveSnooze(hit.id, ts);
+  closeOverlay('snoozeOverlay');
+  const d = new Date(ts);
+  toast(`⏰ Snooze: ${d.toLocaleString('tr-TR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}`, 'ok');
+  renderFromCache();
+}
+
+async function checkSnoozeReminders() {
+  try {
+    const res = await fetch(`${API}/snooze/due`);
+    const data = await res.json();
+    if (data.count > 0) {
+      // Update local cache
+      data.due.forEach(id => delete Cache.snoozes[id]);
+      const reminder = document.getElementById('snoozeReminder');
+      document.getElementById('snoozeReminderText').textContent = `${data.count} snooze'lu mail hazır!`;
+      reminder.classList.add('show');
+      renderFromCache();
+    }
+  } catch(e) {
+    // fallback: check local cache
+    const snoozes = LS.snoozes();
+    const now = Date.now();
+    const due = Object.entries(snoozes).filter(([id, ts]) => ts <= now);
+    if (due.length > 0) {
+      due.forEach(([id]) => delete Cache.snoozes[id]);
+      const reminder = document.getElementById('snoozeReminder');
+      document.getElementById('snoozeReminderText').textContent = `${due.length} snooze'lu mail hazır!`;
+      reminder.classList.add('show');
+    }
+  }
+}
+
+// ── BULK ACTIONS ─────────────────
+function toggleSelect(gi, checkbox) {
+  const hit = state.grouped[gi][0];
+  if (checkbox.checked) state.selected.add(hit.id);
+  else state.selected.delete(hit.id);
+  const th = document.getElementById(`th_${gi}`);
+  if (checkbox.checked) th.classList.add('sel');
+  else th.classList.remove('sel');
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  const count = state.selected.size;
+  document.getElementById('bulkCountNum').textContent = count;
+  bar.classList.toggle('show', count > 0);
+}
+
+function clearSelection() {
+  state.selected.clear();
+  document.querySelectorAll('.th-checkbox').forEach(c => c.checked = false);
+  document.querySelectorAll('.thread-header').forEach(h => h.classList.remove('sel'));
+  updateBulkBar();
+}
+
+function bulkTag() { toast(`${state.selected.size} mail etiketlenecek (yakında)`, 'info'); }
+function bulkSnooze() { toast(`${state.selected.size} mail snooze'a alındı`, 'ok'); clearSelection(); }
+function bulkArchive() { toast(`${state.selected.size} mail arşivlendi`, 'ok'); clearSelection(); }
+function bulkDelete() { if (confirm(`${state.selected.size} mail silinsin mi?`)) { toast(`${state.selected.size} mail silindi`, 'ok'); clearSelection(); } }
+
+// ── SENDER PANEL ─────────────────
+function buildSenderPanel(senderFacets) {
+  const list = document.getElementById('senderList');
+  list.innerHTML = '';
+  const sorted = Object.entries(senderFacets).sort((a,b) => b[1]-a[1]).slice(0,8);
+  sorted.forEach(([sender, count]) => {
+    const name = sender.replace(/"(.+)".*/,'$1').trim();
+    const initial = name.match(/[a-zA-ZğüşıöçĞÜŞİÖÇ]/)?.[0]?.toUpperCase() || '?';
+    const row = document.createElement('div');
+    row.className = 'sender-row';
+    row.innerHTML = `<div class="sender-ava">${initial}</div><span class="sender-name">${name}</span><span class="sender-cnt">${count}</span>`;
+    row.onclick = () => {
+      document.getElementById('searchInp').value = name;
+      performSearch();
+      // close panel
+      document.getElementById('senderList').classList.remove('open');
+      document.getElementById('senderToggle').classList.remove('open');
+    };
+    list.appendChild(row);
+  });
+}
+
+function toggleSenderPanel() {
+  document.getElementById('senderList').classList.toggle('open');
+  document.getElementById('senderToggle').classList.toggle('open');
+}
+
+// ── INDEX MODAL ──────────────────
+function openIndex() {
+  fetch(`${API}/health`).then(r=>r.json()).then(()=>{
+    document.getElementById('idxCount').textContent = '14.098+';
+  }).catch(()=>{});
+  openOverlay('indexOverlay');
+}
+function toggleIdxFolder(el) {
+  el.classList.toggle('sel');
+  el.querySelector('input').checked = el.classList.contains('sel');
+}
+function startIndex() {
+  closeOverlay('indexOverlay');
+  toast('İndeksleme başlatıldı...', 'ok');
+}
+
+// ══════════════════════════════════════════════════════
+// AI ACTION COMMAND ENGINE
+// ══════════════════════════════════════════════════════
+async function parseAndExecuteAction(msg) {
+  const lower = msg.toLowerCase();
+  const is = {
+    createFolder: /klasör\s*(oluştur|kur|ekle|aç|yarat)|klasörü\s*(oluştur|kur|ekle)|oluştur.*klasör|taşı.*klasör|klasör.*taşı/i.test(msg),
+    bulkTag:      /etiketle|etiket\s*(ekle|koy|uygula)/i.test(msg) && !/klasör/i.test(msg),
+    removeTag:    /etiketi?\s*(kaldır|çıkar|sil|temizle)/i.test(msg),
+    bulkSnooze:   /snooze\s*et|ertele|sonraya\s*(bırak|al)|hatırlat/i.test(msg) && /(?:tüm|hepsini|mailleri?|dan\s*gelen)/i.test(msg),
+    markRead:     /okundu\s*(işaretle|say|yap)|hepsini\s*oku|tümünü\s*okundu/i.test(msg),
+    unreadFilter: /okunmamış(ları?n?ı?)?\s*(listele|göster|var\s*mı|kaç)/i.test(msg),
+    stats:        /kaç\s*(mail|tane|adet)|(?:en\s*çok|en\s*fazla)\s*(kim|hangi)|toplam\s*(mail|kaç)|istatistik/i.test(msg),
+    report:       /rapor|özet\s*(çıkar|hazırla|sun)|durum\s*(nedir|raporu)|özetle/i.test(msg) && !/klasör/i.test(msg),
+    addNote:      /not\s*(?:ekle|yaz|kaydet|koy)\s*[:：]/i.test(msg),
+    advSearch:    /\d{4}.*(gelen|uzantı|ek|pdf|excel)|pdf.*\d{4}|excel.*\d{4}/i.test(msg),
+    weekReport:   /(?:bu\s*haft|geçen\s*haft|haftalık|aylık)/i.test(msg) && /(?:özet|özetle|rapor|analiz)/i.test(msg),
+  };
+  if (!Object.values(is).some(Boolean)) return null;
+
+  // ── 1. KLASÖR OLUŞTUR ───────────────────────────────
+  if (is.createFolder) {
+    let folderName='', searchQuery='', icon='📁';
+    const domainMatch  = msg.match(/@([a-zA-Z0-9._-]+)/);
+    const domainMatch2 = msg.match(/([a-zA-Z0-9-]+)\.(com|net|org|io|tr)/i);
+    const quotedName   = msg.match(/["']([\s\S]+?)["']/);
+    const beforeKlasor = msg.match(/(\S+)\s+klasörü?\s*(oluştur|kur|ekle|taşı)/i);
+    const afterIcin    = msg.match(/(.+?)\s+için\s+(?:.*?)klasör/i);
+    if (domainMatch)      { const d=domainMatch[1]; searchQuery=`@${d}`; folderName=d.split('.')[0]; icon='🏢'; }
+    else if (domainMatch2){ const d=domainMatch2[0]; searchQuery=d; folderName=domainMatch2[1]; icon='🏢'; }
+    else if (quotedName)  { folderName=quotedName[1]; searchQuery=folderName.toLowerCase(); }
+    else if (beforeKlasor){ folderName=beforeKlasor[1]; searchQuery=beforeKlasor[1].toLowerCase(); }
+    else if (afterIcin)   { const r=afterIcin[1].trim(); folderName=r; searchQuery=r.toLowerCase(); }
+    folderName = folderName.charAt(0).toUpperCase()+folderName.slice(1);
+    if (!folderName||!searchQuery) return _actionWarn('Klasör adı anlaşılamadı. Örnek: <em>"@increworks.com uzantılı mailler için Increworks klasörü oluştur"</em>');
+    let mc=0;
+    try { const td=await(await fetch(`${API}/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:searchQuery,limit:1,offset:0,sort:'timestamp:desc',ai_mode:false})})).json(); mc=td.estimatedTotalHits||0; } catch(e){}
+    const existing=getCustomFolders();
+    if (existing.find(f=>f.name.toLowerCase()===folderName.toLowerCase())) return _actionWarn(`"${folderName}" klasörü zaten mevcut!`);
+    existing.push({name:folderName,query:searchQuery,icon,imapFolder:null});
+    saveCustomFolders(existing); loadCustomFolders();
+    return _actionOk(`📁 "${folderName}" klasörü oluşturuldu`,
+      `Filtre: <code style="background:var(--bg3);padding:1px 6px;border-radius:3px;">${searchQuery}</code>${mc>0?`<br><strong style="color:var(--accent)">${mc.toLocaleString('tr')}</strong> mail eşleşiyor`:''}`,
+      `clickCustomFolder('${folderName}')`,`📁 Klasörü Aç →`);
+  }
+
+  // ── 2. OKUNMAMIŞ LİSTELE ────────────────────────────
+  if (is.unreadFilter) {
+    const reads=LS.reads();
+    let pool=state.results;
+    if(!pool.length){ try{ const d=await(await fetch(`${API}/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:'',limit:1000,offset:0,sort:'timestamp:desc',ai_mode:false})})).json(); pool=d.hits||[]; state.results=pool; }catch(e){} }
+    const unread=pool.filter(h=>!reads[h.id]);
+    state.grouped=groupBySubject(unread); renderGrouped();
+    document.getElementById('listCnt').textContent=`${unread.length} okunmamış`;
+    return _actionOk(`✉️ ${unread.length} okunmamış mail listelendi`,'Sol listede gösteriliyor.',null,null);
+  }
+
+  // ── 3. İSTATİSTİK ───────────────────────────────────
+  if (is.stats) {
+    try {
+      const d=await(await fetch(`${API}/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:'',limit:1,offset:0,sort:'timestamp:desc',ai_mode:false})})).json();
+      const total=d.estimatedTotalHits||0, facets=d.facets||{};
+      const readCount=Object.keys(LS.reads()).length, snoozeCount=Object.keys(LS.snoozes()).length, tagCount=Object.keys(LS.tags()).length;
+      let topSenders='';
+      if(facets.sender){ const sorted=Object.entries(facets.sender).sort((a,b)=>b[1]-a[1]).slice(0,5);
+        topSenders=`<div style="font-size:11px;font-family:var(--font-m);color:var(--text3);text-transform:uppercase;margin:12px 0 6px;">En Çok Yazışılanlar</div>`+
+        sorted.map(([s,c])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>${s.replace(/"(.+)".*/,'$1').trim()}</span><span style="font-family:var(--font-m);color:var(--primary)">${c.toLocaleString('tr')}</span></div>`).join('');
+      }
+      return `<div style="padding:12px;"><div style="font-size:11px;font-family:var(--font-m);color:var(--primary);text-transform:uppercase;margin-bottom:10px;">📊 Posta İstatistikleri</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${_statCard('Toplam Mail',total.toLocaleString('tr'),'var(--primary)')}${_statCard('Okundu',readCount.toLocaleString('tr'),'var(--accent)')}${_statCard('Snooze',snoozeCount.toLocaleString('tr'),'var(--warn)')}${_statCard('Etiketli',tagCount.toLocaleString('tr'),'var(--green)')}</div>${topSenders}</div>`;
+    } catch(e){ return _actionErr(e.message); }
+  }
+
+  // ── 4. TOPLU OKUNDU ─────────────────────────────────
+  if (is.markRead) {
+    const fM=msg.match(/([a-zA-ZğüşıöçĞÜŞİÖÇ\s]+)\s+klasörü?n[üu]?/i), qM=msg.match(/["']([\s\S]+?)["']/);
+    const q=qM?.[1]||'', folder=fM?.[1]?.trim()||null;
+    try {
+      const body={q,limit:1000,offset:0,sort:'timestamp:desc',ai_mode:false}; if(folder) body.folder=folder;
+      const hits=(await(await fetch(`${API}/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json()).hits||[];
+      await Promise.all(hits.slice(0,200).map(h=>LS.markRead(h.id)));
+      return _actionOk(`✅ ${hits.length} mail okundu işaretlendi`,folder?`Klasör: ${folder}`:q?`Arama: "${q}"`:'',null,null);
+    } catch(e){ return _actionErr(e.message); }
+  }
+
+  // ── 5. TOPLU SNOOZE ─────────────────────────────────
+  if (is.bulkSnooze) {
+    const qM=msg.match(/["']([\s\S]+?)["']/)||msg.match(/(\S+)\s+(?:mailler?i?n?i?)\s+(?:snooze|ertele)/i);
+    const q=qM?.[1]||'';
+    let h=24;
+    if(/yarın|24\s*saat/i.test(msg)) h=24;
+    else if(/2\s*saat/i.test(msg)) h=2;
+    else if(/4\s*saat/i.test(msg)) h=4;
+    else if(/haft[a]/i.test(msg)) h=168;
+    else if(/3\s*gün/i.test(msg)) h=72;
+    const ts=Date.now()+h*3600000;
+    const timeStr=new Date(ts).toLocaleString('tr-TR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    try {
+      const hits=(await(await fetch(`${API}/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,limit:100,offset:0,sort:'timestamp:desc',ai_mode:false})})).json()).hits||[];
+      await Promise.all(hits.slice(0,50).map(h2=>LS.saveSnooze(h2.id,ts)));
+      return _actionOk(`⏰ ${hits.length} mail snooze'a alındı`,`Hatırlatma: <strong>${timeStr}</strong>${hits.length>50?' (İlk 50)':''}`,null,null);
+    } catch(e){ return _actionErr(e.message); }
+  }
+
+  // ── 6. TOPLU ETİKETLE ───────────────────────────────
+  if (is.bulkTag) {
+    const tagMap={acil:'acil',influencer:'influencer',influencerlar:'influencer','içerik':'icerik',icerik:'icerik','içerik beklenilenler':'icerik',toplanti:'toplanti',toplantı:'toplanti',toplantılar:'toplanti',favori:'favori',favoriler:'favori',yıldızlı:'favori',yolda:'yolda','yoldaki mallar':'yolda'};
+    const tagWord=Object.keys(tagMap).find(k=>lower.includes(k)), tag=tagWord?tagMap[tagWord]:null;
+    const qM=msg.match(/["']([\s\S]+?)["']/)||msg.match(/(.+?)\s+mailler?i?n?i?\s+(?:.*?)etiketle/i);
+    const q=qM?.[1]||'';
+    if(!tag) return _actionWarn('Etiket anlaşılamadı. Örnek: <em>"increworks maillerini müşteri olarak etiketle"</em>');
+    try {
+      const hits=(await(await fetch(`${API}/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,limit:500,offset:0,sort:'timestamp:desc',ai_mode:false})})).json()).hits||[];
+      const td=LS.tags(); hits.forEach(h=>{const ex=td[h.id]||[];if(!ex.includes(tag))ex.push(tag);td[h.id]=ex;}); Cache.tags=td;
+      await Promise.all(hits.slice(0,100).map(h=>LS.saveTag(h.id,td[h.id])));
+      return _actionOk(`🏷 ${hits.length} mail "${tag}" etiketlendi`,hits.length>100?'Not: İlk 100 işlendi':'',null,null);
+    } catch(e){ return _actionErr(e.message); }
+  }
+
+  // ── 7. ETİKET KALDIR ────────────────────────────────
+  if (is.removeTag) {
+    const tagMap={acil:'acil',influencer:'influencer',influencerlar:'influencer','içerik':'icerik',icerik:'icerik','içerik beklenilenler':'icerik',toplanti:'toplanti',toplantı:'toplanti',toplantılar:'toplanti',favori:'favori',favoriler:'favori',yıldızlı:'favori',yolda:'yolda','yoldaki mallar':'yolda'};
+    const tagWord=Object.keys(tagMap).find(k=>lower.includes(k)), tag=tagWord?tagMap[tagWord]:null;
+    const qM=msg.match(/["']([\s\S]+?)["']/)||msg.match(/(.+?)\s+mailler?i?n?i?\s+(?:.*?)etiket/i);
+    const q=qM?.[1]||'';
+    if(!tag) return _actionWarn('Kaldırılacak etiket anlaşılamadı.');
+    try {
+      const hits=(await(await fetch(`${API}/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,limit:500,offset:0,sort:'timestamp:desc',ai_mode:false})})).json()).hits||[];
+      const td=LS.tags(); hits.forEach(h=>{if(td[h.id])td[h.id]=td[h.id].filter(t=>t!==tag);}); Cache.tags=td;
+      await Promise.all(hits.slice(0,100).map(h=>LS.saveTag(h.id,td[h.id]||[])));
+      return _actionOk(`🏷 ${hits.length} mailden "${tag}" etiketi kaldırıldı`,'',null,null);
+    } catch(e){ return _actionErr(e.message); }
+  }
+
+  // ── 8. SEÇİLİ MAİLE NOT EKLE ───────────────────────
+  if (is.addNote) {
+    const noteM=msg.match(/not\s*(?:ekle|yaz|kaydet|koy)\s*[:：]\s*(.+)/i);
+    const noteText=noteM?.[1]?.trim();
+    if(!noteText) return _actionWarn('Not içeriği anlaşılamadı. Örnek: <em>"not ekle: bu maili Pazartesi takip et"</em>');
+    if(state.currentGroup===null) return _actionWarn('Önce bir mail seçin, sonra not ekle komutunu kullanın.');
+    const hit=state.grouped[state.currentGroup][state.currentHit||0];
+    await LS.saveNote(hit.id,noteText);
+    const nb=document.getElementById('noteBar'); document.getElementById('noteText').textContent=noteText; nb.classList.add('show');
+    return _actionOk('📝 Not eklendi',`"${noteText.slice(0,60)}${noteText.length>60?'…':''}"`,null,null);
+  }
+
+  // ── 9. GELİŞMİŞ ARAMA ─────────────────────────────
+  if (is.advSearch) {
+    const yearM=msg.match(/\b(20\d{2})\b/), pdfM=/pdf/i.test(msg), excelM=/excel|xlsx/i.test(msg);
+    const sM=msg.match(/["']([\s\S]+?)["']/)||msg.match(/([a-zA-ZğüşıöçĞÜŞİÖÇ]+)\s*(?:dan|den|uzantılı)\s+gelen/i);
+    let q=''; if(sM) q+=sM[1]+' '; if(pdfM) q+='[EKLENTİLER] .pdf '; if(excelM) q+='[EKLENTİLER] .xls '; q=q.trim();
+    if(yearM){ state.year=yearM[1]; document.querySelectorAll('.filterbar .pill').forEach(p=>{if(['Tüm','2026','2025','2024','2023'].some(y=>p.textContent.trim()===y))p.classList.remove('active');if(p.textContent.trim()===yearM[1])p.classList.add('active');}); }
+    document.getElementById('searchInp').value=q; performSearch();
+    return _actionOk(`🔍 Gelişmiş arama uygulandı`,`${yearM?`Yıl:${yearM[1]} `:''}${pdfM?'PDF ':''}${excelM?'Excel ':''}${sM?`Gönderici:"${sM[1]}"`:''}`,'',null);
+  }
+
+  // ── 10. HAFTALIK ÖZET / RAPOR ──────────────────────
+  if (is.weekReport || is.report) {
+    const sM=msg.match(/["']([\s\S]+?)["']/)||msg.match(/(\S+)\s+(?:ile|dan|den)\s+(?:.*?)(?:özet|rapor)/i);
+    const q=sM?.[1]||'';
+    const period=/haft/i.test(msg)?'Haftalık':/ay/i.test(msg)?'Aylık':'Genel';
+    try {
+      const d=await(await fetch(`${API}/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,limit:10,offset:0,sort:'timestamp:desc',ai_mode:true})})).json();
+      const summary=d.summary||'Özet üretilemedi.', hits=d.hits||[];
+      return `<div style="padding:12px;"><div style="font-size:11px;font-family:var(--font-m);color:var(--primary);text-transform:uppercase;margin-bottom:8px;">📋 ${period} Rapor${q?` — ${q}`:''}</div><div style="font-size:13px;line-height:1.75;color:var(--text);">${summary.replace(/\n/g,'<br>')}</div>${hits.length?`<div style="font-size:11px;color:var(--text3);font-family:var(--font-m);margin-top:8px;">📬 ${hits.length} mail analiz edildi</div>`:''}</div>`;
+    } catch(e){ return _actionErr(e.message); }
+  }
+
+  return null;
+}
+
+// ── Action UI Helpers ──────────────
+function _actionOk(title,body,btnFn,btnLabel){return `<div style="padding:12px;background:var(--accent-dim);border-radius:8px;border:1px solid rgba(0,212,170,.2);"><div style="font-weight:700;color:var(--accent);margin-bottom:${body?'6':'0'}px;">${title}</div>${body?`<div style="font-size:12px;color:var(--text2);margin-bottom:${btnFn?'10':'0'}px;">${body}</div>`:''} ${btnFn?`<button onclick="${btnFn}" style="background:var(--accent);border:none;color:#fff;padding:6px 14px;border-radius:var(--r-sm);cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font-b);">${btnLabel}</button>`:''}</div>`;}
+function _actionWarn(msg){return `<div style="padding:10px 12px;background:var(--warn-dim);border-radius:6px;border:1px solid rgba(255,179,71,.2);font-size:13px;color:var(--warn);">⚠ ${msg}</div>`;}
+function _actionErr(msg){return `<div style="padding:10px 12px;background:var(--danger-dim);border-radius:6px;border:1px solid rgba(255,77,109,.2);font-size:13px;color:var(--danger);">❌ ${msg}</div>`;}
+function _statCard(label,val,color){return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px;text-align:center;"><div style="font-family:var(--font-h);font-size:18px;font-weight:700;color:${color};">${val}</div><div style="font-size:10px;font-family:var(--font-m);color:var(--text3);text-transform:uppercase;margin-top:2px;">${label}</div></div>`;}
+
+
+// Klasöre tıklamak için helper
+function clickCustomFolder(name) {
+  const folders = getCustomFolders();
+  const idx = folders.findIndex(f => f.name === name);
+  if (idx < 0) return;
+  const f = folders[idx];
+  document.getElementById('searchInp').value = f.query;
+  state.folder = f.imapFolder || null;
+  state.filterType = null; state.tagFilter = null;
+  document.getElementById('listTitle').textContent = f.name;
+  document.querySelectorAll('.nav-item, .dyn-folder').forEach(n => n.classList.remove('active'));
+  const customItems = document.querySelectorAll('#customFolders .dyn-folder');
+  if (customItems[idx]) customItems[idx].classList.add('active');
+  performSearch();
+  closeAISorPopup();
+}
+
+async function loadDynamicFolders() {
+  try {
+    // Facet'ten tüm klasörleri çek
+    const res = await fetch(`${API}/search`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ q: '', limit: 1, offset: 0, sort: 'timestamp:desc', ai_mode: false, _facets: ['folder','sender'] })
+    });
+    const data = await res.json();
+    const folderFacets = data.facets?.folder || {};
+    Cache._folderFacets = folderFacets;  // context menü için cache
+
+    // Klasörleri sırala: önce tanınan (INBOX, Sent vs.), sonra alfabe
+    const knownOrder = ['INBOX', 'Sent', 'Sent Messages', 'Drafts', 'Trash', 'Junk', 'Archive', 'Deleted Messages'];
+    const allFolders = Object.entries(folderFacets).sort(([a, ac], [b, bc]) => {
+      const ai = knownOrder.indexOf(a), bi = knownOrder.indexOf(b);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.localeCompare(b, 'tr');
+    });
+
+    const container = document.getElementById('dynamicFolders');
+    container.innerHTML = '';
+
+    // Folder icons
+    const icons = {
+      'INBOX': '📥', 'Sent': '📤', 'Sent Messages': '📤',
+      'Drafts': '📝', 'Trash': '🗑', 'Junk': '🚫',
+      'Archive': '📦', 'Deleted Messages': '🗑', 'Documents': '📄'
+    };
+
+    allFolders.forEach(([folder, count]) => {
+      const icon = icons[folder] || '📁';
+      const el = document.createElement('div');
+      el.className = 'dyn-folder';
+      el.dataset.folder = folder;
+      el.innerHTML = `
+        <span style="font-size:14px;width:18px;text-align:center;flex-shrink:0;">${icon}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${folder}</span>
+        <span class="folder-badge">${count.toLocaleString('tr')}</span>`;
+      el.onclick = () => {
+        document.querySelectorAll('.nav-item, .dyn-folder').forEach(n => n.classList.remove('active'));
+        el.classList.add('active');
+        state.folder = folder;
+        state.filterType = null;
+        state.tagFilter = null;
+        document.getElementById('listTitle').textContent = folder;
+        performSearch();
+        if (isMobile()) toggleMobileSidebar();
+      };
+      container.appendChild(el);
+    });
+
+    // IMAP select'ini doldur
+    const imapSel = document.getElementById('newFolderImap');
+    if (imapSel) {
+      imapSel.innerHTML = '<option value="">Tüm klasörler</option>';
+      allFolders.forEach(([folder]) => {
+        const opt = document.createElement('option');
+        opt.value = folder; opt.textContent = folder;
+        imapSel.appendChild(opt);
+      });
+    }
+  } catch(e) {
+    console.warn('Folder load failed', e);
+  }
+}
+
+// ── CUSTOM SMART FOLDERS ─────────
+function loadCustomFolders() {
+  const folders = getCustomFolders();
+  const container = document.getElementById('customFolders');
+  container.innerHTML = '';
+  folders.forEach((f, idx) => {
+    const el = document.createElement('div');
+    el.className = 'dyn-folder';
+    el.innerHTML = `
+      <span style="font-size:14px;width:18px;text-align:center;flex-shrink:0;">${f.icon}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
+      <button class="dyn-folder-del" onclick="event.stopPropagation();deleteCustomFolder(${idx})" title="Sil">✕</button>`;
+    el.onclick = () => {
+      document.querySelectorAll('.nav-item, .dyn-folder').forEach(n => n.classList.remove('active'));
+      el.classList.add('active');
+      // Apply custom folder search
+      document.getElementById('searchInp').value = f.query;
+      if (f.imapFolder) { state.folder = f.imapFolder; } else { state.folder = null; }
+      state.filterType = null; state.tagFilter = null;
+      document.getElementById('listTitle').textContent = f.name;
+      performSearch();
+      if (isMobile()) toggleMobileSidebar();
+    };
+    container.appendChild(el);
+  });
+}
+
+function getCustomFolders() {
+  try { return JSON.parse(localStorage.getItem('fm_custom_folders') || '[]'); } catch(e) { return []; }
+}
+function saveCustomFolders(folders) {
+  localStorage.setItem('fm_custom_folders', JSON.stringify(folders));
+}
+
+function openNewFolder() { openOverlay('newFolderOverlay'); }
+
+function selectIcon(el) {
+  document.querySelectorAll('.icon-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function saveNewFolder() {
+  const name = document.getElementById('newFolderName').value.trim();
+  const query = document.getElementById('newFolderQuery').value.trim();
+  const icon = document.querySelector('.icon-opt.selected')?.dataset.icon || '📁';
+  const imapFolder = document.getElementById('newFolderImap').value;
+  if (!name) { toast('Klasör adı gerekli', 'err'); return; }
+  if (!query) { toast('Arama terimi gerekli', 'err'); return; }
+
+  const folders = getCustomFolders();
+  folders.push({ name, query, icon, imapFolder: imapFolder || null });
+  saveCustomFolders(folders);
+  loadCustomFolders();
+  closeOverlay('newFolderOverlay');
+  // Reset form
+  document.getElementById('newFolderName').value = '';
+  document.getElementById('newFolderQuery').value = '';
+  toast(`"${name}" klasörü oluşturuldu`, 'ok');
+}
+
+function deleteCustomFolder(idx) {
+  if (!confirm('Bu klasörü silmek istediğinizden emin misiniz?')) return;
+  const folders = getCustomFolders();
+  folders.splice(idx, 1);
+  saveCustomFolders(folders);
+  loadCustomFolders();
+  toast('Klasör silindi', 'ok');
+}
+
+// ── FAVORİLER ────────────────────
+async function toggleFavorite() {
+  if (state.currentGroup === null) { toast('Önce bir mail seçin', 'info'); return; }
+  const hit = state.grouped[state.currentGroup][state.currentHit || 0];
+  const tags = LS.tags();
+  const existing = tags[hit.id] || [];
+  const isFav = existing.includes('favori');
+  const newTags = isFav ? existing.filter(t => t !== 'favori') : [...existing, 'favori'];
+  await LS.saveTag(hit.id, newTags);
+
+  const btn = document.getElementById('favBtn');
+  if (btn) {
+    btn.textContent = isFav ? '⭐ Favorilere Ekle' : '★ Favorilerden Çıkar';
+    btn.style.color = isFav ? '' : 'var(--warn)';
+    btn.style.borderColor = isFav ? '' : 'rgba(255,179,71,.3)';
+  }
+  toast(isFav ? 'Favorilerden çıkarıldı' : '⭐ Favorilere eklendi', 'ok');
+  renderFromCache();
+}
+
+// Favori butonunu mail açılınca güncelle
+function updateFavBtn(hitId) {
+  const btn = document.getElementById('favBtn');
+  if (!btn) return;
+  const tags = LS.tags();
+  const isFav = (tags[hitId] || []).includes('favori');
+  btn.textContent = isFav ? '★ Favorilerden Çıkar' : '⭐ Favorilere Ekle';
+  btn.style.color = isFav ? 'var(--warn)' : '';
+  btn.style.borderColor = isFav ? 'rgba(255,179,71,.3)' : '';
+}
+
+// ── TOPLANTI ─────────────────────
+const MEETING_KEYWORDS = /toplantı|meeting|davet|takvim|calendar|randevu|görüşme|briefing|kick.?off|sync/i;
+
+function openAddMeeting() {
+  // Prefill with current mail subject if available
+  if (state.currentGroup !== null) {
+    const hit = state.grouped[state.currentGroup][state.currentHit || 0];
+    const subj = hit.subject || '';
+    document.getElementById('meetingTitle').value = subj;
+    document.getElementById('meetingMailRef').style.display = 'block';
+  } else {
+    document.getElementById('meetingTitle').value = '';
+    document.getElementById('meetingMailRef').style.display = 'none';
+  }
+  // Default date = today
+  document.getElementById('meetingDate').value = new Date().toISOString().slice(0, 10);
+  openOverlay('meetingOverlay');
+}
+
+function saveMeeting() {
+  const title = document.getElementById('meetingTitle').value.trim();
+  const date  = document.getElementById('meetingDate').value;
+  const time  = document.getElementById('meetingTime').value;
+  const note  = document.getElementById('meetingNote').value.trim();
+  if (!title) { toast('Toplantı başlığı boş olamaz', 'err'); return; }
+
+  // Save to localStorage
+  const meetings = getMeetings();
+  const meeting = { id: Date.now(), title, date, time, note, mailId: null };
+  if (state.currentGroup !== null) {
+    meeting.mailId = state.grouped[state.currentGroup][state.currentHit || 0].id;
+    // Auto-tag current mail as toplanti
+    const hit = state.grouped[state.currentGroup][state.currentHit || 0];
+    LS.saveTag(hit.id, [...new Set([...(LS.tags()[hit.id] || []), 'toplanti'])]);
+  }
+  meetings.push(meeting);
+  localStorage.setItem('fm_meetings', JSON.stringify(meetings));
+
+  closeOverlay('meetingOverlay');
+  toast(`📅 Toplantı kaydedildi: ${title}`, 'ok');
+  renderFromCache();
+}
+
+function getMeetings() {
+  try { return JSON.parse(localStorage.getItem('fm_meetings') || '[]'); } catch(e) { return []; }
+}
+
+// Mail açılınca toplantı keyword'u varsa otomatik öneri
+function checkMeetingKeywords(hit) {
+  const text = (hit.subject || '') + ' ' + (hit.body || '').slice(0, 300);
+  if (MEETING_KEYWORDS.test(text)) {
+    const tags = LS.tags()[hit.id] || [];
+    if (!tags.includes('toplanti')) {
+      // Sessizce toplantı etiketi öner (auto-tag)
+      const newTags = [...tags, 'toplanti'];
+      LS.saveTag(hit.id, newTags);
+    }
+  }
+}
+
+// ── LOAD MORE ─────────────────────
+async function loadMore(offset, sort) {
+  const btn = document.getElementById('loadMoreBtn');
+  if (btn) btn.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:13px;">Yükleniyor...</div>';
+
+  const q = document.getElementById('searchInp').value || '';
+  try {
+    const body = { q: q.trim(), limit: 1000, offset, sort: sort || 'timestamp:desc', ai_mode: false };
+    if (state.folder) body.folder = state.folder;
+
+    const res = await fetch(`${API}/search`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    const newHits = data.hits || [];
+
+    state.results = [...state.results, ...newHits];
+    state.totalHits = data.estimatedTotalHits || state.totalHits;
+
+    let filtered = state.results;
+    if (state.year !== 'all') {
+      const yr = parseInt(state.year);
+      filtered = filtered.filter(h => {
+        if (!h.date) return false;
+        try { const d = new Date(h.date); if (!isNaN(d)) return d.getFullYear() === yr; return String(h.date).includes(String(yr)); } catch(e) { return false; }
+      });
+    }
+    if (state.tagFilter) {
+      const tags = LS.tags();
+      filtered = filtered.filter(h => tags[h.id]?.includes(state.tagFilter));
+    }
+
+    state.grouped = groupBySubject(filtered);
+    renderGrouped();
+    const total = state.totalHits;
+    const shown = filtered.length;
+    document.getElementById('listCnt').textContent =
+      total > shown ? `${shown.toLocaleString('tr')} / ${total.toLocaleString('tr')}` : `${shown.toLocaleString('tr')} sonuç`;
+
+    const existingMore = document.getElementById('loadMoreBtn');
+    if (existingMore) existingMore.remove();
+    if (data.hasMore) {
+      const newBtn = document.createElement('div');
+      newBtn.id = 'loadMoreBtn';
+      newBtn.style.cssText = 'padding:14px;text-align:center;border-top:1px solid var(--border);';
+      newBtn.innerHTML = `<button onclick="loadMore(${data.nextOffset},'${sort}')" style="background:var(--primary-dim);border:1px solid rgba(108,99,255,.25);color:var(--primary);padding:8px 20px;border-radius:var(--r-sm);cursor:pointer;font-size:13px;font-family:var(--font-b);">↓ Daha fazla (${(total-shown).toLocaleString('tr')})</button>`;
+      document.getElementById('mailItemsWrap').appendChild(newBtn);
+    }
+  } catch(e) { toast('Yükleme hatası', 'err'); }
+}
+
+// ── COMPOSE ──────────────────────
+// ── AI SOR POPUP ─────────────────
+function toggleAISorPopup() {
+  const popup = document.getElementById('aiSorPopup');
+  const isOpen = popup.style.display !== 'none';
+  if (isOpen) { closeAISorPopup(); return; }
+  popup.style.display = 'block';
+  setTimeout(() => {
+    document.getElementById('aibInput').focus();
+    // Close on outside click
+    document.addEventListener('click', _aiPopupOutside);
+  }, 10);
+}
+function closeAISorPopup() {
+  document.getElementById('aiSorPopup').style.display = 'none';
+  document.removeEventListener('click', _aiPopupOutside);
+}
+function _aiPopupOutside(e) {
+  const wrap = document.getElementById('aiSorWrap');
+  if (!wrap.contains(e.target)) closeAISorPopup();
+}
+
+// ── SORT BUTTONS ─────────────────
+function setSort(sortVal, el) {
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active-sort'));
+  el.classList.add('active-sort');
+  // Update hidden sort select equivalent
+  document.getElementById('sortSel') && (document.getElementById('sortSel').value = sortVal);
+  // Re-run search with new sort
+  const q = document.getElementById('searchInp').value || '';
+  const wrap = document.getElementById('mailItemsWrap');
+  const overlay = document.getElementById('loadingOverlay');
+  wrap.innerHTML = '<div class="list-spinner"><div class="spinner"></div><div>Sıralanıyor...</div></div>';
+  overlay.style.display = 'flex';
+
+  let aq = q;
+  const ft = state.filterType || state.attType;
+  if (ft === 'attachments') aq += ' "[EKLENTİLER]"';
+  else if (ft === 'invoices') aq += ' fatura OR invoice OR "e-fatura"';
+  else if (ft === 'price_lists') aq += ' "fiyat listesi" OR "price list"';
+  else if (ft === 'increworks') aq += ' increworks';
+  else if (ft === 'pdf') aq += ' "[EKLENTİLER]" .pdf';
+  else if (ft === 'excel') aq += ' "[EKLENTİLER]" .xls';
+  else if (ft === 'image') aq += ' "[EKLENTİLER]" .jpg OR .png';
+
+  const body = { q: aq.trim(), limit: 1000, offset: 0, sort: sortVal, ai_mode: false };
+  if (state.folder) body.folder = state.folder;
+
+  fetch(`${API}/search`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+    .then(r => r.json())
+    .then(data => {
+      state.results = data.hits || [];
+      let filtered = state.results;
+      if (state.year !== 'all') {
+        const yr = parseInt(state.year);
+        filtered = filtered.filter(h => {
+          if (!h.date) return false;
+          try { const d = new Date(h.date); if (!isNaN(d)) return d.getFullYear() === yr; return String(h.date).includes(String(yr)); } catch(e) { return false; }
+        });
+      }
+      state.grouped = groupBySubject(filtered);
+      renderGrouped();
+      document.getElementById('listCnt').textContent = `${filtered.length} sonuç`;
+    })
+    .catch(() => toast('Sıralama hatası', 'err'))
+    .finally(() => { overlay.style.display = 'none'; });
+}
+
+// ── AI INLINE BAR ──
+function toggleAIBar() { toggleAISorPopup(); }
+
+async function quickAsk(preset) {
+  const inp = document.getElementById('aibInput');
+  if (preset) inp.value = preset;
+  const msg = inp.value.trim();
+  if (!msg) return;
+
+  const result = document.getElementById('aibResult');
+  const resultText = document.getElementById('aibResultText');
+  result.style.display = 'block';
+  resultText.innerHTML = '<span style="color:var(--text3)">⏳ Aranıyor...</span>';
+
+  // ── ACTION mode veya ACTION keyword ─────────────────
+  if (aiMode === 'action' || /klasör.*oluştur|etiketle|toplu.*snooze|okundu.*işaret/i.test(msg)) {
+    const actionResult = await parseAndExecuteAction(msg);
+    if (actionResult) { resultText.innerHTML = actionResult; return; }
+  }
+
+  // ── SEARCH QUERY — normalize + match mode ───────────
+  const searchQ = buildSearchQuery(msg);
+
+  // ── MODE belirleme ──────────────────────────────────
+  // Kullanıcı "listele/göster/sırala" dediğinde SADECE liste
+  // Kullanıcı soru sorduğunda (nedir, ne zaman, hangi, özetle, analiz) AI yorum
+  const listKeywords = /\b(listele|göster|sırala|getir|çek|bul)\b/i;
+  const aiKeywords   = /\b(özetle|analiz|yorumla|değerlendir|ne zaman|hangi|kim|nedir|nasıl|durum|rapor)\b/i;
+
+  let mode = aiMode;
+  if (mode === 'list') mode = 'list';
+  else if (mode === 'ai') mode = 'ai';
+  else {
+    // Otomatik tespit
+    if (listKeywords.test(msg)) mode = 'list';
+    else if (aiKeywords.test(msg)) mode = 'ai';
+    else mode = 'list';  // default: listele
+  }
+
+  try {
+    const res = await fetch(`${API}/search`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        q: searchQ,
+        limit: mode === 'list' ? 50 : 10,
+        offset: 0,
+        sort: 'timestamp:desc',  // Son gelen en üstte
+        ai_mode: mode === 'ai'
+      })
+    });
+    const data = await res.json();
+    const hits = data.hits || [];
+
+    if (mode === 'list') {
+      if (hits.length === 0) {
+        resultText.innerHTML = '<span style="color:var(--text3)">Sonuç bulunamadı.</span>';
+        return;
+      }
+      // ─ Liste modu: Sadece ana listeyi güncelle, popup'ı kapat
+      state.results = hits;
+      state.grouped = groupBySubject(hits);
+      renderGrouped();
+      document.getElementById('listCnt').textContent = `${hits.length} sonuç`;
+      document.getElementById('listTitle').textContent = `Arama: "${msg}"`;
+      document.getElementById('searchInp').value = msg;
+
+      // Popup'ta küçük bir özet göster ve otomatik kapat
+      resultText.innerHTML = `<div style="padding:8px;color:var(--accent);">✓ ${hits.length} mail listelendi — sol panelde görüntüleniyor</div>`;
+      setTimeout(() => closeAISorPopup(), 1500);
+
+    } else {
+      if (data.summary) {
+        resultText.innerHTML = `<div style="font-size:11px;font-family:var(--font-m);color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px;">✦ Fredy AI</div>${data.summary.replace(/\n/g,'<br>')}`;
+      } else if (hits.length > 0) {
+        let html = `<strong style="color:var(--primary)">${hits.length} sonuç:</strong><br>`;
+        hits.forEach((h,i) => {
+          const s = (h.sender||'').replace(/"(.+)".*/,'$1').trim();
+          let ds=''; try{const d=new Date(h.date);if(!isNaN(d))ds=d.toLocaleDateString('tr-TR',{day:'2-digit',month:'short'});}catch(e){}
+          html += `${i+1}. <strong>${h.subject||'Konu Yok'}</strong> — <span style="color:var(--text3)">${s} · ${ds}</span><br>`;
+        });
+        resultText.innerHTML = html;
+      } else {
+        resultText.innerHTML = '<span style="color:var(--text3)">Bu konuda mail bulunamadı.</span>';
+      }
+    }
+  } catch(e) {
+    resultText.innerHTML = '<span style="color:var(--danger)">Bağlantı hatası.</span>';
+  }
+}
+// Inline AI listesinden mail detayına git
+function jumpToMail(idx, hit) {
+  // Sonuçları state'e koy ve göster
+  if (!state.results.find(h => h.id === hit.id)) {
+    state.results.unshift(hit);
+    state.grouped = groupBySubject(state.results);
+    renderGrouped();
+  }
+  // Mail detayını aç
+  const groupIdx = state.grouped.findIndex(g => g.some(h => h.id === hit.id));
+  if (groupIdx >= 0) {
+    const th = document.getElementById(`th_${groupIdx}`);
+    showHit(groupIdx, 0, th || { classList: { contains: () => false, add: () => {}, remove: () => {} } });
+    th?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// ── COMPOSE FUNCTIONS ────────────
+function fmtDoc(cmd, val) {
+  document.getElementById('composeBody').focus();
+  document.execCommand(cmd, false, val || null);
+}
+function toggleCC() {
+  const row = document.getElementById('ccRow');
+  row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+}
+function insertSignature() {
+  document.getElementById('composeBody').focus();
+  document.execCommand('insertHTML', false, '<br><br>--<br><strong>Fatih Gültekin</strong><br>Zoom İthalat · fatih@zoomithalat.com');
+}
+function addAttachments(input) {
+  const list = document.getElementById('attachList');
+  Array.from(input.files).forEach(f => {
+    const span = document.createElement('span');
+    span.style.cssText = 'font-size:10px;background:var(--surface);border:1px solid var(--border);padding:2px 8px;border-radius:3px;color:var(--text2);display:flex;align-items:center;gap:4px;';
+    span.innerHTML = `📎 ${f.name} <span style="cursor:pointer;color:var(--text3)" onclick="this.parentElement.remove()">✕</span>`;
+    list.appendChild(span);
+  });
+}
+function toggleComposeSize() {
+  const w = document.getElementById('composeWindow');
+  w.style.height = w.style.height === '42px' ? '580px' : '42px';
+}
+function sendCompose() {
+  const to = document.getElementById('composeTo').value;
+  if (!to) { toast('Alıcı adresi boş!', 'err'); return; }
+  toast('SMTP entegrasyonu gerektirir. Taslak kaydedildi.', 'info');
+  saveDraft();
+}
+function saveDraft() {
+  const draft = {
+    to: document.getElementById('composeTo').value,
+    subj: document.getElementById('composeSubj').value,
+    body: document.getElementById('composeBody').innerHTML,
+    ts: Date.now()
+  };
+  try { localStorage.setItem('fm_draft', JSON.stringify(draft)); } catch(e){}
+  toast('Taslak kaydedildi', 'ok');
+}
+
+function openCompose() {
+  // Load draft if exists
+  try {
+    const draft = JSON.parse(localStorage.getItem('fm_draft'));
+    if (draft) {
+      document.getElementById('composeTo').value = draft.to || '';
+      document.getElementById('composeSubj').value = draft.subj || '';
+      document.getElementById('composeBody').innerHTML = draft.body || '';
+    }
+  } catch(e) {}
+  openOverlay('composeOverlay');
+}
+
+
+// ── CMD PALETTE ──────────────────
+function openCmd() {
+  openOverlay('cmdOverlay');
+  setTimeout(() => document.getElementById('cmdInp').focus(), 60);
+}
+function filterCmds(q) {
+  document.querySelectorAll('.cmd-item').forEach(el => {
+    el.style.display = !q || el.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+function cmdNav(e) { if (e.key === 'Escape') closeOverlay('cmdOverlay'); }
+
+// ── OVERLAY HELPERS ──────────────
+function openOverlay(id) { document.getElementById(id).classList.add('open'); }
+function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── RESIZER ──────────────────────
+const resizer = document.getElementById('resizer');
+const mailList = document.getElementById('mailList');
+let isResizing = false;
+resizer.addEventListener('mousedown', () => { isResizing = true; resizer.classList.add('drag'); document.body.style.userSelect = 'none'; });
+document.addEventListener('mousemove', e => {
+  if (!isResizing) return;
+  const newW = Math.max(240, Math.min(560, e.clientX - 264));
+  mailList.style.width = newW + 'px';
+});
+document.addEventListener('mouseup', () => { isResizing = false; resizer.classList.remove('drag'); document.body.style.userSelect = ''; });
+
+// ── KEYBOARD ─────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); openCmd(); return; }
+
+  const groups = state.grouped;
+  const cur = state.currentGroup;
+
+  if (e.key === 'j' || e.key === 'J') {
+    const next = cur === null ? 0 : Math.min(cur + 1, groups.length - 1);
+    const th = document.getElementById(`th_${next}`);
+    showHit(next, 0, th);
+    th?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else if (e.key === 'k' || e.key === 'K') {
+    if (cur !== null && cur > 0) {
+      const th = document.getElementById(`th_${cur-1}`);
+      showHit(cur-1, 0, th);
+      th?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  } else if (e.key === 's' || e.key === 'S') { requestAI('summary'); }
+  else if (e.key === 'r' || e.key === 'R') { requestAI('draft'); }
+  else if (e.key === 'n' || e.key === 'N') { openNote(); }
+  else if (e.key === 'z' || e.key === 'Z') { openSnooze(); }
+  else if (e.key === 't' || e.key === 'T') { openTagModal(); }
+  else if (e.key === 'a' || e.key === 'A') { openAI(); }
+  else if (e.key === 'Escape') { closeAI(); document.querySelectorAll('.overlay.open, .cmd-overlay.open').forEach(o => o.classList.remove('open')); }
+});
+
+// ── AWAITING REPLY ───────────────
+async function loadAwaitingReply() {
+  try {
+    const res  = await fetch(`${API}/awaiting_reply`);
+    const data = await res.json();
+    const count = data.total || 0;
+    const el = document.getElementById('awaitingCount');
+    if (el) el.textContent = count > 0 ? count : '—';
+
+    const list = document.getElementById('awaitingList');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (count === 0) {
+      list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">✅ Yanıt bekleyen mail yok</div>`;
+      return;
+    }
+
+    (data.awaiting || []).forEach(item => {
+      const urgency = item.days_ago > 7 ? 'var(--danger)' : item.days_ago > 3 ? 'var(--warn)' : 'var(--text2)';
+      const div = document.createElement('div');
+      div.style.cssText = `padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;cursor:pointer;transition:border-color .15s;`;
+      div.onmouseenter = () => div.style.borderColor = 'var(--warn)';
+      div.onmouseleave = () => div.style.borderColor = 'var(--border)';
+      div.innerHTML = `
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);flex:1;">${item.subject || 'Konu Yok'}</div>
+          <div style="font-size:11px;font-family:var(--font-m);color:${urgency};flex-shrink:0;">${item.days_ago} gün önce</div>
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">${item.snippet || ''}…</div>
+        <div style="display:flex;gap:6px;">
+          <span style="font-size:9px;font-family:var(--font-m);padding:2px 8px;border-radius:3px;background:var(--warn-dim);color:var(--warn);border:1px solid rgba(255,179,71,.2);">⏳ YANIT YOK</span>
+          <span style="font-size:9px;font-family:var(--font-m);color:var(--text3);">${item.date || ''}</span>
+        </div>`;
+      div.onclick = () => {
+        // Arama kutusuna konuyu yaz ve search yap
+        document.getElementById('searchInp').value = item.subject || '';
+        performSearch();
+        hideAwaitingPanel();
+      };
+      list.appendChild(div);
+    });
+  } catch(e) {
+    const el = document.getElementById('awaitingCount');
+    if (el) el.textContent = '!';
+    console.warn('Awaiting reply load failed', e);
+  }
+}
+
+function showAwaitingPanel(el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('mailDetail').style.display = 'none';
+  const p = document.getElementById('awaitingPanel');
+  p.style.display = 'flex';
+  loadAwaitingReply(); // refresh
+}
+
+function hideAwaitingPanel() {
+  document.getElementById('awaitingPanel').style.display = 'none';
+}
+
+// ── AI MODE / MATCH STATE ─────────
+let aiMode = 'list';   // 'list' | 'ai' | 'action'
+let aiMatch = 'any';   // 'any' | 'all' | 'exact'
+
+function setAIMode(mode, el) {
+  aiMode = mode;
+  document.querySelectorAll('.ai-adv-btn[id^="aiMode"]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+function setAIMatch(match, el) {
+  aiMatch = match;
+  document.querySelectorAll('.ai-adv-btn[id^="aiMatch"]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// Normalize: lowercase + remove accents, punctuation
+function normalizeText(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[İI]/g, 'i').replace(/[Üü]/g, 'u').replace(/[Öö]/g, 'o')
+    .replace(/[Çç]/g, 'c').replace(/[Şş]/g, 's').replace(/[Ğğ]/g, 'g')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+// Build Meilisearch query based on match mode
+function buildSearchQuery(raw) {
+  const norm = normalizeText(raw);
+  const words = norm.split(' ').filter(w => w.length > 1);
+  if (!words.length) return raw;
+  if (aiMatch === 'exact') return `"${raw}"`;
+  if (aiMatch === 'all')   return words.join(' ');   // AND (default Meili)
+  if (aiMatch === 'any')   return words.join(' OR '); // OR
+  return raw;
+}
+
+// ── CONTEXT MENU ─────────────────
+let ctxTargetGroup = null;
+
+function showContextMenu(e, gi) {
+  e.preventDefault();
+  ctxTargetGroup = gi;
+  const hit = state.grouped[gi]?.[0];
+  removeContextMenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  menu.id = 'ctxMenu';
+
+  // Position carefully
+  const x = Math.min(e.clientX, window.innerWidth  - 230);
+  const y = Math.min(e.clientY, window.innerHeight - 380);
+  menu.style.top  = y + 'px';
+  menu.style.left = x + 'px';
+
+  const sender = hit ? (hit.sender||'').replace(/"(.+)".*/,'$1').trim() : '';
+  const hitFolder = hit?.folder || '';
+  const inNonInbox = hitFolder && hitFolder !== 'INBOX' && hitFolder !== 'Sent' && hitFolder !== 'Sent Messages';
+
+  // Build "Klasöre Taşı" submenu from dynamic folders + custom folders
+  const allFolders = [
+    ...(Object.keys(Cache._folderFacets || {})),
+    ...getCustomFolders().map(f => f.name)
+  ].filter((v,i,a) => a.indexOf(v) === i).slice(0, 15);
+
+  const folderItems = allFolders.map(f =>
+    `<div class="ctx-item ctx-sub-item" onclick="ctxMoveToFolder('${f.replace(/'/g,"\\'")}')">
+      <span class="ctx-ico">📁</span>${f.slice(0,25)}
+    </div>`
+  ).join('');
+
+  const removeFromFolderItem = inNonInbox
+    ? `<div class="ctx-item" onclick="ctxRemoveFromFolder()" style="color:var(--warn)"><span class="ctx-ico">↩</span>Klasörden Çıkar</div>
+       <div class="ctx-sep"></div>`
+    : '';
+
+  menu.innerHTML = `
+    <div class="ctx-item" onclick="ctxOpenMail()"><span class="ctx-ico">📧</span>Maili Aç</div>
+    <div class="ctx-item" onclick="ctxCopyMail()"><span class="ctx-ico">⊕</span>Kopyala</div>
+    <div class="ctx-sep"></div>
+    ${removeFromFolderItem}
+    <div class="ctx-item ctx-has-sub" id="ctxMoveItem">
+      <span class="ctx-ico">🗂</span>Klasöre Taşı
+      <span style="margin-left:auto;font-size:10px;color:var(--text3);">▶</span>
+      <div class="ctx-submenu" id="ctxSubFolders" style="
+        display:none;position:absolute;left:100%;top:0;
+        background:var(--bg2);border:1px solid var(--border2);
+        border-radius:var(--r);min-width:180px;box-shadow:var(--shadow);
+        max-height:250px;overflow-y:auto;z-index:1000;
+      ">${folderItems || '<div class="ctx-item" style="color:var(--text3)">Klasör bulunamadı</div>'}</div>
+    </div>
+    <div class="ctx-item" onclick="ctxCreateFolder()"><span class="ctx-ico">📁</span>Yeni Klasör Oluştur</div>
+    <div class="ctx-item" onclick="ctxFindSender()"><span class="ctx-ico">👤</span>${sender ? `"${sender.slice(0,18)}"dan tümünü gör` : 'Göndericiden tümü'}</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" onclick="ctxTag('favori')"><span class="ctx-ico">⭐</span>Favorilere Ekle</div>
+    <div class="ctx-item" onclick="ctxTag('acil')"><span class="ctx-ico">🔴</span>Acil Etiketle</div>
+    <div class="ctx-item" onclick="ctxTag('yolda')"><span class="ctx-ico">🟢</span>Yoldaki Mallar</div>
+    <div class="ctx-item" onclick="ctxTag('toplanti')"><span class="ctx-ico">📅</span>Toplantı</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" onclick="ctxSnooze()"><span class="ctx-ico">⏰</span>Snooze — Yarın</div>
+    <div class="ctx-item" onclick="ctxNote()"><span class="ctx-ico">📝</span>Not Ekle</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" onclick="ctxMarkRead()"><span class="ctx-ico">✓</span>Okundu İşaretle</div>
+  `;
+
+  document.body.appendChild(menu);
+
+  // Show submenu on hover
+  const moveItem = menu.querySelector('#ctxMoveItem');
+  const subFolders = menu.querySelector('#ctxSubFolders');
+  moveItem.addEventListener('mouseenter', () => subFolders.style.display = 'block');
+  moveItem.addEventListener('mouseleave', (e) => {
+    if (!subFolders.contains(e.relatedTarget)) subFolders.style.display = 'none';
+  });
+  subFolders.addEventListener('mouseleave', (e) => {
+    if (!moveItem.contains(e.relatedTarget)) subFolders.style.display = 'none';
+  });
+
+  setTimeout(() => document.addEventListener('click', removeContextMenu, {once:true}), 10);
+}
+
+function removeContextMenu() {
+  document.getElementById('ctxMenu')?.remove();
+}
+
+// Move to folder — updates local tag as "virtual folder"
+async function ctxMoveToFolder(folderName) {
+  if (ctxTargetGroup === null) return;
+  const group = state.grouped[ctxTargetGroup] || [];
+  const ids = group.map(h => h.id).filter(Boolean);
+  if (!ids.length) { toast('Mail ID bulunamadı', 'err'); removeContextMenu(); return; }
+
+  try {
+    const res = await fetch(`${API}/move_bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, target_folder: folderName }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    toast(`📁 ${data.moved} mail "${folderName}" klasörüne taşındı`, 'ok');
+    performSearch();
+  } catch (e) {
+    toast('Taşıma hatası: ' + e.message, 'err');
+  }
+  removeContextMenu();
+}
+
+async function ctxRemoveFromFolder() {
+  if (ctxTargetGroup === null) return;
+  const group = state.grouped[ctxTargetGroup] || [];
+  const ids = group.map(h => h.id).filter(Boolean);
+  if (!ids.length) { removeContextMenu(); return; }
+
+  try {
+    const res = await fetch(`${API}/move_bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, target_folder: 'INBOX' }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    toast(`📥 ${data.moved} mail Gelen Kutusu'na taşındı`, 'ok');
+    performSearch();
+  } catch(e) {
+    toast('Hata: ' + e.message, 'err');
+  }
+  removeContextMenu();
+}
+
+function ctxOpenMail() {
+  if (ctxTargetGroup === null) return;
+  const th = document.getElementById(`th_${ctxTargetGroup}`);
+  showHit(ctxTargetGroup, 0, th);
+  removeContextMenu();
+}
+
+function ctxCopyMail() {
+  if (ctxTargetGroup === null) return;
+  const hit = state.grouped[ctxTargetGroup]?.[0];
+  if (hit) navigator.clipboard?.writeText(`${hit.subject}\n${hit.sender}\n\n${hit.body}`);
+  toast('Panoya kopyalandı', 'ok');
+  removeContextMenu();
+}
+
+function ctxCreateFolder() {
+  if (ctxTargetGroup === null) return;
+  const hit = state.grouped[ctxTargetGroup]?.[0];
+  const sender = (hit?.sender||'').replace(/"(.+)".*/,'$1').trim();
+  const domain = sender.match(/@([^>]+)/)?.[1] || '';
+  const name = domain ? domain.split('.')[0] : (sender.split(' ')[0] || 'Yeni Klasör');
+  document.getElementById('newFolderName').value = name.charAt(0).toUpperCase() + name.slice(1);
+  document.getElementById('newFolderQuery').value = domain || sender;
+  openOverlay('newFolderOverlay');
+  removeContextMenu();
+}
+
+function ctxFindSender() {
+  if (ctxTargetGroup === null) return;
+  const hit = state.grouped[ctxTargetGroup]?.[0];
+  const sender = (hit?.sender||'').replace(/"(.+)".*/,'$1').trim();
+  const email = hit?.sender?.match(/<([^>]+)>/)?.[1] || sender;
+  document.getElementById('searchInp').value = email;
+  performSearch();
+  removeContextMenu();
+}
+
+async function ctxTag(tag) {
+  if (ctxTargetGroup === null) return;
+  const hit = state.grouped[ctxTargetGroup]?.[0];
+  if (!hit) return;
+  const tags = LS.tags();
+  const ex = tags[hit.id] || [];
+  if (!ex.includes(tag)) {
+    await LS.saveTag(hit.id, [...ex, tag]);
+    toast(`"${tag}" etiketi eklendi`, 'ok');
+    renderFromCache();
+  }
+  removeContextMenu();
+}
+
+async function ctxSnooze() {
+  if (ctxTargetGroup === null) return;
+  const hit = state.grouped[ctxTargetGroup]?.[0];
+  if (!hit) return;
+  const ts = Date.now() + 24 * 3600000;
+  await LS.saveSnooze(hit.id, ts);
+  const d = new Date(ts).toLocaleString('tr-TR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  toast(`⏰ Snooze: ${d}`, 'ok');
+  renderFromCache();
+  removeContextMenu();
+}
+
+function ctxNote() {
+  if (ctxTargetGroup === null) return;
+  state.currentGroup = ctxTargetGroup; state.currentHit = 0;
+  openNote();
+  removeContextMenu();
+}
+
+async function ctxMarkRead() {
+  if (ctxTargetGroup === null) return;
+  const hits = state.grouped[ctxTargetGroup] || [];
+  await Promise.all(hits.map(h => LS.markRead(h.id)));
+  const th = document.getElementById(`th_${ctxTargetGroup}`);
+  if (th) { th.classList.remove('unread'); th.querySelector('.unread-line')?.remove(); }
+  removeContextMenu();
+}
+
+// ── MOBILE ────────────────────────
+function isMobile() { return window.innerWidth <= 768; }
+
+function toggleMobileSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  sidebar.classList.toggle('mobile-open');
+  backdrop.classList.toggle('show');
+}
+
+function closeMobileDetail() {
+  const pane = document.getElementById('rightPane');
+  const list = document.getElementById('mailList');
+  pane.classList.remove('mobile-open');
+  list.classList.remove('mobile-hidden');
+}
+
+// Override showHit to handle mobile
+const _origShowHit = showHit;
+// We'll patch showHit below after definition
+
+// ── TOAST ─────────────────────────
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toasts');
+  const icons = { ok: '✓', err: '⚠', info: 'ℹ' };
+  const div = document.createElement('div');
+  div.className = `toast ${type}`;
+  div.innerHTML = `<span>${icons[type]||'·'}</span>${msg}`;
+  c.appendChild(div);
+  setTimeout(() => { div.style.opacity = '0'; div.style.transform = 'translateX(20px)'; div.style.transition = '.3s'; setTimeout(()=>div.remove(),350); }, 2800);
+}
+
+// ── UTILS ─────────────────────────
+function fmtBytes(b) {
+  if (!b) return '0 B';
+  if (b > 1048576) return (b/1048576).toFixed(1)+' MB';
+  if (b > 1024) return (b/1024).toFixed(0)+' KB';
+  return b+' B';
+}
+</script>
+</body>
+</html>
