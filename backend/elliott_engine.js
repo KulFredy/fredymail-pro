@@ -454,14 +454,16 @@ async function analyzeElliott(symbol = 'BTC/USDT', timeframe = '1h', limit = 200
     }
 
     const { isBullish, points, validation, waveSpan, waveIndices } = wave;
-    const direction = isBullish ? 'LONG' : 'SHORT';
+    // Bearish impulse (5 waves DOWN) → expect LONG correction upward
+    // Bullish impulse (5 waves UP)   → expect SHORT correction downward
+    const direction = isBullish ? 'SHORT' : 'LONG';
 
     const w5Price = points.p5.price;
     const w0Price = points.p0.price;
 
-    // Fibonacci targets
+    // Fibonacci targets — correction moves opposite to impulse
     const corrBase = w5Price;
-    const corrDir = isBullish ? 1 : -1;
+    const corrDir = isBullish ? -1 : 1;
 
     const tp1 = parseFloat((corrBase + corrDir * waveSpan * 0.382).toFixed(2));
     const tp2 = parseFloat((corrBase + corrDir * waveSpan * 0.500).toFixed(2));
@@ -525,11 +527,11 @@ async function analyzeElliott(symbol = 'BTC/USDT', timeframe = '1h', limit = 200
       timestamp: Date.now(),
 
       pattern: {
-        name: isBullish ? 'A-B-C TEPKİSİ (YÜKSELİŞ)' : 'A-B-C TEPKİSİ (DÜŞÜŞ)',
+        name: isBullish ? 'A-B-C DÜZELTMESİ (DÜŞÜŞ)' : 'A-B-C TEPKİSİ (YÜKSELİŞ)',
         direction,
         description: isBullish
-          ? '5 dalgalık düşüş trendi bitti. Fiyatın yukarı yönlü tepki (A dalgası) vermesi bekleniyor.'
-          : '5 dalgalık yükseliş trendi bitti. Fiyatın aşağı yönlü tepki (A dalgası) vermesi bekleniyor.',
+          ? '5 dalgalık yükseliş trendi bitti. Fiyatın aşağı yönlü ABC düzeltmesi yapması bekleniyor.'
+          : '5 dalgalık düşüş trendi bitti. Fiyatın yukarı yönlü tepki (A dalgası) vermesi bekleniyor.',
         wavePoints: {
           W0: parseFloat(w0Price.toFixed(2)),
           W1: parseFloat(points.p1.price.toFixed(2)),
