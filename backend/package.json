@@ -1,0 +1,20 @@
+{
+  "name": "apex-q-elliott-backend",
+  "version": "2.0.0",
+  "description": "APEX-Q Elliott Wave Analysis Backend",
+  "main": "elliott_server.js",
+  "scripts": {
+    "start": "node elliott_server.js",
+    "dev": "nodemon elliott_server.js"
+  },
+  "dependencies": {
+    "ccxt": "^4.3.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "technicalindicators": "^3.1.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

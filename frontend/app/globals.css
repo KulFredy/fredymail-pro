@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --apex-bg: #0B0F19;
+  --apex-card: #151C2C;
+  --apex-border: #1E2D45;
+  --apex-green: #00E676;
+  --apex-red: #FF1744;
+}
+
+body {
+  background-color: var(--apex-bg);
+  color: #CBD5E1;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0B0F19; }
+::-webkit-scrollbar-thumb { background: #1E2D45; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #2563EB; }
+
+/* Progress bar animation */
+@keyframes fillBar {
+  from { width: 0%; }
+  to   { width: var(--target-width); }
+}
+
+.progress-fill {
+  animation: fillBar 0.8s ease-out forwards;
+}
