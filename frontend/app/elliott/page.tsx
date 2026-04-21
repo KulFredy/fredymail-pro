@@ -77,14 +77,8 @@ interface AnalysisData {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SYMBOLS = [
+const FALLBACK_SYMBOLS = [
   "BTC/USDT","ETH/USDT","SOL/USDT","BNB/USDT","XRP/USDT",
-  "DOGE/USDT","ADA/USDT","AVAX/USDT","DOT/USDT","LINK/USDT",
-  "SUI/USDT","ARB/USDT","OP/USDT","INJ/USDT","TIA/USDT",
-  "NEAR/USDT","APT/USDT","TON/USDT","ATOM/USDT","FTM/USDT",
-  "PEPE/USDT","WIF/USDT","JUP/USDT","SEI/USDT","STRK/USDT",
-  "LTC/USDT","BCH/USDT","ETC/USDT","MATIC/USDT","UNI/USDT",
-  "AAVE/USDT","MKR/USDT","CRV/USDT","SNX/USDT","GRT/USDT",
 ];
 
 const TIMEFRAMES = ["15m","1h","4h","1d","1w"];
@@ -160,7 +154,19 @@ export default function ElliottPage() {
   const [lastUpdate, setLastUpdate] = useState<string>("");
   const [showFormula, setShowFormula] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [symbols, setSymbols] = useState<string[]>(FALLBACK_SYMBOLS);
+  const [symbolsLoading, setSymbolsLoading] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch symbol list from backend on mount
+  useEffect(() => {
+    axios.get(`${API_BASE}/api/v1/symbols`)
+      .then(res => {
+        if (res.data?.symbols?.length) setSymbols(res.data.symbols);
+      })
+      .catch(() => {/* keep fallback */})
+      .finally(() => setSymbolsLoading(false));
+  }, []);
 
   const analyze = useCallback(async () => {
     setLoading(true);
@@ -207,9 +213,13 @@ export default function ElliottPage() {
             <select
               value={symbol}
               onChange={e => setSymbol(e.target.value)}
-              className="bg-apex-card border border-apex-border text-white text-xs px-3 py-1.5 rounded-lg appearance-none pr-7 outline-none focus:border-apex-blue cursor-pointer"
+              disabled={symbolsLoading}
+              className="bg-apex-card border border-apex-border text-white text-xs px-3 py-1.5 rounded-lg appearance-none pr-7 outline-none focus:border-apex-blue cursor-pointer disabled:opacity-50"
             >
-              {SYMBOLS.map(s => <option key={s} value={s}>{s}</option>)}
+              {symbolsLoading
+                ? <option>Yükleniyor...</option>
+                : symbols.map(s => <option key={s} value={s}>{s}</option>)
+              }
             </select>
             <ChevronDown className="absolute right-2 top-2 w-3 h-3 text-slate-500 pointer-events-none" />
           </div>

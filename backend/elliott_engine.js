@@ -16,7 +16,13 @@
 const ccxt = require('ccxt');
 const { RSI, MACD } = require('technicalindicators');
 
-const exchange = new ccxt.binance({ enableRateLimit: true });
+const exchange = new ccxt.binanceusdm({ enableRateLimit: true });
+
+// Convert display symbol (BTC/USDT) to futures format (BTC/USDT:USDT)
+function toFuturesSymbol(symbol) {
+  if (symbol.includes(':')) return symbol;
+  return symbol + ':USDT';
+}
 
 // ─── Elliott Rules Validator ────────────────────────────────────────────────
 
@@ -405,10 +411,11 @@ function findElliottWaves(pivotsRaw, candles) {
 async function getMTFData(symbol) {
   const timeframes = ['15m', '1h', '4h', '1d'];
   const results = {};
+  const futuresSym = toFuturesSymbol(symbol);
 
   for (const tf of timeframes) {
     try {
-      const ohlcv = await exchange.fetchOHLCV(symbol, tf, undefined, 50);
+      const ohlcv = await exchange.fetchOHLCV(futuresSym, tf, undefined, 50);
       if (!ohlcv || ohlcv.length < 14) { results[tf] = { trend: 'NEUTRAL', signal: 'WAIT' }; continue; }
 
       const closes = ohlcv.map(c => c[4]);
@@ -436,7 +443,8 @@ async function getMTFData(symbol) {
 
 async function analyzeElliott(symbol = 'BTC/USDT', timeframe = '1h', limit = 200) {
   try {
-    const candles = await exchange.fetchOHLCV(symbol, timeframe, undefined, limit);
+    const futuresSym = toFuturesSymbol(symbol);
+    const candles = await exchange.fetchOHLCV(futuresSym, timeframe, undefined, limit);
     if (!candles || candles.length < 50) throw new Error('Yetersiz veri');
 
     const currentPrice = candles[candles.length - 1][4];
@@ -596,4 +604,4 @@ async function analyzeElliott(symbol = 'BTC/USDT', timeframe = '1h', limit = 200
   }
 }
 
-module.exports = { analyzeElliott, validateImpulse, calculateRR, validateTradeSetup };
+module.exports = { analyzeElliott, validateImpulse, calculateRR, validateTradeSetup, toFuturesSymbol };

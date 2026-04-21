@@ -13,28 +13,47 @@ const express = require('express');
 const cors = require('cors');
 const WebSocket = require('ws');
 const ccxt = require('ccxt');
-const { analyzeElliott, calculateRR, validateTradeSetup } = require('./elliott_engine');
+const { analyzeElliott, calculateRR, validateTradeSetup, toFuturesSymbol } = require('./elliott_engine');
 const { formatTelegramMessage } = require('./telegram_formatter');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const exchange = new ccxt.binance({ enableRateLimit: true });
+// Binance USDM Futures — same exchange as elliott_engine
+const exchange = new ccxt.binanceusdm({ enableRateLimit: true });
 
-// ─── Symbol Cache ─────────────────────────────────────────────────────────────
+// ─── Symbol Cache (auto-refresh every 12h) ────────────────────────────────────
 
-let symbolCache = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT'];
+const PRIORITY = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT',
+                  'DOGE/USDT', 'ADA/USDT', 'AVAX/USDT', 'LINK/USDT', 'DOT/USDT'];
+
+let symbolCache = PRIORITY;
+let lastSymbolRefresh = 0;
 
 async function refreshSymbols() {
   try {
-    const markets = await exchange.loadMarkets();
-    const usdtFutures = Object.keys(markets)
-      .filter(s => s.endsWith('/USDT') && markets[s].future)
+    const markets = await exchange.loadMarkets(true); // force reload
+    const now = Date.now();
+
+    // Keep only active USDT perpetual futures (not expired)
+    const active = Object.values(markets)
+      .filter(m =>
+        m.quote === 'USDT' &&
+        m.type === 'swap' &&
+        m.active === true &&
+        m.settle === 'USDT'
+      )
+      .map(m => m.symbol.replace(':USDT', ''))   // BTC/USDT:USDT → BTC/USDT
       .sort();
-    const priority = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT'];
-    symbolCache = [...priority, ...usdtFutures.filter(s => !priority.includes(s))].slice(0, 100);
-    console.log(`[APEX-Q] ${symbolCache.length} sembol güncellendi`);
+
+    // Priority coins first, rest alphabetically
+    const prioritySet = new Set(PRIORITY);
+    const rest = active.filter(s => !prioritySet.has(s));
+    symbolCache = [...PRIORITY.filter(s => active.includes(s)), ...rest];
+
+    lastSymbolRefresh = now;
+    console.log(`[APEX-Q] ${symbolCache.length} futures sembol güncellendi (${new Date().toISOString()})`);
   } catch (e) {
     console.warn('[APEX-Q] Sembol güncelleme hatası:', e.message);
   }
@@ -148,10 +167,13 @@ app.delete('/api/v1/alerts/:id', (req, res) => {
 // ─── HTTP Server ──────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3005;
-const server = app.listen(PORT, () => {
+const SYMBOL_REFRESH_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+const server = app.listen(PORT, async () => {
   console.log(`[APEX-Q] Elliott Server → http://localhost:${PORT}`);
-  refreshSymbols();
-  setInterval(refreshSymbols, 12 * 60 * 60 * 1000);
+  await refreshSymbols(); // initial load on startup
+  setInterval(refreshSymbols, SYMBOL_REFRESH_MS);
+  console.log(`[APEX-Q] Sembol listesi her 12 saatte bir otomatik güncellenir`);
 });
 
 // ─── WebSocket Server ─────────────────────────────────────────────────────────
