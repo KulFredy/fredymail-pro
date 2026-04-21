@@ -16,7 +16,7 @@
 const ccxt = require('ccxt');
 const { RSI, MACD } = require('technicalindicators');
 
-const exchange = new ccxt.binanceusdm({ enableRateLimit: true });
+const exchange = new ccxt.binance({ enableRateLimit: true });
 
 // ─── Elliott Rules Validator ────────────────────────────────────────────────
 

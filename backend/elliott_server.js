@@ -20,7 +20,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const exchange = new ccxt.binanceusdm({ enableRateLimit: true });
+const exchange = new ccxt.binance({ enableRateLimit: true });
 
 // ─── Symbol Cache ─────────────────────────────────────────────────────────────
 
