@@ -81,6 +81,10 @@ const SYMBOLS = [
   "BTC/USDT","ETH/USDT","SOL/USDT","BNB/USDT","XRP/USDT",
   "DOGE/USDT","ADA/USDT","AVAX/USDT","DOT/USDT","LINK/USDT",
   "SUI/USDT","ARB/USDT","OP/USDT","INJ/USDT","TIA/USDT",
+  "NEAR/USDT","APT/USDT","TON/USDT","ATOM/USDT","FTM/USDT",
+  "PEPE/USDT","WIF/USDT","JUP/USDT","SEI/USDT","STRK/USDT",
+  "LTC/USDT","BCH/USDT","ETC/USDT","MATIC/USDT","UNI/USDT",
+  "AAVE/USDT","MKR/USDT","CRV/USDT","SNX/USDT","GRT/USDT",
 ];
 
 const TIMEFRAMES = ["15m","1h","4h","1d","1w"];
@@ -282,6 +286,29 @@ export default function ElliottPage() {
             <div className="flex-1 bg-apex-card border border-apex-border rounded-xl flex flex-col items-center justify-center gap-4 min-h-[420px]">
               <BarChart2 className="w-16 h-16 text-slate-700" />
               <p className="text-slate-600 text-sm tracking-wider">Analiz başlatmak için sembol seçin ve ANALİZE BAŞLA&apos;ya tıklayın.</p>
+            </div>
+          )}
+
+          {/* No pattern found */}
+          {data && !data.error && !data.pattern && !loading && (
+            <div className="flex-1 bg-apex-card border border-slate-700/50 rounded-xl flex flex-col items-center justify-center gap-4 min-h-[420px]">
+              <Activity className="w-12 h-12 text-slate-700" />
+              <div className="text-center space-y-2">
+                <p className="text-slate-400 font-bold">Geçerli Elliott Dalgası Bulunamadı</p>
+                <p className="text-slate-600 text-xs max-w-xs">Bu sembol/zaman diliminde net bir 5 dalga yapısı tespit edilemedi.</p>
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center mt-2">
+                {["4h","1d","1w"].map(tf => (
+                  <button
+                    key={tf}
+                    onClick={() => { setTimeframe(tf); setTimeout(analyze, 100); }}
+                    className="px-4 py-1.5 bg-apex-blue/20 border border-apex-blue/40 text-apex-blue text-xs rounded-lg hover:bg-apex-blue/30 transition-colors font-bold"
+                  >
+                    {tf} dene
+                  </button>
+                ))}
+              </div>
+              <p className="text-slate-700 text-[10px]">İpucu: 4h ve 1d zaman dilimlerinde pattern bulma oranı daha yüksektir.</p>
             </div>
           )}
 
