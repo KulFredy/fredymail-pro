@@ -1,0 +1,145 @@
+[
+  {
+    "id": 1,
+    "pattern_name": "Liquidity_Hunt_SFP",
+    "timeframe_context": "4H / 1D",
+    "wave_context": "W4 veya ABC düzeltmesi dibi",
+    "technical_context": "Fiyatın ana destek seviyesinin altına iğne atıp (SFP), mum gövdesini tekrar desteğin üzerinde kapatması (Reclaim).",
+    "confirmation_signal": "Destek üzerinde 4H veya 1D mum kapanışının gerçekleşmesi.",
+    "invalidation": {
+      "level_reference": "SFP_Fitil_Ucu",
+      "condition": "Oluşan fitil ucunun (en düşük seviye) altında gövde ile hacimli bir kapanış yapılması halinde likidite avı tezi çöker, CHoCH onaylanır."
+    },
+    "bias": "BULLISH"
+  },
+  {
+    "id": 2,
+    "pattern_name": "Macro_Complex_Correction_WXYZ",
+    "timeframe_context": "1D / 1W",
+    "wave_context": "Büyük ABC veya WXYXZ karmaşık düzeltme",
+    "technical_context": "W-X-Y-Z karmaşık düzeltme kalıplarında, Z bacağının VPVR (Hacim Profili) POC (Point of Control) seviyesine ulaşması.",
+    "confirmation_signal": "Z bacağı sonrasında fiyatın POC seviyesini hacimli bir mum ile yukarı yönlü kırması.",
+    "invalidation": {
+      "level_reference": "Kanal_Alt_Bandi_veya_Son_Dip",
+      "condition": "Fiyatın düşen kanalın üst bandından red yiyip, yapının yeni bir 'Lower Low' (Daha düşük dip) yapması halinde düzeltme devam ediyor demektir."
+    },
+    "bias": "BULLISH"
+  },
+  {
+    "id": 3,
+    "pattern_name": "Trend_Break_Wave_3_Start",
+    "timeframe_context": "4H / 1D",
+    "wave_context": "W2 → W3 geçişi",
+    "technical_context": "Majör alçalan trend çizgisinin kırılması ve RSI indikatörünün 50 seviyesini yukarı yönlü kesmesi.",
+    "confirmation_signal": "Trend çizgisi üzerinde en az iki adet 4H mum kapanışı ve RSI onayı.",
+    "invalidation": {
+      "level_reference": "Alcalan_Trend_Cizgisi",
+      "condition": "Kırılımın bir 'Fake-out' (Sahte Kırılım) çıkması ve fiyatın tekrar majör alçalan trend kanalının içine girerek kapanış yapması."
+    },
+    "bias": "BULLISH"
+  },
+  {
+    "id": 4,
+    "pattern_name": "RSI_Positive_Divergence_Sweep",
+    "timeframe_context": "4H / 1D",
+    "wave_context": "W5 dibi veya ABC-C dibi",
+    "technical_context": "Fiyatın 'Equal Lows' (Eşit Dipler) likiditesini temizlemesi (Sweep) esnasında RSI'ın daha yüksek bir dip oluşturması.",
+    "confirmation_signal": "Likidite alımı sonrası oluşan ilk güçlü 'Bullish Engulfing' (Yutan Boğa) mumu.",
+    "invalidation": {
+      "level_reference": "Yeni_Dip_Seviyesi",
+      "condition": "RSI uyumsuzluğunun bozulması ve RSI momentumunun yeni bir 'Aşırı Satım' (Oversold) bölgesi oluşturarak fiyatı aşağı çekmesi."
+    },
+    "bias": "BULLISH"
+  },
+  {
+    "id": 5,
+    "pattern_name": "Range_Accumulation_Breakout",
+    "timeframe_context": "4H / 1D",
+    "wave_context": "W4 konsolidasyonu → W5 başlangıcı",
+    "technical_context": "Fiyatın yatay bir konsolidasyon (Range) alanında enerji biriktirmesi ve Range EQ (Orta Hat) seviyesinin üzerinde tutunması.",
+    "confirmation_signal": "Fiyatın 'Range High' (Aralık Üstü) seviyesini hacimli (Average Volume x2) geçmesi.",
+    "invalidation": {
+      "level_reference": "Range_Low",
+      "condition": "Akümülasyon yapısının çökmesi ve 'Range Low' (Aralık Altı) seviyesinin altında mum kapanışı gelmesi."
+    },
+    "bias": "BULLISH"
+  },
+  {
+    "id": 6,
+    "pattern_name": "HTF_RSI_Lead_Bias",
+    "timeframe_context": "1W / 1D",
+    "wave_context": "W2 sonu / W3 başlangıcı HTF onayı",
+    "technical_context": "Haftalık (Yüksek Zaman Dilimi - HTF) RSI trendinin, fiyattan daha önce yukarı yönlü kırılım gerçekleştirmesi.",
+    "confirmation_signal": "HTF RSI onayı sonrası, düşük zaman dilimlerinde (Örn: 4H) Market Yapısı Kırılımı (MSB) gerçekleşmesi.",
+    "invalidation": {
+      "level_reference": "RSI_Trend_Cizgisi",
+      "condition": "Haftalık RSI kırılımının sahte çıkması ve RSI'ın tekrar kendi düşen trendinin altına dönmesi."
+    },
+    "bias": "BULLISH"
+  },
+  {
+    "id": 7,
+    "pattern_name": "Peak_CHoCH_Trend_Reversal",
+    "timeframe_context": "4H / 1D",
+    "wave_context": "W5 zirvesi → ABC düzeltmesi başlangıcı (CHoCH)",
+    "technical_context": "Elliott 5. dalga zirvesi tamamlandıktan sonra fiyatın sert ve impulsif bir düşüş (Karakter Değişimi - CHoCH) yaşaması.",
+    "confirmation_signal": "CHoCH sonrası gelen 'B' dalgası tepki yükselişinin zayıf kalması ve eski desteklerin direnç olarak çalışması.",
+    "invalidation": {
+      "level_reference": "Wave_5_Zirvesi",
+      "condition": "Fiyatın CHoCH senaryosunu reddedip, 5. dalga tepesini hacimli bir şekilde geçerek 'Extended Wave' (Uzatılmış Dalga) başlatması."
+    },
+    "bias": "BEARISH"
+  },
+  {
+    "id": 8,
+    "pattern_name": "Daily_RSI_Accumulation_Lead",
+    "timeframe_context": "1D",
+    "wave_context": "W4 akümülasyonu / W3 sonrası konsolidasyon",
+    "technical_context": "Günlük grafikte fiyat yatay bir akümülasyon evresindeyken, RSI'ın kendi düşen trendini kırarak gücü (momentum) önceden fiyatlaması.",
+    "confirmation_signal": "RSI kırılımını takiben, fiyatın en yakın 'Swing High' (Tepesel) noktasını hacimli geçmesi.",
+    "invalidation": {
+      "level_reference": "Akimulasyon_Destegi",
+      "condition": "Fiyatın mevcut yatay kanalı aşağı kırması ve en yakın Fair Value Gap (FVG) boşluklarını aşağı yönlü doldurmaya başlaması."
+    },
+    "bias": "BULLISH"
+  },
+  {
+    "id": 9,
+    "pattern_name": "Demand_Zone_ABC_Response",
+    "timeframe_context": "4H / 1D",
+    "wave_context": "Makro W5 dibi → ABC tepki dalgası A bacağı",
+    "technical_context": "5 dalgalık düşüş trendinin bittiği makro Talep Bölgesi'nde (Demand Zone) Swing Failure Pattern (SFP) oluşması.",
+    "confirmation_signal": "SFP onayı ile birlikte fiyatın Fibonacci 0.382 hedefine doğru A-B-C tepki dalgasını başlatması.",
+    "invalidation": {
+      "level_reference": "Demand_Zone_Alt_Siniri",
+      "condition": "Talep bölgesinin satıcılar tarafından hacimli bir mumla aşağı yönde parçalanması ve eski desteğin direnç (Flip) olarak test edilmesi."
+    },
+    "bias": "BULLISH"
+  },
+  {
+    "id": 10,
+    "pattern_name": "Fibonacci_Verified_Wave_4",
+    "timeframe_context": "4H / 1D",
+    "wave_context": "W3 → W4 Fibonacci düzeltmesi",
+    "technical_context": "Sert bir 3. dalga itkisinden sonra fiyatın Fibonacci %38.2 ile %50.0 bölgesine düzeltme yapması (4. Dalga).",
+    "confirmation_signal": "Belirtilen Fibonacci altın oran bölgesinde düşük zaman dilimlerinde (LTF) Market Yapısı Kırılımı (MSB) onayı alınması.",
+    "invalidation": {
+      "level_reference": "Wave_1_Tepesi",
+      "condition": "Elliott Dalga Örtüşmesi (Overlap) Kuralı: 4. dalganın sarkarak 1. dalganın tepe seviyesinin (fiyatının) içine girmesi."
+    },
+    "bias": "BULLISH"
+  },
+  {
+    "id": 11,
+    "pattern_name": "Expanding_Impulse_SR_Flip",
+    "timeframe_context": "4H / 1D",
+    "wave_context": "W3 sonrası S/R Flip → W4 tamamlandı, W5 başlıyor",
+    "technical_context": "Elliott 3. dalga itkisi sonrası oluşan yatay kanalın (Range) kırılması ve eski direncin desteğe dönüşmesi (S/R Flip).",
+    "confirmation_signal": "Yatay kanalın üst bandının re-test esnasında güçlü alıcı bulması ve 5. dalgaya kalkış.",
+    "invalidation": {
+      "level_reference": "Wave_4_Dibi",
+      "condition": "Fiyatın S/R Flip senaryosunu iptal ederek 4. dalga dibi olarak belirlenen destek hattının altında hacimli 4H kapanış yapması."
+    },
+    "bias": "BULLISH"
+  }
+]
