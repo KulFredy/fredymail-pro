@@ -25,6 +25,7 @@ const ccxt   = require('ccxt');
 const { RSI } = require('technicalindicators');
 const { findAllCandidateWaves, calculateMomentumScore, calculateVolumeScore, toFuturesSymbol } = require('./elliott_engine');
 const { analyzeWithClaude } = require('./claude_analyst');
+const { generateChart }     = require('./chart_generator');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -51,32 +52,63 @@ const SCAN_COINS = process.env.SCAN_COINS
 
 const exchange = new ccxt.binanceusdm({ enableRateLimit: true });
 
-// ─── Telegram ────────────────────────────────────────────────────────────────
+// ─── Telegram helpers ────────────────────────────────────────────────────────
 
-async function sendTelegram(text) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.log('\n[DRY-RUN] ─── Telegram mesajı ───\n' + text + '\n──────────────────────');
-    return;
-  }
-  const body = Buffer.from(JSON.stringify({
-    chat_id: TELEGRAM_CHAT_ID,
-    text,
-    parse_mode: 'HTML',
-  }));
-  return new Promise((resolve, reject) => {
+function telegramPost(path, body, contentType) {
+  return new Promise(resolve => {
+    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) { resolve(); return; }
     const req = https.request(
-      {
-        hostname: 'api.telegram.org',
-        path: `/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': body.length },
-      },
+      { hostname: 'api.telegram.org', path, method: 'POST',
+        headers: { 'Content-Type': contentType, 'Content-Length': body.length } },
       res => { res.resume(); res.on('end', resolve); }
     );
     req.on('error', e => { console.warn('[Telegram]', e.message); resolve(); });
-    req.write(body);
-    req.end();
+    req.write(body); req.end();
   });
+}
+
+async function sendTelegramText(text) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.log('\n[DRY-RUN] ── Telegram (text) ──\n' + text.slice(0, 500) + '\n──────────────\n');
+    return;
+  }
+  const body = Buffer.from(JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'HTML' }));
+  await telegramPost(`/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, body, 'application/json');
+}
+
+// Sends a PNG buffer as a photo with HTML caption.
+// Falls back to text if chartPng is null (canvas not installed).
+async function sendTelegramSignal(caption, chartPng) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.log('\n[DRY-RUN] ── Telegram (photo) ──\n' + caption.slice(0, 500) + '\n──────────────\n');
+    return;
+  }
+  if (!chartPng) {
+    return sendTelegramText(caption);
+  }
+
+  // Build multipart/form-data manually (no external deps)
+  const boundary = 'apexqboundary' + Date.now();
+  const CRLF     = '\r\n';
+
+  const field = (name, value) =>
+    `--${boundary}${CRLF}Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}${value}${CRLF}`;
+
+  const prefix = Buffer.from([
+    field('chat_id',    TELEGRAM_CHAT_ID),
+    field('caption',    caption),
+    field('parse_mode', 'HTML'),
+    `--${boundary}${CRLF}Content-Disposition: form-data; name="photo"; filename="chart.png"${CRLF}Content-Type: image/png${CRLF}${CRLF}`,
+  ].join(''));
+
+  const suffix = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
+  const body   = Buffer.concat([prefix, chartPng, suffix]);
+
+  await telegramPost(
+    `/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+    body,
+    `multipart/form-data; boundary=${boundary}`
+  );
 }
 
 // ─── Data fetcher ────────────────────────────────────────────────────────────
@@ -182,9 +214,32 @@ async function scanSymbol(symbol, timeframe) {
 
   console.log(`[APEX-Q] ✔ Sinyal: ${symbol} ${timeframe} ${analysis.primaryCount?.direction} | ${analysis.confidence}`);
 
-  const msg = formatSignal(symbol, timeframe, currentPrice, analysis);
-  await sendTelegram(msg);
-  await new Promise(r => setTimeout(r, 1500)); // Telegram rate limit
+  const pc = analysis.primaryCount;
+
+  // Build levels object for chart annotations
+  const levels = {
+    invalidation:  pc?.invalidation?.price,
+    tp1:           pc?.targets?.[0]?.price,
+    tp2:           pc?.targets?.[1]?.price,
+    tp3:           pc?.targets?.[2]?.price,
+    entryLow:      typeof pc?.tradeSetup?.stopLoss === 'number' ? undefined : undefined, // entry zone from text
+    currentPrice,
+  };
+
+  // Generate chart PNG (null if canvas not installed)
+  const chartPng = generateChart(
+    candles,
+    pc?.wavePoints || {},
+    levels,
+    symbol, timeframe,
+    pc?.direction || 'LONG',
+    { total: analysis.confidence === 'YÜKSEK' ? 85 : analysis.confidence === 'ORTA' ? 65 : 45,
+      interpretation: analysis.confidence }
+  );
+
+  const caption = formatSignal(symbol, timeframe, currentPrice, analysis);
+  await sendTelegramSignal(caption, chartPng);
+  await new Promise(r => setTimeout(r, 1500));
 }
 
 async function runScan() {
