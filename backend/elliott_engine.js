@@ -36,39 +36,44 @@ function validateImpulse(points, isBullish) {
   const w5 = Math.abs(p5 - p4);
 
   const violations = [];
+  const warnings = [];
+
+  // ── HARD RULES (classical Elliott — must not be broken) ──────────────────
 
   // Rule 1: W2 cannot retrace ≥ 100% of W1
   const w2Ret = w2 / w1;
-  if (w2Ret >= 1.0) violations.push('W2 W1\'in tamamını geri aldı (%' + Math.round(w2Ret * 100) + ')');
+  if (w2Ret >= 1.0) violations.push(`W2 W1'in tamamını geri aldı (%${Math.round(w2Ret * 100)})`);
 
   // Rule 2: W3 cannot be the shortest impulse wave
   if (w3 < w1 && w3 < w5) violations.push('W3 en kısa dalga olamaz');
 
   // Rule 3: W4 cannot enter W1 price territory
-  if (isBullish && p4 < p1) violations.push('W4 W1 fiyat bölgesine girdi (overlap)');
-  if (!isBullish && p4 > p1) violations.push('W4 W1 fiyat bölgesine girdi (overlap)');
+  // 1% fuzzy tolerance for wicks (futures markets have frequent wick violations)
+  const FUZZY = 0.01;
+  if (isBullish  && p4 < p1 * (1 - FUZZY)) violations.push('W4 W1 fiyat bölgesine girdi (overlap)');
+  if (!isBullish && p4 > p1 * (1 + FUZZY)) violations.push('W4 W1 fiyat bölgesine girdi (overlap)');
 
-  // Rule 4: W3 extension check (should be > 1x W1)
+  // ── SOFT GUIDELINES (affect score, do not invalidate) ────────────────────
+
   const w3Ext = w3 / w1;
-  if (w3Ext < 1.0) violations.push('W3 W1\'den kısa (extension yok)');
+  if (w3Ext < 1.0) warnings.push(`W3 W1'den kısa (extension zayıf, %${Math.round(w3Ext * 100)})`);
 
-  // Rule 5: W2 retracement should be between 38.2% - 78.6%
-  if (w2Ret < 0.236) violations.push('W2 çok az geri çekildi (<%23.6)');
+  if (w2Ret < 0.236) warnings.push(`W2 az geri çekildi (%${Math.round(w2Ret * 100)})`);
 
-  // Rule 6: W4 should retrace 23.6% - 38.2% of W3 (guideline)
   const w4Ret = w4 / w3;
-  const w4Warning = w4Ret > 0.618 ? 'W4 derin düzeltme (%' + Math.round(w4Ret * 100) + ')' : null;
+  if (w4Ret > 0.618) warnings.push(`W4 derin düzeltme (%${Math.round(w4Ret * 100)})`);
 
   const isValid = violations.length === 0;
-  const rulesScore = Math.max(0, 100 - violations.length * 15);
+  // Each hard violation costs 30pts; each soft warning costs 8pts
+  const rulesScore = Math.max(0, 100 - violations.length * 30 - warnings.length * 8);
 
   return {
     valid: isValid,
     violations,
-    warning: w4Warning,
+    warnings,
     metrics: {
       w2Retracement: parseFloat((w2Ret * 100).toFixed(1)),
-      w3Extension: parseFloat((w3Ext * 100).toFixed(1)) + 'x → ' + parseFloat(w3Ext.toFixed(3)) + 'x',
+      w3Extension:   parseFloat(w3Ext.toFixed(3)) + 'x',
       w4Retracement: parseFloat((w4Ret * 100).toFixed(1)),
     },
     rulesScore,
@@ -131,8 +136,8 @@ function calculateRR(entry, sl, tp1) {
   if (rr >= 3)      { rating = 'MÜKEMMEL'; color = 'emerald'; recommend = true; }
   else if (rr >= 2) { rating = 'İYİ';      color = 'green';   recommend = true; }
   else if (rr >= 1.5){ rating = 'KABUL';   color = 'yellow';  recommend = true; }
-  else if (rr >= 1)  { rating = 'ZAYIF';   color = 'orange';  recommend: false; }
-  else               { rating = 'İŞLEM ALMA'; color = 'red';  recommend: false; }
+  else if (rr >= 1)  { rating = 'ZAYIF';      color = 'orange'; }
+  else               { rating = 'İŞLEM ALMA'; color = 'red';    }
 
   return {
     rr: parseFloat(rr.toFixed(2)),
@@ -145,7 +150,7 @@ function calculateRR(entry, sl, tp1) {
 
 // ─── Pivot Detection ────────────────────────────────────────────────────────
 
-function getPivots(candles, leftBars = 8, rightBars = 5) {
+function getPivots(candles, leftBars = 5, rightBars = 3) {
   const pivots = [];
   for (let i = leftBars; i < candles.length - rightBars; i++) {
     const high = candles[i][2];
@@ -449,8 +454,13 @@ async function analyzeElliott(symbol = 'BTC/USDT', timeframe = '1h', limit = 200
 
     const currentPrice = candles[candles.length - 1][4];
 
-    const pivots = getPivots(candles);
-    const wave = findElliottWaves(pivots, candles);
+    // Try increasingly sensitive pivot windows until a valid wave is found
+    let wave = null;
+    for (const [left, right] of [[5, 3], [4, 2], [3, 2], [2, 1]]) {
+      const pivots = getPivots(candles, left, right);
+      wave = findElliottWaves(pivots, candles);
+      if (wave) break;
+    }
 
     if (!wave) {
       return {
