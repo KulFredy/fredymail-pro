@@ -411,6 +411,87 @@ function findElliottWaves(pivotsRaw, candles) {
   return results.length > 0 ? results[results.length - 1] : null;
 }
 
+// Returns up to maxCount wave candidates across multiple pivot sensitivities.
+// Each candidate carries a numeric evidence score so Claude can rank them.
+function findAllCandidateWaves(candles, maxCount = 5) {
+  const seen = new Set();
+  const candidates = [];
+
+  for (const [left, right] of [[5, 3], [4, 2], [3, 2], [2, 1]]) {
+    const pivotsRaw = getPivots(candles, left, right);
+    const pivots = filterAlternating(pivotsRaw);
+
+    for (let i = pivots.length - 6; i >= 0; i--) {
+      if (candidates.length >= maxCount * 3) break;
+      const slice = pivots.slice(i, i + 6);
+      if (slice.length < 6) continue;
+
+      const [p0, p1, p2, p3, p4, p5] = slice;
+      const prices = [p0.price, p1.price, p2.price, p3.price, p4.price, p5.price];
+      const isBullish = p1.price > p0.price;
+
+      if (isBullish) {
+        if (!(p1.type === 'high' && p2.type === 'low' && p3.type === 'high' && p4.type === 'low' && p5.type === 'high')) continue;
+      } else {
+        if (!(p1.type === 'low' && p2.type === 'high' && p3.type === 'low' && p4.type === 'high' && p5.type === 'low')) continue;
+      }
+
+      const validation = validateImpulse(prices, isBullish);
+      if (!validation.valid) continue;
+
+      // Deduplicate by W5 price within 0.1%
+      const key = `${isBullish}_${Math.round(p5.price * 1000)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const w1 = Math.abs(p1.price - p0.price);
+      const w2 = Math.abs(p2.price - p1.price);
+      const w3 = Math.abs(p3.price - p2.price);
+      const w4 = Math.abs(p4.price - p3.price);
+      const w2Ret = w2 / w1;
+      const w3Ext = w3 / w1;
+      const w4Ret = w4 / w3;
+
+      // Fibonacci alignment quality (0-100)
+      const fibScore = Math.round(
+        (1 - Math.min(Math.abs(w2Ret - 0.618), 0.5) * 2) * 40 +
+        (1 - Math.min(Math.abs(w3Ext - 1.618), 1.0))     * 35 +
+        (1 - Math.min(Math.abs(w4Ret - 0.382), 0.5) * 2) * 25
+      );
+
+      candidates.push({
+        isBullish,
+        pivotSensitivity: `${left}/${right}`,
+        points: { p0, p1, p2, p3, p4, p5 },
+        prices,
+        validation,
+        waveSpan: Math.abs(p5.price - p0.price),
+        waveIndices: { w3Start: p2.idx, w3End: p3.idx },
+        evidence: {
+          fibScore,
+          rulesScore: validation.rulesScore,
+          violations: validation.violations,
+          warnings: validation.warnings,
+          metrics: validation.metrics,
+          candlesAgo: candles.length - 1 - p5.idx,
+        },
+        candles,
+      });
+    }
+  }
+
+  // Rank: fewest violations → best fib score → most recent
+  candidates.sort((a, b) => {
+    if (a.evidence.violations.length !== b.evidence.violations.length)
+      return a.evidence.violations.length - b.evidence.violations.length;
+    if (b.evidence.fibScore !== a.evidence.fibScore)
+      return b.evidence.fibScore - a.evidence.fibScore;
+    return a.evidence.candlesAgo - b.evidence.candlesAgo;
+  });
+
+  return candidates.slice(0, maxCount);
+}
+
 // ─── Multi-Timeframe Analysis ────────────────────────────────────────────────
 
 async function getMTFData(symbol) {
@@ -614,4 +695,4 @@ async function analyzeElliott(symbol = 'BTC/USDT', timeframe = '1h', limit = 200
   }
 }
 
-module.exports = { analyzeElliott, validateImpulse, calculateRR, validateTradeSetup, toFuturesSymbol };
+module.exports = { analyzeElliott, findAllCandidateWaves, validateImpulse, calculateRR, validateTradeSetup, toFuturesSymbol, getPivots, calculateMomentumScore, calculateVolumeScore };

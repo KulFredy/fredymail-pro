@@ -1,231 +1,221 @@
 /**
- * APEX-Q Headless Scanner
+ * APEX-Q Headless Scanner v2
  *
- * Flow:
- *   1. Every SCAN_INTERVAL_MIN minutes: scan SCAN_COINS × SCAN_TIMEFRAMES
- *   2. For each coin/tf: run Elliott Wave analysis (elliott_engine.js)
- *   3. If valid setup found (confidence ≥ MIN_CONFIDENCE, R:R recommended):
- *      a. Build a structured prompt from the raw math data
- *      b. Send to Claude claude-sonnet-4-6 API for natural-language interpretation
- *      c. Deliver the final message via Telegram
+ * Architecture:
+ *   elliott_engine  →  candidate hypotheses  (math)
+ *   claude_analyst  →  picks best count, states invalidation  (AI)
+ *   Telegram        →  delivers the detective-style signal  (courier)
  *
- * Environment variables (copy .env.example → .env):
- *   ANTHROPIC_API_KEY    - Required for Claude interpretation
- *   TELEGRAM_BOT_TOKEN   - Required for Telegram delivery
- *   TELEGRAM_CHAT_ID     - Target chat/channel ID (include leading - for groups)
- *   SCAN_INTERVAL_MIN    - Minutes between full sweeps (default: 30)
- *   MIN_CONFIDENCE       - Min confidence % to send alert (default: 60)
- *   SCAN_TIMEFRAMES      - Comma-separated list (default: 1h,4h)
- *   SCAN_COINS           - Comma-separated list (default: top 20 coins)
+ * The engine never makes the final call. Claude does, acting as a detective:
+ *   "Most likely we are in W4. Target $X. WRONG if price closes below $Y."
+ *
+ * Env vars (copy .env.example → .env):
+ *   ANTHROPIC_API_KEY    Claude API key
+ *   TELEGRAM_BOT_TOKEN   Telegram bot token
+ *   TELEGRAM_CHAT_ID     Target chat ID (use -100... for channels)
+ *   SCAN_INTERVAL_MIN    Minutes between sweeps (default 30)
+ *   MIN_CONFIDENCE       Confidence threshold: YÜKSEK|ORTA|DÜŞÜK (default ORTA)
+ *   SCAN_TIMEFRAMES      Comma-sep timeframes (default 1h,4h)
+ *   SCAN_COINS           Comma-sep override (default: top 20)
  */
 
 require('dotenv').config();
-const https = require('https');
-const { analyzeElliott } = require('./elliott_engine');
+const https  = require('https');
+const ccxt   = require('ccxt');
+const { RSI } = require('technicalindicators');
+const { findAllCandidateWaves, calculateMomentumScore, calculateVolumeScore, toFuturesSymbol } = require('./elliott_engine');
+const { analyzeWithClaude } = require('./claude_analyst');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const ANTHROPIC_API_KEY  = process.env.ANTHROPIC_API_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID;
-const SCAN_INTERVAL_MIN  = parseInt(process.env.SCAN_INTERVAL_MIN  || '30');
-const MIN_CONFIDENCE     = parseInt(process.env.MIN_CONFIDENCE     || '60');
+const SCAN_INTERVAL_MIN  = parseInt(process.env.SCAN_INTERVAL_MIN || '30');
+const MIN_CONFIDENCE_LVL = (process.env.MIN_CONFIDENCE || 'ORTA').toUpperCase();
 const SCAN_TIMEFRAMES    = (process.env.SCAN_TIMEFRAMES || '1h,4h').split(',').map(s => s.trim());
+
+// Confidence gate — skip weaker signals if server resources are limited
+const CONFIDENCE_RANK = { 'YÜKSEK': 3, 'ORTA': 2, 'DÜŞÜK': 1 };
+const MIN_RANK = CONFIDENCE_RANK[MIN_CONFIDENCE_LVL] || 2;
 
 const DEFAULT_COINS = [
   'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT',
   'DOGE/USDT', 'ADA/USDT', 'AVAX/USDT', 'LINK/USDT', 'DOT/USDT',
-  'MATIC/USDT', 'UNI/USDT', 'LTC/USDT', 'ATOM/USDT', 'FIL/USDT',
-  'APT/USDT', 'ARB/USDT', 'OP/USDT', 'INJ/USDT', 'SUI/USDT',
+  'MATIC/USDT', 'UNI/USDT', 'LTC/USDT', 'ATOM/USDT', 'APT/USDT',
+  'ARB/USDT', 'OP/USDT', 'INJ/USDT', 'SUI/USDT', 'FIL/USDT',
 ];
 
 const SCAN_COINS = process.env.SCAN_COINS
   ? process.env.SCAN_COINS.split(',').map(s => s.trim())
   : DEFAULT_COINS;
 
-// ─── HTTP helper ─────────────────────────────────────────────────────────────
-
-function httpPost(hostname, path, headers, body) {
-  return new Promise((resolve, reject) => {
-    const buf = Buffer.from(JSON.stringify(body));
-    const req = https.request(
-      { hostname, path, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': buf.length, ...headers } },
-      res => {
-        let data = '';
-        res.on('data', c => (data += c));
-        res.on('end', () => {
-          try { resolve(JSON.parse(data)); }
-          catch (e) { reject(new Error('JSON parse error: ' + data.slice(0, 200))); }
-        });
-      }
-    );
-    req.on('error', reject);
-    req.write(buf);
-    req.end();
-  });
-}
+const exchange = new ccxt.binanceusdm({ enableRateLimit: true });
 
 // ─── Telegram ────────────────────────────────────────────────────────────────
 
 async function sendTelegram(text) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.log('[DRY-RUN] Telegram:\n' + text + '\n');
+    console.log('\n[DRY-RUN] ─── Telegram mesajı ───\n' + text + '\n──────────────────────');
     return;
   }
-  try {
-    await httpPost(
-      'api.telegram.org',
-      `/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      {},
-      { chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'Markdown' }
+  const body = Buffer.from(JSON.stringify({
+    chat_id: TELEGRAM_CHAT_ID,
+    text,
+    parse_mode: 'HTML',
+  }));
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'api.telegram.org',
+        path: `/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': body.length },
+      },
+      res => { res.resume(); res.on('end', resolve); }
     );
-  } catch (e) {
-    console.warn('[APEX-Q] Telegram gönderme hatası:', e.message);
-  }
+    req.on('error', e => { console.warn('[Telegram]', e.message); resolve(); });
+    req.write(body);
+    req.end();
+  });
 }
 
-// ─── Claude API ───────────────────────────────────────────────────────────────
+// ─── Data fetcher ────────────────────────────────────────────────────────────
 
-async function callClaude(prompt) {
-  if (!ANTHROPIC_API_KEY) return null;
-  try {
-    const resp = await httpPost(
-      'api.anthropic.com',
-      '/v1/messages',
-      { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      { model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: prompt }] }
-    );
-    return resp.content?.[0]?.text?.trim() || null;
-  } catch (e) {
-    console.warn('[APEX-Q] Claude API hatası:', e.message);
-    return null;
-  }
-}
+async function fetchData(symbol, timeframe, limit = 200) {
+  const futuresSym = toFuturesSymbol(symbol);
+  const candles = await exchange.fetchOHLCV(futuresSym, timeframe, undefined, limit);
+  if (!candles || candles.length < 60) throw new Error('Yetersiz veri');
 
-// ─── Prompt builder ──────────────────────────────────────────────────────────
+  const closes = candles.map(c => parseFloat(c[4]));
+  const rsiValues = RSI.calculate({ values: closes, period: 14 });
+  const rsi = parseFloat(rsiValues[rsiValues.length - 1]?.toFixed(1));
 
-function buildClaudePrompt(data) {
-  const { symbol, timeframe, currentPrice, pattern, tradeSetup, confidence, momentum, mtf, fibConfluence } = data;
-  const { direction, entryZone, sl, tp1, tp2, rr } = tradeSetup;
-
-  const fibText = fibConfluence?.length
-    ? fibConfluence.slice(0, 2).map(z => `${z.label} @ ${z.price}`).join(' | ')
-    : 'Belirgin confluence yok';
-
-  const mtfText = Object.entries(mtf?.timeframes || {})
-    .map(([tf, d]) => `${tf}: ${d.trend} RSI:${d.rsi}`)
-    .join(', ');
-
-  const violations = pattern.validation.violations?.join(', ') || 'Yok';
-  const warnings   = pattern.validation.warnings?.join(', ')   || 'Yok';
-
-  return `Sen profesyonel bir kripto vadeli işlem analisti yardımcısısın.
-Aşağıdaki matematiksel Elliott Dalga analizi çıktısını, kısa ve doğrudan bir Türkçe trade yorumuna dönüştür.
-Maksimum 4 cümle. Emoji kullanma. Matematiksel hesaplama yapma — sadece yorumla.
-
-Sembol: ${symbol} | Zaman Dilimi: ${timeframe} | Mevcut Fiyat: ${currentPrice}
-Dalga Yapısı: ${pattern.name}
-Beklenen Hareket: ${direction}
-
-TRADE KURULUMU:
-  Giriş Bölgesi : ${entryZone.low} – ${entryZone.high}
-  Stop Loss     : ${sl}
-  Hedef 1       : ${tp1}  |  Hedef 2: ${tp2}
-  R:R Oranı     : ${rr.str} (${rr.rating})
-
-ANALİZ:
-  Güven Skoru   : %${confidence.total} (${confidence.interpretation})
-  RSI           : ${momentum.rsi}  |  Diverjans: ${momentum.divergence || 'yok'}
-  Fibonacci     : ${fibText}
-  MTF           : ${mtfText}
-  İhlaller      : ${violations}
-  Uyarılar      : ${warnings}`;
+  const currentPrice = closes[closes.length - 1];
+  return { candles, closes, rsi, currentPrice };
 }
 
 // ─── Signal formatter ────────────────────────────────────────────────────────
 
-function formatMessage(data, claudeText) {
-  const { symbol, timeframe, currentPrice, pattern, tradeSetup, confidence } = data;
-  const { direction, entryZone, sl, tp1, tp2, rr } = tradeSetup;
-  const dir = direction === 'LONG' ? '📈 LONG' : '📉 SHORT';
+function formatSignal(symbol, timeframe, currentPrice, analysis) {
+  const pc = analysis.primaryCount;
+  const alt = analysis.alternative;
+  const an = analysis.analysis || {};
+  const dir = pc.direction === 'LONG' ? '📈 LONG' : '📉 SHORT';
   const ts  = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
 
+  const targetLines = (pc.targets || [])
+    .map(t => `  • <b>${t.label}</b>: ${t.price} <i>(${t.fib})</i>`)
+    .join('\n');
+
   const lines = [
-    `🔔 *APEX\\-Q SİNYAL*  |  ${symbol}  |  ${timeframe}`,
+    `🔔 <b>APEX-Q SİNYAL</b>  |  <b>${symbol}</b>  |  ${timeframe}`,
     ``,
-    `*Dalga:* ${pattern.name}`,
-    `*Yön:* ${dir}`,
-    `*Güven:* %${confidence.total} (${confidence.interpretation})`,
-    `*R:R:* ${rr.str}  —  ${rr.rating}`,
+    `<b>Sayım:</b> ${pc.label || pc.currentPosition || '—'}`,
+    `<b>Yön:</b> ${dir}   <b>Güven:</b> ${analysis.confidence}`,
     ``,
-    `*Giriş:* \`${entryZone.low} – ${entryZone.high}\``,
-    `*Stop Loss:* \`${sl}\``,
-    `*TP1:* \`${tp1}\`   *TP2:* \`${tp2}\``,
-    `*Fiyat:* \`${currentPrice}\``,
-  ];
+    `<b>Giriş:</b> ${pc.tradeSetup?.entry || '—'}`,
+    `<b>Stop Loss:</b> <code>${pc.tradeSetup?.stopLoss ?? '—'}</code>  (${pc.tradeSetup?.riskNote || ''})`,
+    `<b>⚠ İnvalidasyon:</b> <code>${pc.invalidation?.price ?? '—'}</code>`,
+    `  └ ${pc.invalidation?.condition || ''}`,
+    ``,
+    targetLines,
+    ``,
+    `<b>Teyit sinyali:</b> ${pc.confirmation || '—'}`,
+    ``,
+    `<b>— Claude Analizi —</b>`,
+    `<i>${analysis.reasoning || ''}</i>`,
+    an.fibonacci ? `\n📐 Fibonacci: ${an.fibonacci}` : '',
+    an.volume    ? `📊 Hacim: ${an.volume}` : '',
+    an.momentum  ? `⚡ Momentum: ${an.momentum}` : '',
+    ``,
+    alt ? `<b>Alternatif (%${alt.probability}):</b> ${alt.label || alt.description || '—'} → trigger: <code>${alt.triggerPrice || '?'}</code>` : '',
+    ``,
+    `<i>${ts} | APEX-Q v2 | claude-sonnet-4-6</i>`,
+  ].filter(l => l !== null).join('\n');
 
-  if (claudeText) {
-    lines.push('', '─────────────────────────', claudeText, '─────────────────────────');
-  }
-
-  lines.push('', `_${ts} | APEX\\-Q v2_`);
-  return lines.join('\n');
+  return lines;
 }
 
-// ─── Core scan loop ──────────────────────────────────────────────────────────
+// ─── Core scan logic ─────────────────────────────────────────────────────────
 
-// Tracks signals already sent this cycle to avoid duplicate Telegram messages
 const sentThisCycle = new Set();
+
+async function scanSymbol(symbol, timeframe) {
+  const key = `${symbol}_${timeframe}`;
+
+  const { candles, rsi, currentPrice } = await fetchData(symbol, timeframe);
+
+  // Engine: generate up to 5 candidate wave counts
+  const candidates = findAllCandidateWaves(candles, 5);
+
+  // Skip if no candidates at all and don't burn Claude tokens
+  if (candidates.length === 0) {
+    console.log(`[APEX-Q] ${symbol} ${timeframe} — motor aday bulamadı, atlıyorum.`);
+    return;
+  }
+
+  // Claude: detective analysis
+  const momentumData = calculateMomentumScore(candles);
+  const volumeScore  = calculateVolumeScore(candles, candidates[0]?.waveIndices);
+
+  const analysis = await analyzeWithClaude({
+    symbol, timeframe, currentPrice, candles, candidates,
+    rsi,
+    rsiDivergence: momentumData.divergence,
+    volumeScore,
+    mtf: null, // MTF data skipped in scanner to save API latency; add if needed
+  });
+
+  if (!analysis) return;
+
+  // Gate by confidence
+  const rank = CONFIDENCE_RANK[analysis.confidence] || 0;
+  if (rank < MIN_RANK) {
+    console.log(`[APEX-Q] ${symbol} ${timeframe} — güven ${analysis.confidence} < eşik, atlandı.`);
+    return;
+  }
+
+  // Deduplicate within cycle by primary count label
+  const signalKey = `${key}_${analysis.primaryCount?.label}`;
+  if (sentThisCycle.has(signalKey)) return;
+  sentThisCycle.add(signalKey);
+
+  console.log(`[APEX-Q] ✔ Sinyal: ${symbol} ${timeframe} ${analysis.primaryCount?.direction} | ${analysis.confidence}`);
+
+  const msg = formatSignal(symbol, timeframe, currentPrice, analysis);
+  await sendTelegram(msg);
+  await new Promise(r => setTimeout(r, 1500)); // Telegram rate limit
+}
 
 async function runScan() {
   console.log(`\n[APEX-Q] ▶ Tarama başladı — ${new Date().toISOString()}`);
   sentThisCycle.clear();
-  let signalCount = 0;
 
   for (const symbol of SCAN_COINS) {
     for (const tf of SCAN_TIMEFRAMES) {
       try {
-        const data = await analyzeElliott(symbol, tf);
-
-        if (!data.pattern || !data.tradeSetup) continue;
-
-        const key = `${symbol}_${tf}_${data.pattern.name}`;
-        if (sentThisCycle.has(key)) continue;
-
-        if (data.confidence.total < MIN_CONFIDENCE)   continue;
-        if (!data.tradeSetup.isRecommended)            continue;
-
-        console.log(`[APEX-Q] ✔ Sinyal: ${symbol} ${tf} ${data.pattern.direction} | Güven: %${data.confidence.total}`);
-        sentThisCycle.add(key);
-        signalCount++;
-
-        const claudeText = await callClaude(buildClaudePrompt(data));
-        const msg = formatMessage(data, claudeText);
-        await sendTelegram(msg);
-
-        // Respect Telegram rate limit
-        await new Promise(r => setTimeout(r, 1500));
-
+        await scanSymbol(symbol, tf);
       } catch (e) {
         console.warn(`[APEX-Q] ${symbol} ${tf} hata: ${e.message}`);
       }
     }
   }
 
-  console.log(`[APEX-Q] ✓ Tarama bitti — ${signalCount} sinyal gönderildi. Sonraki: ${SCAN_INTERVAL_MIN} dk sonra.`);
+  console.log(`[APEX-Q] ✓ Tarama bitti. Sonraki: ${SCAN_INTERVAL_MIN} dk sonra.`);
 }
 
 // ─── Boot ────────────────────────────────────────────────────────────────────
 
-console.log('╔══════════════════════════════════════╗');
-console.log('║       APEX-Q Headless Scanner        ║');
-console.log('╚══════════════════════════════════════╝');
-console.log(`  Coinler     : ${SCAN_COINS.length} adet`);
-console.log(`  Zaman dil.  : ${SCAN_TIMEFRAMES.join(', ')}`);
-console.log(`  Aralık      : her ${SCAN_INTERVAL_MIN} dakikada bir`);
-console.log(`  Min güven   : %${MIN_CONFIDENCE}`);
-console.log(`  Claude API  : ${ANTHROPIC_API_KEY ? '✔ aktif' : '✗ devre dışı (ANTHROPIC_API_KEY yok)'}`);
-console.log(`  Telegram    : ${TELEGRAM_BOT_TOKEN ? '✔ aktif' : '✗ dry-run modu'}`);
+console.log('╔══════════════════════════════════════════╗');
+console.log('║    APEX-Q Headless Scanner  v2           ║');
+console.log('║    Engine → Hipotez  |  Claude → Karar  ║');
+console.log('╚══════════════════════════════════════════╝');
+console.log(`  Coinler      : ${SCAN_COINS.length} adet`);
+console.log(`  Zaman dil.   : ${SCAN_TIMEFRAMES.join(', ')}`);
+console.log(`  Aralık       : her ${SCAN_INTERVAL_MIN} dakikada bir`);
+console.log(`  Min güven    : ${MIN_CONFIDENCE_LVL}`);
+console.log(`  Claude API   : ${process.env.ANTHROPIC_API_KEY ? '✔ aktif' : '✗ EKSİK'}`);
+console.log(`  Telegram     : ${TELEGRAM_BOT_TOKEN ? '✔ aktif' : '✗ dry-run modu'}`);
 console.log('');
 
 runScan().catch(console.error);
