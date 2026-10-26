@@ -83,7 +83,14 @@ LiteLLM yapılandırmasına dokunulmaz; mevcut modeller kullanılır.
 
 **Geri dönüş:** `FM_AI_PROVIDER=none`.
 
-## Adım 6 — Dışa açma: Cloudflare Tunnel 🔒 (DNS değişikliği)
+## Adım 6 — Dışa açma 🔒 (DNS değişikliği)
+
+İki seçenek var (ön kontrolde Tunnel'ın çalışmadığı, Hostinger Traefik'inin çalıştığı görüldü):
+- **6A — Cloudflare Tunnel + Cloudflare Access (önerilen):** Alan adı Cloudflare'deyse. VPS'te port açılmaz, giriş ekranından
+  önce Cloudflare'in e-posta doğrulaması ikinci kapı olur.
+- **6B — Mevcut Traefik:** Ek bileşen yok, Let's Encrypt sertifikası Traefik'ten gelir. Koruma yalnızca FredyMail girişi + TOTP olur.
+
+### 6A — Cloudflare Tunnel
 
 Önerilen yeni alt alan adı örneği: `mail.<senin-alan-adın>`. `fredymailsearchonline.com` şu an çözümlenmiyor; tekrar kullanılacaksa
 önce alan adının durumu kontrol edilmeli.

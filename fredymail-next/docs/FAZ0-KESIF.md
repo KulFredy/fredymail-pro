@@ -49,6 +49,20 @@ Aşağıdakiler bu bulut ortamından erişilemediği için **doğrulanmadı**. `
 8. **Arka planda AI çağrısı yok.** Heartbeat dersinden çıkan kural: AI yalnızca kullanıcı tıkladığında çalışır. Günlük bütçe ve çağrı sınırı var.
 9. **Gönderme yok.** MVP'de SMTP kodu bulunmuyor. Taslak kopyalanıp Outlook'tan gönderiliyor.
 
+## 4b. VPS ön kontrol sonuçları (26 Ekim 2026, kullanıcı çalıştırdı)
+
+- Portlar 8088/7700/5432 hostta boş; `ai-shared` ağı mevcut; RAM 7,9 GB (4 GB kullanılabilir, swap yok); disk 51 GB boş.
+- Eski proje: `/docker/openclaw-hi03/data/.openclaw/workspace/projects/fredymail-pro/` (konteyner içinden `/data/...`).
+  `backend/app.py` (16 KB): `/api/health`, `/api/tags`, `/api/notes`, `/api/snooze` (+`/due`), `/api/reads`,
+  `/api/awaiting_reply`, `/api/ai_action`, `/api/search`, `/debug/timestamp`; durum JSON dosyalarında (`_load/_save`).
+  `scripts/mail_otonom.py`: `fetch_and_index_emails(search_criteria='ALL')`. `frontend/index.html` tek dosya (166 KB).
+  Eski backend için çalışan konteyner yok → yeni kurulum hiçbir canlı servisi kesmez.
+- Eski uçların hepsinin yeni karşılığı var: etiket/not/erteleme/okundu → Postgres; `snooze/due` → Ertelenenler;
+  `awaiting_reply` → "Yanıt bekliyorum" + "Yanıtlamam gerekenler"; `ai_action`/`search` → kaynaklı AI uçları + arama özeti.
+- Cloudflare Tunnel çalışmıyor. Hostinger şablonundaki Traefik (host ağı, `/docker/traefik`) yalnızca
+  `openclaw-hi03.<sunucu>.hstgr.cloud` alan adını yönlendiriyor → dışa açma için Traefik de bir seçenek.
+- LiteLLM anahtarla korunuyor (anahtarsız istek 401) ama `0.0.0.0:4000`'de yayında ve ufw kapalı (bkz. Riskler).
+
 ## 5. Mimari özet
 
 Ayrıntı: [MIMARI.md](MIMARI.md).
@@ -78,6 +92,7 @@ Ayrıntı: [MIMARI.md](MIMARI.md).
 | 2FA kapalı ve IMAP parolası = webmail parolası | Parola sızarsa hesap ele geçer | IceWarp'ta uygulama parolası destekleniyorsa ayrı parola kullan. Parola dosyada `chmod 600`. |
 | Kota %90 dolu | Yeni mailler reddedilebilir (FredyMail'den bağımsız iş riski) | FredyMail yalnızca okur; büyük ekleri bulmak için "PDF ekleri / Excel ekleri" görünümleri kullanılabilir |
 | Outlook istemci kuralları | Sunucu ile Outlook farklı görünür | Akıllı klasörler + Outlook içe aktarma. Kalıcı çözüm: kuralları IceWarp "Süzgeçler"e taşımak (senin onayınla, ayrı iş). |
+| LiteLLM `0.0.0.0:4000` ile internete açık (ufw kapalı) | Anahtarsız istek 401 alıyor (korumalı), ama port taranabilir; anahtar sızarsa OpenRouter kredisi harcanır | Öneri: `127.0.0.1:4000:4000` olarak bağlamak (host betikleri 127.0.0.1 kullanıyor, konteynerler `ai-shared` ağından erişiyor) veya Hostinger güvenlik duvarında 4000'i kapatmak. Ayrı sistem olduğu için onaysız dokunulmadı. |
 | Eski Meilisearch crash-loop | Kaynak tüketimi, log gürültüsü | Yeni sistem ona bağlı değil. Durdurma kararı sende (onaysız dokunulmadı). |
 | AI maliyeti | Beklenmedik harcama | Günlük $/çağrı sınırı, önbellek, arka plan çağrısı yok, LiteLLM tarafında ek limit |
 
