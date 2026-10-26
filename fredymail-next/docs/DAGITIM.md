@@ -42,11 +42,19 @@ Sunucu adresi bu çıktıya göre seçilir, tahmin edilmez. Çıktıyı paylaş.
 
 ## Adım 3 — Hesap bilgileri ve ilk senkron kapsamı 🔒 + 👀
 
-1. `.env` içinde: `FM_MAIL_SOURCE=imap`, `FM_ACCOUNT_EMAIL`, `FM_IMAP_HOST`/`PORT`/`SECURITY` (keşiften),
-   `FM_IMAP_USERNAME`, `FM_IMAP_PASSWORD` (mümkünse IceWarp'ta oluşturulan **uygulama parolası**). `FM_SYNC_ENABLED=false` kalır.
+1. Hesap bilgileri (keşif sonucu: `cmail16.webkontrol.doruk.net.tr:993`, SSL, IceWarp, parola ile giriş).
+   Parola `.env`'e değil, yalnızca uygulama kullanıcısının okuyabildiği bir dosyaya yazılır:
+   ```bash
+   mkdir -p secrets && chmod 700 secrets
+   read -rsp "IMAP parolası: " P; echo          # yazarken görünmez, geçmişe kaydedilmez
+   printf '%s' "$P" > secrets/imap_password; unset P
+   chown 10001:10001 secrets/imap_password && chmod 400 secrets/imap_password
+   sed -i 's/^FM_IMAP_HOST=.*/FM_IMAP_HOST=cmail16.webkontrol.doruk.net.tr/; s/^FM_IMAP_PORT=.*/FM_IMAP_PORT=993/; s/^FM_IMAP_SECURITY=.*/FM_IMAP_SECURITY=ssl/; s/^FM_IMAP_USERNAME=.*/FM_IMAP_USERNAME=<iş-e-posta-adresin>/' .env
+   ```
+   Mümkünse IceWarp'ta FredyMail'e özel bir **uygulama parolası** oluştur. `FM_SYNC_ENABLED=false` kalır.
 2. Kapsam raporu (salt okunur; klasörleri listeler ve sayar, mail indirmez):
    ```bash
-   docker compose run --rm --no-deps worker fredymail sync-plan
+   docker compose -f docker-compose.yml -f docker-compose.vps.yml run --rm --no-deps worker fredymail sync-plan
    ```
    Çıktıda her klasör için ✔/✘, toplam ve kapsamdaki mail sayısı görünür. Varsayılan kapsam: son 365 gün, klasör başına en fazla
    5.000 mail. Hariç tutulanlar: Trash, Spam, Junk, Deleted Messages, Karantina, Drafts.
