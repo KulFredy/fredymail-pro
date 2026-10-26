@@ -176,6 +176,11 @@ def _cost(settings: Settings, pt: int, ct: int, tier: str = "light") -> float:
     return (pt * settings.ai_price_input_per_mtok + ct * settings.ai_price_output_per_mtok) / 1_000_000
 
 
+def _max_tokens(settings: Settings, provider) -> int:
+    return settings.ai_max_output_tokens_heavy if getattr(provider, "tier", "light") == "heavy" \
+        else settings.ai_max_output_tokens
+
+
 def choose_tier(settings: Settings, kind: str, chars: int, quality: str) -> str:
     """auto: taslaklar ve uzun bağlam güçlü modelle; fast: daima hafif; best: daima güçlü (tanımlıysa)."""
     if not settings.ai_model_heavy or quality == "fast":
@@ -311,7 +316,7 @@ def run(db: Session, settings: Settings, kind: str, msgs: list[Message], *, quer
                     chars_sent=len(system) + len(user_prompt), status="error")
     escalated, spent = False, (0, 0, 0.0)  # yükseltmede ilk denemenin harcaması da sayılır
     try:
-        res = provider.complete(system, user_prompt, settings.ai_max_output_tokens)
+        res = provider.complete(system, user_prompt, _max_tokens(settings, provider))
         try:
             raw = _parse_json(res.text)
         except AIOutputError:
@@ -324,7 +329,7 @@ def run(db: Session, settings: Settings, kind: str, msgs: list[Message], *, quer
             _check_budget(db, settings)
             provider = get_provider(settings, "heavy")
             run_row.provider, escalated = provider.name, True
-            res = provider.complete(system, user_prompt, settings.ai_max_output_tokens)
+            res = provider.complete(system, user_prompt, _max_tokens(settings, provider))
             raw = _parse_json(res.text)
         allowed = allowed_emails if allowed_emails is not None else set()
         for m in ctx.labels.values():

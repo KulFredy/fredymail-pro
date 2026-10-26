@@ -49,7 +49,8 @@ class OpenAICompatibleProvider:
         if settings.ai_api_key:
             headers["Authorization"] = f"Bearer {settings.ai_api_key}"
         self.http = client or httpx.Client(base_url=settings.ai_base_url.rstrip("/"), headers=headers,
-                                           timeout=settings.ai_timeout_seconds)
+                                           timeout=settings.ai_timeout_seconds_heavy if tier == "heavy"
+                                           else settings.ai_timeout_seconds)
 
     def complete(self, system: str, user: str, max_tokens: int) -> AIResult:
         body = {
@@ -59,6 +60,8 @@ class OpenAICompatibleProvider:
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
         }
+        if self.tier == "heavy" and self.s.ai_reasoning_effort_heavy:
+            body["reasoning_effort"] = self.s.ai_reasoning_effort_heavy  # düşünmeyi sınırla (maliyet + boş yanıt)
         last: Exception | None = None
         for attempt in range(2):  # en fazla 1 yeniden deneme — sonsuz döngü/sınırsız harcama yok
             try:
@@ -74,8 +77,9 @@ class OpenAICompatibleProvider:
                     return AIResult(text=text, prompt_tokens=int(usage.get("prompt_tokens") or 0),
                                     completion_tokens=int(usage.get("completion_tokens") or 0),
                                     model=data.get("model") or self.model)
-                if r.status_code in (400, 404) and attempt == 0 and "response_format" in body:
-                    body.pop("response_format")  # bazı modeller JSON modunu desteklemiyor
+                if r.status_code in (400, 404) and attempt == 0 and ({"response_format", "reasoning_effort"} & body.keys()):
+                    body.pop("response_format", None)  # bazı modeller JSON modunu / düşünme ayarını desteklemiyor
+                    body.pop("reasoning_effort", None)
                     continue
                 last = AIError(f"AI sağlayıcısı hata döndü (HTTP {r.status_code})")
                 if r.status_code not in (408, 429, 500, 502, 503, 504):

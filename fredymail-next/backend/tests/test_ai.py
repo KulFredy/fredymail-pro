@@ -118,3 +118,32 @@ def test_invalid_light_output_escalates_once(db, synced, settings, monkeypatch):
     except prov.AIError:
         pass
     assert calls == ["light", "heavy"]
+
+
+def test_heavy_request_limits_reasoning_and_falls_back(settings):
+    """Güçlü modele düşünme sınırı + geniş çıktı payı gider; sağlayıcı bu ayarı tanımazsa ayarsız bir kez denenir."""
+    import json
+
+    import httpx
+
+    from fredymail.ai.provider import OpenAICompatibleProvider
+
+    s = _tiered(settings, ai_provider="openai_compatible", ai_base_url="http://llm.test/v1")
+    seen = []
+
+    def handler(req):
+        body = json.loads(req.content)
+        seen.append(body)
+        if "reasoning_effort" in body:
+            return httpx.Response(400, json={"error": "unsupported"})
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"summary": "ok"}'}}],
+                                         "usage": {"prompt_tokens": 10, "completion_tokens": 5}})
+
+    client = httpx.Client(base_url="http://llm.test/v1", transport=httpx.MockTransport(handler))
+    p = OpenAICompatibleProvider(s, client=client, model="guclu", tier="heavy")
+    res = p.complete("sys", "user", service._max_tokens(s, p))
+    assert res.text == '{"summary": "ok"}' and len(seen) == 2
+    assert seen[0]["reasoning_effort"] == "low" and seen[0]["max_tokens"] == 8000
+    light = OpenAICompatibleProvider(s, client=client, model="hafif", tier="light")
+    light.complete("sys", "user", service._max_tokens(s, light))
+    assert "reasoning_effort" not in seen[-1] and seen[-1]["max_tokens"] == s.ai_max_output_tokens

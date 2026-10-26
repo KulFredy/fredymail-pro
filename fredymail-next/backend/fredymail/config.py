@@ -122,6 +122,10 @@ class Settings(BaseSettings):
     ai_price_output_per_mtok_heavy: float = 0.0
     ai_heavy_kinds: str = "draft"  # her zaman güçlü modelle yapılacak işlemler
     ai_heavy_min_chars: int = 15000  # bu kadar karakterden uzun bağlamda güçlü model
+    # Güçlü modeller (Gemini Pro vb.) yazmadan önce "düşünür"; düşünme token'ları çıktı sınırından yer.
+    ai_max_output_tokens_heavy: int = 8000
+    ai_reasoning_effort_heavy: str = "low"  # low|medium|high; boş = gönderme
+    ai_timeout_seconds_heavy: int = 120
     ai_redact_pii: bool = True
 
     awaiting_reply_days: int = 3
