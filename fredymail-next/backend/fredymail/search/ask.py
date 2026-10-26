@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from ..mail.classify import DOC_KIND_LABELS, FILE_KIND_LABELS, fold
 from ..models import Message
 from .insights import period_range, top_domains, top_recipients, top_senders, volume
-from .query import SearchParams, _view_filters_pg, followup_args, followups, resolve_people, search
+from .query import SORTS, SearchParams, _view_filters_pg, followup_args, followups, resolve_people, search
 
 MODES = ("search", "stats", "followups")
 STATS = ("top_senders", "top_recipients", "top_domains", "count", "volume")
@@ -41,6 +41,7 @@ class Plan:
     unread: bool | None = None
     important: bool | None = None
     keywords: str = ""
+    sort: str = ""
     understood: list[str] = field(default_factory=list)
     recognized: bool = False
 
@@ -59,9 +60,9 @@ _DOC_WORDS = [
     (r"irsaliye\w*|sevkiyat\w*|kargo\w*", "shipping"),
 ]
 _FILE_WORDS = [
-    (r"\bpdf\w*", "pdf"),
-    (r"\bexcel\w*|\bxlsx?\b|\btablo\w*", "spreadsheet"),
-    (r"\bword\b|\bdocx?\b", "document"),
+    (r"\.?\bpdf\w*", "pdf"),
+    (r"\bexcel\w*|\.?\bxls[xm]?\b|\.?\bcsv\b|\btablo\w*", "spreadsheet"),
+    (r"\bword\b|\.?\bdocx?\b|\bdokuman\w*|\bdoküman\w*", "document"),
     (r"\bgorsel\w*|\bresim\w*|\bfotograf\w*|\bfoto\b|\bjpe?g\b|\bpng\b", "image"),
     (r"\bzip\b|\brar\b", "archive"),
 ]
@@ -69,7 +70,16 @@ _STOP = set("""bana beni benim icin goster getir bul listele ara arat mail maill
 e-posta eposta e-postalar posta olan olanlar ile ilgili hakkinda tum butun ve veya ya de da mi mu ne kac en cok
 fazla kimden kime gelen giden gonderdigim gonderdiklerim gonderilen aldigim aldiklarim aldim bu gecen ay ayki yil
 sene hafta gun bugun dun son tane adet toplam hangi hangileri var mi miydi midir sayisi nedir nelerdir icinde
-eki ekli ek iceren okunmamis okumadigim onemli lutfen bi bir sey seyler""".split())
+eki ekli ek iceren okunmamis okumadigim onemli lutfen bi bir sey seyler ekinde ekte eklerinde bulunan bulunanlar
+olsun olsunlar yada veya hem dosya dosyasi dosyalari dosyali formatinda formatli turunde uzantili sirala siralayin
+sirali siralanmis gore dogru yeniden eskiye eskiden yeniye""".split())
+
+_SORT_WORDS = [
+    (r"\b(yeniden eskiye|en yeni\w*|en son\w*|son gelen\w*)\b", "date_desc", "En yeni önce"),
+    (r"\b(eskiden yeniye|en eski\w*)\b", "date_asc", "En eski önce"),
+    (r"\b(en buyuk\w*|boyuta gore|buyukten kucuge)\b", "size_desc", "En büyük önce"),
+    (r"\b(en kucuk\w*|kucukten buyuge)\b", "size_asc", "En küçük önce"),
+]
 
 
 def _push(plan: Plan, label: str) -> None:
@@ -168,12 +178,20 @@ def parse_rules(question: str, now: datetime | None = None) -> Plan:
             plan.doc_kind = kind
             _push(plan, DOC_KIND_LABELS[kind])
             break
+    kinds = []
     for rx, kind in _FILE_WORDS:
+        while take(rx):  # ".xls .xlsx excel" aynı türü birden çok kez anabilir
+            if kind not in kinds:
+                kinds.append(kind)
+    if kinds:
+        plan.file_kind = ",".join(kinds)
+        _push(plan, " veya ".join(FILE_KIND_LABELS[k] for k in kinds) + " ekli")
+    for rx, sort, label in _SORT_WORDS:
         if take(rx):
-            plan.file_kind = kind
-            _push(plan, FILE_KIND_LABELS[kind] + " ekli")
+            plan.sort = sort
+            _push(plan, label)
             break
-    if take(r"\b(ekli|eki olan|ek iceren|ekleri olan)\b"):
+    if take(r"\b(ekli|eki olan|ek iceren|ekleri olan|ekinde|ekte|eklerinde)\b") and not kinds:
         plan.has_attachment = True
         _push(plan, "Ekli")
     if take(r"\b(okunmamis|okumadigim)\w*"):
@@ -228,9 +246,17 @@ AI_PLAN_PROMPT = """Kullanıcının e-posta kutusu hakkındaki Türkçe sorusunu
             "n": gün sayısı|null, "year": yıl|null, "month": 1-12|null},
  "direction": "in|out|any", "person": "kişi/firma adı veya e-posta ya da boş",
  "doc_kind": "invoice|proforma|pricelist|quote|order|statement|contract|shipping|boş",
- "file_kind": "pdf|spreadsheet|document|image|archive|boş",
+ "file_kinds": ["pdf|spreadsheet|document|image|archive", ...],
  "has_attachment": true|false|null, "unread": true|null, "important": true|null,
- "keywords": "aranacak anahtar kelimeler (Türkçe/İngilizce) ya da boş"}
+ "sort": "date_desc|date_asc|size_desc|size_asc|relevance|boş",
+ "keywords": "yalnızca mail içeriğinde aranacak konu kelimeleri ya da boş"}
+Kurallar:
+- file_kinds: excel/xls/xlsx/csv/tablo → spreadsheet; word/doc/docx/doküman → document; pdf → pdf; resim/jpg/png → image; zip/rar → archive. Birden fazla tür "veya" anlamındadır.
+- keywords'e dolgu kelimeleri, dosya türlerini, sıralama ve tarih ifadelerini, "ekinde, bulunan, ya da, mailler, göster" gibi sözcükleri KOYMA. Konu yoksa boş bırak.
+- "yeniden eskiye / en yeni" → date_desc; "eskiden yeniye / en eski" → date_asc; "en büyük" → size_desc.
+- Kişi veya firma adı geçiyorsa person'a yaz (ör. "Roy Bey'den" → "Roy").
+Örnek: "ekinde excel .xls .xlsx ya da dokümanı bulunan yeniden eskiye doğru" →
+{"mode":"search","period":{"kind":"all"},"direction":"any","person":"","doc_kind":"","file_kinds":["spreadsheet","document"],"has_attachment":true,"sort":"date_desc","keywords":""}
 Bugünün tarihi: {today}."""
 
 
@@ -274,12 +300,48 @@ def parse_ai(question: str, db: Session, settings, now: datetime) -> Plan | None
     p.direction = raw.get("direction") if raw.get("direction") in ("in", "out") else "any"
     p.person = str(raw.get("person") or "")[:80]
     p.doc_kind = raw.get("doc_kind") if raw.get("doc_kind") in DOC_KIND_LABELS else ""
-    p.file_kind = raw.get("file_kind") if raw.get("file_kind") in FILE_KIND_LABELS else ""
+    fk = raw.get("file_kinds") if isinstance(raw.get("file_kinds"), list) else [raw.get("file_kind")]
+    p.file_kind = ",".join(dict.fromkeys(k for k in fk if k in FILE_KIND_LABELS))
+    p.sort = raw.get("sort") if raw.get("sort") in SORTS else ""
     p.has_attachment = raw.get("has_attachment") if isinstance(raw.get("has_attachment"), bool) else None
     p.unread = True if raw.get("unread") is True else None
     p.important = True if raw.get("important") is True else None
     p.keywords = str(raw.get("keywords") or "")[:200]
+    p.understood = _describe(p)
     return p
+
+
+def _describe(p: Plan) -> list[str]:
+    """AI planını kullanıcıya 'Anladığım' çipleri olarak gösterir (kurallı yoldakiyle aynı dil)."""
+    out = []
+    if p.period.get("kind", "all") != "all":
+        try:
+            out.append(period_range(**_period_args(p.period, datetime.now(UTC))).label)
+        except (TypeError, ValueError):
+            pass
+    if p.mode == "followups":
+        out.append("Yanıtlamam gerekenler" if p.followup_kind == "needs_reply" else "Yanıt beklediklerim")
+    if p.mode == "stats" and p.stat:
+        out.append({"top_senders": "En çok yazan kişiler", "top_recipients": "En çok yazdığım kişiler",
+                    "top_domains": "Firmalara göre", "count": "Sayım", "volume": "Zamana göre dağılım"}[p.stat])
+    if p.direction == "out":
+        out.append("Gönderdiklerim")
+    elif p.direction == "in":
+        out.append("Gelen mailler")
+    if p.doc_kind:
+        out.append(DOC_KIND_LABELS[p.doc_kind])
+    if p.file_kind:
+        out.append(" veya ".join(FILE_KIND_LABELS[k] for k in p.file_kind.split(",")) + " ekli")
+    elif p.has_attachment:
+        out.append("Ekli")
+    if p.unread:
+        out.append("Okunmamış")
+    if p.important:
+        out.append("Önemli")
+    if p.sort in ("date_desc", "date_asc", "size_desc", "size_asc"):
+        out.append({"date_desc": "En yeni önce", "date_asc": "En eski önce", "size_desc": "En büyük önce",
+                    "size_asc": "En küçük önce"}[p.sort])
+    return out
 
 
 # ------------------------------------------------------------------ çalıştırma
@@ -292,7 +354,7 @@ def plan_params(plan: Plan, db: Session, now: datetime) -> tuple[SearchParams, o
         r = period_range("all")
     p = SearchParams(q=plan.keywords, doc_kind=plan.doc_kind, file_kind=plan.file_kind,
                      has_attachment=plan.has_attachment, unread=plan.unread, important=plan.important,
-                     sort="" if plan.keywords else "date_desc", per_page=50)
+                     sort=plan.sort or ("" if plan.keywords else "date_desc"), per_page=50)
     if plan.person:
         if plan.direction == "in":
             p.sender = plan.person
@@ -315,7 +377,8 @@ def run_question(db: Session, meili, settings, question: str, now: datetime | No
                  allow_ai: bool = True) -> dict:
     now = now or datetime.now(UTC)
     plan, engine = parse_rules(question, now), "rules"
-    if allow_ai and not plan.recognized and not plan.person:
+    # Kurallar soruyu tamamen anladıysa (artan kelime yok) AI'ye gerek yok; aksi halde AI planlayıcı.
+    if allow_ai and (plan.keywords or not plan.recognized) and len(question.split()) >= 3:
         ai_plan = parse_ai(question, db, settings, now)
         if ai_plan is not None:
             plan, engine = ai_plan, "ai"

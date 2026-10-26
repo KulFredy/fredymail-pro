@@ -187,7 +187,7 @@ export function MessageList(p: Props) {
             <span className="facet-label">Tür</span>
             {fileKinds.map(([k, c]) => (
               <button key={`f-${k}`} className={`chip sm ${s.file_kind === k ? "on" : ""}`} onClick={() => toggle("file_kind", k)} aria-pressed={s.file_kind === k}>
-                <Icon name="clip" size={13} /> {meta?.file_kinds[k] ?? k} {c > 0 && <span className="count">{c}</span>}
+                <Icon name="clip" size={13} /> {k.split(",").map((x) => meta?.file_kinds[x] ?? x).join(" veya ")} {c > 0 && <span className="count">{c}</span>}
               </button>
             ))}
             {fileKinds.length > 0 && docKinds.length > 0 && <span className="chip-sep" />}

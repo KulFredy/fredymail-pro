@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { api, ApiError } from "./api";
+import { api, ApiError, qs } from "./api";
 import { BarList, Legend, VolumeChart } from "./Charts";
 import { fromParams, goMail, navigate } from "./route";
 import { useStore } from "./store";
-import type { AskResult } from "./types";
+import type { AskResult, MessageItem, SearchResult } from "./types";
 import { ASK_SUGGESTIONS, avatarColor, daysLabel, daysTone, fmtListDate, fmtNum, initials } from "./util";
-import { Banner, Empty, Highlight, Icon, Skeleton } from "./ui";
+import { Banner, Empty, FileIcon, Highlight, Icon, Skeleton } from "./ui";
 
 const FOLLOW_UPS: Record<string, string[]> = {
   top_senders: ["Hangi firmalarla en çok yazıştım bu yıl?", "Bu ay en çok kime mail attım?"],
@@ -22,7 +22,10 @@ export function AskPage({ q }: { q: string }) {
   const [res, setRes] = useState<AskResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const { ai } = useStore();
+  const [extra, setExtra] = useState<MessageItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const { ai, toast } = useStore();
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -34,6 +37,8 @@ export function AskPage({ q }: { q: string }) {
     }
     setBusy(true);
     setError(null);
+    setExtra([]);
+    setPage(1);
     api.post<AskResult>("/api/ask", { question: q, allow_ai: !!ai?.enabled })
       .then(setRes)
       .catch((e: ApiError) => setError(e.message))
@@ -45,6 +50,20 @@ export function AskPage({ q }: { q: string }) {
   const params = res?.params ?? {};
   const openList = (extra: Record<string, string> = {}) => goMail({ view: "all", ...fromParams(params, extra) });
   const stats = res?.stats;
+  const results = res?.search ? [...res.search.items, ...extra] : [];
+  const kinds = String(params.file_kind ?? "").split(",").filter(Boolean);
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const r = await api.get<SearchResult>(`/api/search${qs({ ...params, page: page + 1, per_page: 50 })}`);
+      setExtra((l) => [...l, ...r.items]);
+      setPage(page + 1);
+    } catch (e) {
+      toast((e as ApiError).message, "error");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const more = res ? FOLLOW_UPS[res.mode === "stats" ? res.stat ?? "count" : res.mode] ?? [] : [];
 
   return (
@@ -118,7 +137,7 @@ export function AskPage({ q }: { q: string }) {
                 </div>
                 {!res.search.items.length && <Empty art="search" title="Sonuç yok">Soruyu farklı kelimelerle deneyin.</Empty>}
                 <div className="compact-list">
-                  {res.search.items.slice(0, 8).map((m) => (
+                  {results.map((m) => (
                     <div key={m.id} className={`mrow ${m.is_read ? "" : "unread"}`} role="button" tabIndex={0}
                       onClick={() => goMail({ view: "all", ...fromParams(params) }, m.id)}
                       onKeyDown={(e) => e.key === "Enter" && goMail({ view: "all", ...fromParams(params) }, m.id)}>
@@ -126,11 +145,25 @@ export function AskPage({ q }: { q: string }) {
                       <div className="r-main">
                         <span className="r-from ellipsis">{m.from_name || m.from_email}</span>
                         <span className="r-subject ellipsis"><Highlight text={m.highlight.subject} fallback={m.subject} /></span>
+                        {m.attachments.length > 0 && (
+                          <span className="r-atts">
+                            {m.attachments.filter((a) => !kinds.length || kinds.includes(a.file_kind)).slice(0, 3).map((a) => (
+                              <span key={a.id} className="att-chip" title={a.filename}><FileIcon kind={a.file_kind} /> {a.filename}</span>
+                            ))}
+                          </span>
+                        )}
                       </div>
                       <div className="r-side"><span className="r-date">{fmtListDate(m.date)}</span>{m.has_attachments && <Icon name="clip" size={14} className="faint" />}</div>
                     </div>
                   ))}
                 </div>
+                {results.length < res.search.total && (
+                  <div className="list-foot">
+                    <button className="btn" onClick={loadMore} disabled={loadingMore} data-testid="ask-more">
+                      {loadingMore ? "Yükleniyor…" : `Daha fazla göster (${fmtNum(results.length)} / ${fmtNum(res.search.total)})`}
+                    </button>
+                  </div>
+                )}
               </section>
             )}
 
@@ -141,7 +174,7 @@ export function AskPage({ q }: { q: string }) {
                   <button className="btn sm soft" onClick={() => navigate({ page: "followups", kind: res.followup_kind ?? "needs_reply", msg: null })}>Bekleyenlerde aç <Icon name="chevron" size={15} /></button>
                 </div>
                 <div className="compact-list">
-                  {(res.followups ?? []).slice(0, 10).map((f) => (
+                  {(res.followups ?? []).map((f) => (
                     <div key={f.thread_id} className="mrow" role="button" tabIndex={0}
                       onClick={() => navigate({ page: "followups", kind: res.followup_kind ?? "needs_reply", msg: f.last_message.id })}>
                       <span className="avatar" style={{ background: avatarColor(f.last_message.from_email) }}>{initials(f.last_message.from_name, f.last_message.from_email)}</span>

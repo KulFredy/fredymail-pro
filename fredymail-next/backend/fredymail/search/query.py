@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import and_, exists, false, func, or_, select, text, true
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from ..mail.classify import fold
 from ..models import Attachment, Folder, KeyValue, Message, MessageLocation, MessageTag, Note, Tag, Thread
@@ -25,6 +25,10 @@ VIEWS = ("all", "inbox", "sent", "important", "snoozed", "unread", "folder")
 SORTS = ("relevance", "date_desc", "date_asc", "size_desc", "size_asc", "subject_asc", "sender_asc")
 _MEILI_SORT = {"date_desc": "date_ts:desc", "date_asc": "date_ts:asc", "size_desc": "size:desc",
                "size_asc": "size:asc", "subject_asc": "subject_sort:asc", "sender_asc": "from_sort:asc"}
+
+
+def _kinds(v: str) -> list[str]:
+    return [k.strip() for k in v.split(",") if k.strip()][:6]
 
 
 @dataclass
@@ -125,9 +129,10 @@ def _view_filters_pg(p: SearchParams, db: Session) -> list:
         conds.append(Message.date < datetime(p.year + 1, 1, 1, tzinfo=UTC))
     if p.has_attachment is not None:
         conds.append(Message.has_attachments.is_(p.has_attachment))
-    if p.file_kind:
-        conds.append(exists().where(Attachment.message_id == Message.id, Attachment.file_kind == p.file_kind,
-                                    Attachment.is_inline.is_(False)))
+    if p.file_kind:  # "spreadsheet,document" → herhangi biri
+        att = aliased(Attachment)  # dış sorgu Attachment'tan seçerse (dosya türü sayımı) karışmasın
+        conds.append(exists().where(att.message_id == Message.id, att.file_kind.in_(_kinds(p.file_kind)),
+                                    att.is_inline.is_(False)))
     if p.doc_kind:
         conds.append(Message.doc_kinds.contains([p.doc_kind]))
     if p.tag_id:
@@ -179,7 +184,7 @@ def _meili_filter(p: SearchParams, db: Session) -> list:
     if p.has_attachment is not None:
         f.append(f"has_attachments = {str(p.has_attachment).lower()}")
     if p.file_kind:
-        f.append(f"file_kinds = {json.dumps(p.file_kind)}")
+        f.append(f"file_kinds IN {json.dumps(_kinds(p.file_kind))}")
     if p.doc_kind:
         f.append(f"doc_kinds = {json.dumps(p.doc_kind)}")
     if p.tag_id:
@@ -307,11 +312,12 @@ def _facets_pg(db: Session, p: SearchParams, q: str) -> dict:
 
 def _text_conds(q: str) -> list:
     conds = []
+    att = aliased(Attachment)  # dosya türü sayımı Attachment'tan seçtiğinde otomatik ilişkilendirme bozulmasın
     for t in [t for t in q.split() if t][:8]:
         like = f"%{t}%"
         conds.append(or_(Message.subject.ilike(like), Message.from_name.ilike(like),
                          Message.from_email.ilike(like), Message.body_text.ilike(like),
-                         exists().where(Attachment.message_id == Message.id, Attachment.filename.ilike(like))))
+                         exists().where(att.message_id == Message.id, att.filename.ilike(like))))
     return conds
 
 

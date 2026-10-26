@@ -23,6 +23,9 @@ NOW = datetime(2026, 10, 26, 12, 0, tzinfo=UTC)
     ("aylara göre mail dağılımı", {"mode": "stats", "stat": "volume"}),
     ("SJ-500 stok", {"mode": "search", "keywords": "sj-500 stok"}),
     ("okunmamış önemli mailler", {"mode": "search"}),
+    ("ekinde excel .xls .xlsx yada dokumani bulunan yeniden eskiye dogru",
+     {"mode": "search", "file_kind": "spreadsheet,document", "sort": "date_desc", "keywords": ""}),
+    ("en eski pdf faturalar", {"mode": "search", "file_kind": "pdf", "doc_kind": "invoice", "sort": "date_asc"}),
 ])
 def test_rule_parser(q, expect):
     p = parse_rules(q, NOW)
@@ -42,7 +45,9 @@ def test_rule_parser(q, expect):
     if "followup" in expect:
         assert p.followup_kind == expect["followup"]
     if "keywords" in expect:
-        assert p.keywords == expect["keywords"]
+        assert p.keywords == expect["keywords"], p.keywords
+    if "sort" in expect:
+        assert p.sort == expect["sort"]
     assert p.understood or p.keywords
 
 
@@ -173,3 +178,49 @@ def test_create_blank_and_reply_draft(db, synced, meili, monkeypatch):
     mid = search(db, None, SearchParams(q="SJ-500"))["items"][0]["id"]
     r = c.post("/api/drafts", json={"reply_to_message_id": mid}, headers=H).json()
     assert r["to"] == ["merve@kameradunyasi.test"] and r["subject"].startswith("Re: ") and r["thread_id"]
+
+
+def test_ask_multi_file_kinds_sorted_newest_first(db, synced, settings, meili):
+    from fredymail.search.meili import index_dirty
+
+    index_dirty(db, meili)
+    out = run_question(db, meili, settings, "ekinde excel .xls .xlsx yada dokumani bulunan yeniden eskiye dogru",
+                       allow_ai=False)
+    assert out["mode"] == "search" and out["params"]["file_kind"] == "spreadsheet,document"
+    items = out["search"]["items"]
+    assert items and all({a["file_kind"] for a in i["attachments"]} & {"spreadsheet", "document"} for i in items)
+    dates = [i["date"] for i in items]
+    assert dates == sorted(dates, reverse=True)
+    # aynı çoklu filtre Meili yolunda da çalışır
+    r = search(db, meili, SearchParams(q="price", file_kind="spreadsheet,pdf"))
+    assert r["engine"] == "meilisearch" and r["total"] >= 1
+
+
+def test_ai_planner_used_when_rules_leave_words(db, synced, settings, monkeypatch):
+    """Kurallar soruyu tam anlamazsa AI planlayıcı çalışır; çıktısı şemayla doğrulanır."""
+    import json
+
+    from fredymail.ai import provider as prov
+    from fredymail.ai.provider import AIResult
+
+    calls = []
+
+    class Planner:
+        name, model, tier = "openai_compatible", "hafif", "light"
+
+        def complete(self, system, user, max_tokens):
+            calls.append(user)
+            return AIResult(text=json.dumps({"mode": "search", "file_kinds": ["spreadsheet", "exe"], "sort": "date_asc",
+                                             "keywords": "stok", "period": {"kind": "all"}, "direction": "in",
+                                             "doc_kind": "uydurma"}), prompt_tokens=50, completion_tokens=30,
+                            model="hafif")
+
+    monkeypatch.setattr(prov, "get_provider", lambda s, tier="light": Planner())
+    s = settings.model_copy(update={"ai_provider": "openai_compatible", "ai_base_url": "http://x", "ai_model": "hafif"})
+    out = run_question(db, None, s, "geçen çeyrekte stok sayımıyla ilgili tablolar nerede kaldı")
+    assert calls and out["engine"] == "ai"
+    assert out["params"]["file_kind"] == "spreadsheet" and out["params"]["sort"] == "date_asc"  # 'exe' atıldı
+    assert "doc_kind" not in out["params"] and "Tablo (Excel/CSV) ekli" in out["understood"]
+    calls.clear()
+    out = run_question(db, None, s, "bu yıl en çok kimden mail aldım")  # kurallar tam anladı → AI çağrılmaz
+    assert not calls and out["engine"] == "rules"
