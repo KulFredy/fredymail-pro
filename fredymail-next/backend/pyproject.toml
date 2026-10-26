@@ -54,4 +54,4 @@ ignore = ["S101", "S311", "B008", "E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = ""

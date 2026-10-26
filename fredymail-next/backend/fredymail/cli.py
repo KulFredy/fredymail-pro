@@ -186,6 +186,23 @@ def cmd_demo_generate(a) -> int:
     return 0
 
 
+def cmd_worker_health(a) -> int:
+    from datetime import UTC, datetime
+
+    from .db import new_session
+    from .models import KeyValue
+
+    db = new_session()
+    try:
+        kv = db.get(KeyValue, "worker")
+        if kv is None or not kv.value.get("at"):
+            return 1
+        age = (datetime.now(UTC) - datetime.fromisoformat(kv.value["at"])).total_seconds()
+        return 0 if age < a.max_age else 1
+    finally:
+        db.close()
+
+
 def cmd_worker(a) -> int:
     from .worker import run_forever
 
@@ -241,6 +258,9 @@ def main(argv: list[str] | None = None) -> int:
     dg.add_argument("directory")
     dg.set_defaults(fn=cmd_demo_generate)
     sp.add_parser("worker", help="Arka plan worker'ını çalıştır").set_defaults(fn=cmd_worker)
+    wh = sp.add_parser("worker-health", help="Worker kalp atışı taze mi (Docker healthcheck)")
+    wh.add_argument("--max-age", type=int, default=900)
+    wh.set_defaults(fn=cmd_worker_health)
 
     a = p.parse_args(argv)
     return a.fn(a)

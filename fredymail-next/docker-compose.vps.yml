@@ -1,0 +1,36 @@
+# Hostinger VPS eklentisi: `docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d`
+#
+# 1) api ve worker, mevcut `ai-shared` Docker ağına katılır → VPS'teki LiteLLM proxy'ye
+#    (http://litellm-litellm-1:4000/v1) iç ağdan erişilir. OpenRouter anahtarı FredyMail'e
+#    hiç verilmez; LiteLLM'in kendi anahtarı/limitleri geçerli olur.
+# 2) `tunnel` profili Cloudflare Tunnel'ı başlatır (yalnızca açıkça istenirse):
+#    docker compose -f docker-compose.yml -f docker-compose.vps.yml --profile tunnel up -d
+#    Tunnel'ın public hostname'i Cloudflare panelinde http://api:8080 adresine yönlendirilir.
+#    Mutlaka Cloudflare Access (e-posta OTP) ile ikinci bir kapı eklenmesi önerilir.
+
+services:
+  api:
+    networks: [internal, egress, ai-shared]
+    environment:
+      FM_TRUST_PROXY: ${FM_TRUST_PROXY:-cloudflare}
+
+  worker:
+    networks: [internal, egress, ai-shared]
+
+  cloudflared:
+    image: cloudflare/cloudflared:2024.12.2
+    profiles: ["tunnel"]
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${FM_CLOUDFLARE_TUNNEL_TOKEN:?Tunnel için FM_CLOUDFLARE_TUNNEL_TOKEN gerekli}
+    depends_on:
+      api: {condition: service_healthy}
+    networks: [egress]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  ai-shared:
+    external: true

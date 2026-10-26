@@ -19,3 +19,7 @@ __pycache__/
 # Node
 node_modules/
 frontend/dist/
+.demo-password
+
+# E2E ekran görüntüleri
+frontend/e2e-shots/

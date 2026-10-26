@@ -72,7 +72,7 @@ def seeded(demo_dir_module):
     for name in ["Faturalar", "Müşteriler", "Müşteriler/Kamera Dünyası"]:
         c.create(_q(name))
     src = Path(demo_dir_module)
-    plan = {"INBOX": "INBOX", "Sent": "Sent", "Faturalar": "Faturalar", "Aykut": "Müşteriler/Kamera Dünyası"}
+    plan = {"INBOX": "INBOX", "Sent": "Sent", "Faturalar": "Faturalar", "Emre": "Müşteriler/Kamera Dünyası"}
     count = 0
     for local, remote in plan.items():
         for f in sorted((src / local).glob("*.eml")):
@@ -201,3 +201,19 @@ def test_tls_verification_is_on_by_default(seeded):
     # Kendinden imzalı test sertifikası varsayılan bağlamda REDDEDİLMELİ
     with pytest.raises(SourceError):
         ImapSource(host=HOST, port=PORT, security="ssl", username=USER, password=PASS)
+
+
+def test_discover_probe_reads_capabilities_without_login(monkeypatch):
+    from fredymail.mail import discover as disc
+
+    # 1) Varsayılan bağlamda kendinden imzalı sertifika reddedilir ve raporlanır
+    r = disc.probe(disc.Candidate("127.0.0.1", PORT, "ssl", "test"))
+    assert r.reachable and not r.tls_ok and "sertifika" in r.error
+    # 2) Test sertifikasına güvenildiğinde CAPABILITY ve AUTH yöntemleri okunur (giriş yapılmaz)
+    monkeypatch.setattr(disc.ssl, "create_default_context", lambda: CTX)
+    r = disc.probe(disc.Candidate("127.0.0.1", PORT, "ssl", "test"))
+    assert r.tls_ok and "IMAP4rev1" in r.capabilities and "PLAIN" in r.auth_methods
+    assert "dovecot" in r.greeting.lower()
+    plain_port = int(os.environ.get("FM_TEST_IMAP_STARTTLS_PORT", "51143"))
+    r2 = disc.probe(disc.Candidate("127.0.0.1", plain_port, "starttls", "test"))
+    assert r2.tls_ok and r2.capabilities

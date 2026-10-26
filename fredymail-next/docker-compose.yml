@@ -1,0 +1,106 @@
+# FredyMail Next
+#
+# Varsayılan kurulum DIŞARIYA KAPALIDIR: arayüz yalnızca sunucunun kendisinden
+# (127.0.0.1:${FM_HTTP_PORT}) erişilebilir. Dışa açmak için docs/DAGITIM.md → Cloudflare Tunnel.
+# Postgres ve Meilisearch yalnızca iç ağdadır (internet erişimi ve port yayını yok).
+#
+# Demo:      ./scripts/demo-up.sh
+# Üretim:    docs/DAGITIM.md
+
+name: fredymail
+
+x-app: &app
+  build: .
+  image: fredymail-next:local
+  env_file: .env
+  environment:
+    FM_DATABASE_URL: postgresql+psycopg://fredymail:${FM_DB_PASSWORD:?FM_DB_PASSWORD gerekli}@postgres:5432/fredymail
+    FM_MEILI_URL: http://meilisearch:7700
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "5"}
+
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    environment:
+      POSTGRES_DB: fredymail
+      POSTGRES_USER: fredymail
+      POSTGRES_PASSWORD: ${FM_DB_PASSWORD:?FM_DB_PASSWORD gerekli}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fredymail -d fredymail"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+    restart: unless-stopped
+    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.15.2
+    environment:
+      MEILI_MASTER_KEY: ${FM_MEILI_MASTER_KEY:?FM_MEILI_MASTER_KEY gerekli (en az 16 bayt)}
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - meili:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+    restart: unless-stopped
+    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres: {condition: service_healthy}
+    networks: [internal]
+
+  api:
+    <<: *app
+    ports:
+      - "127.0.0.1:${FM_HTTP_PORT:-8088}:8080"
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      meilisearch: {condition: service_healthy}
+    volumes:
+      - demo-mail:/data/demo-mail:ro
+      - ${FM_IMPORT_DIR:-./imports}:/data/imports:ro
+    networks: [internal, egress]
+
+  worker:
+    <<: *app
+    command: ["fredymail", "worker"]
+    healthcheck:
+      test: ["CMD", "fredymail", "worker-health", "--max-age", "900"]
+      interval: 60s
+      start_period: 60s
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      meilisearch: {condition: service_healthy}
+    volumes:
+      - demo-mail:/data/demo-mail
+      - ${FM_IMPORT_DIR:-./imports}:/data/imports:ro
+    networks: [internal, egress]
+
+volumes:
+  pgdata:
+  meili:
+  demo-mail:
+
+networks:
+  internal:
+    internal: true   # dış dünyaya çıkışı yok
+  egress: {}         # IMAP sunucusu ve AI sağlayıcısına çıkış için
