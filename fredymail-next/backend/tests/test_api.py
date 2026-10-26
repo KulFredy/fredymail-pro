@@ -247,3 +247,11 @@ def test_ai_provider_failure_degrades_gracefully(client, db, monkeypatch):
     r = client.post("/api/ai/summary", json={"message_id": mid}, headers=H)
     assert r.status_code == 502 and "etkilenmez" in r.json()["detail"]
     assert client.get(f"/api/messages/{mid}").status_code == 200
+
+
+def test_ai_search_summary_validates_filters(client):
+    login(client)
+    r = client.post("/api/ai/search_summary", json={"query": "fatura", "filters": {"tag_id": "1 OR 1=1"}}, headers=H)
+    assert r.status_code == 400
+    r = client.post("/api/ai/search_summary", json={"query": "fatura", "filters": {"doc_kind": "invoice"}}, headers=H)
+    assert r.status_code == 200 and r.json()["references"]

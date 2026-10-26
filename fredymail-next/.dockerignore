@@ -1,0 +1,14 @@
+.env
+.env.*
+.demo-password
+secrets/
+backups/
+imports/
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+frontend/node_modules
+frontend/dist
+frontend/e2e-shots
+docs/

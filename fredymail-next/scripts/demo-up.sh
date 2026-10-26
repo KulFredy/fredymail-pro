@@ -33,13 +33,14 @@ p.write_text(s)
 pathlib.Path(".demo-password").write_text(demo_pass + "\n")
 PY
   chmod 600 .demo-password
-  NEW_ENV=1
 fi
 
 echo "• İmaj derleniyor ve servisler başlatılıyor…"
-docker compose up -d --build postgres meilisearch migrate
+BUILD_FLAG="--build"; [[ "${FM_DEMO_NO_BUILD:-0}" == "1" ]] && BUILD_FLAG=""   # önceden derlenmiş imaj için
+docker compose up -d $BUILD_FLAG postgres meilisearch migrate
 
-if [[ "${NEW_ENV:-0}" == "1" ]]; then
+# Parola özeti henüz ayarlanmadıysa (ilk kurulum veya yarıda kalmış kurulum) demo parolasından üret
+if [[ -f .demo-password ]] && grep -q "ORNEKSAHTE" .env; then
   HASH="$(docker compose run --rm --no-deps -T api python -c \
     "import sys; from fredymail.security.auth import hash_password; print(hash_password(sys.stdin.read().strip()))" \
     < .demo-password)"

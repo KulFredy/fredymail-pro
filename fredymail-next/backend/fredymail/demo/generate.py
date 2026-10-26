@@ -234,7 +234,7 @@ def scenarios(rng: random.Random) -> list[Mail]:
         sender = P[who]
         headers = {"Precedence": "bulk"} if who == "bank" else {}
         mails.append(Mail(folder, sender, [ME], f"{title} – #{1000 + i}", f"Merhaba,\n\n{body}\n\nİyi çalışmalar.", days,
-                          headers=headers, flags="\\Seen"))
+                          headers=headers, flags="\\Seen \\Answered"))  # rutin yazışmalar: yanıtlanmış
     return mails
 
 

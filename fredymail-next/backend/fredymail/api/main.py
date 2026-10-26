@@ -125,8 +125,8 @@ def create_app() -> FastAPI:
     def me(request: Request, db: Session = Depends(get_db)):
         s = validate_session(db, settings, request.cookies.get(COOKIE_NAME))
         if s is None:
-            return JSONResponse({"authenticated": False, "totp_required": bool(settings.totp_secret)},
-                                status_code=401)
+            # 200: oturum yokluğu bir hata değil; tarayıcı konsolunu kirletmez
+            return {"authenticated": False, "totp_required": bool(settings.totp_secret)}
         return {"authenticated": True, "user": settings.admin_user, "account": settings.account_email,
                 "expires_at": s.expires_at.isoformat()}
 

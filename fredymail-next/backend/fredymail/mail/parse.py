@@ -153,9 +153,11 @@ def _parse_date(v: str | None) -> datetime | None:
 
 
 def html_to_text(html: str) -> str:
-    cleaned = nh3.clean(html, tags={"p", "br", "div", "li", "tr", "h1", "h2", "h3", "h4", "blockquote"},
+    cleaned = nh3.clean(html, tags={"p", "br", "div", "li", "tr", "td", "th", "a", "span", "h1", "h2", "h3", "h4",
+                                    "blockquote"},
                         attributes={}, link_rel=None)
-    cleaned = re.sub(r"(?i)<br\s*/?>|</(p|div|li|tr|h\d|blockquote)>", "\n", cleaned)
+    cleaned = re.sub(r"(?i)<br\s*/?>|</?(p|div|li|tr|h\d|blockquote)\b[^>]*>", "\n", cleaned)
+    cleaned = re.sub(r"(?i)</?(td|th|a|span)\b[^>]*>", " ", cleaned)
     cleaned = re.sub(r"<[^>]+>", "", cleaned)
     return normalize_text(html_lib.unescape(cleaned))
 

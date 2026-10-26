@@ -68,11 +68,21 @@ def ai_run(kind: str, body: AIRequest, db: Session = Depends(get_db), meili: Mei
         raise HTTPException(404, "Bilinmeyen AI işlemi")
     msgs: list[Message] = []
     if kind == "search_summary":
-        f = {k: v for k, v in body.filters.items() if k in {"view", "folder_id", "sender", "recipient", "doc_kind",
-                                                            "file_kind", "tag_id", "has_attachment"}}
-        for k in ("date_from", "date_to"):
-            if body.filters.get(k):
-                f[k] = date.fromisoformat(body.filters[k])
+        f: dict = {}
+        try:
+            for k in ("view", "sender", "recipient", "doc_kind", "file_kind"):
+                if body.filters.get(k):
+                    f[k] = str(body.filters[k])[:200]
+            for k in ("folder_id", "tag_id"):
+                if body.filters.get(k) not in (None, ""):
+                    f[k] = int(body.filters[k])
+            if body.filters.get("has_attachment") not in (None, ""):
+                f["has_attachment"] = str(body.filters["has_attachment"]).lower() in ("true", "1")
+            for k in ("date_from", "date_to"):
+                if body.filters.get(k):
+                    f[k] = date.fromisoformat(str(body.filters[k]))
+        except (TypeError, ValueError) as e:
+            raise HTTPException(400, "Geçersiz filtre değeri") from e
         res = search(db, meili, SearchParams(q=body.query, per_page=settings.ai_max_messages, **f))
         ids = [i["id"] for i in res["items"]]
         by = {m.id: m for m in db.execute(select(Message).where(Message.id.in_(ids))).scalars()}
