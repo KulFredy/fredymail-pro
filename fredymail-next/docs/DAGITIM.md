@@ -45,7 +45,7 @@ Sunucu adresi bu çıktıya göre seçilir, tahmin edilmez. Çıktıyı paylaş.
 1. Hesap bilgileri (keşif sonucu: `cmail16.webkontrol.doruk.net.tr:993`, SSL, IceWarp, parola ile giriş).
    Parola `.env`'e değil, yalnızca uygulama kullanıcısının okuyabildiği bir dosyaya yazılır:
    ```bash
-   mkdir -p secrets && chmod 700 secrets
+   mkdir -p secrets && chown 10001:10001 secrets && chmod 500 secrets   # yalnızca uygulama kullanıcısı okur
    read -rsp "IMAP parolası: " P; echo          # yazarken görünmez, geçmişe kaydedilmez
    printf '%s' "$P" > secrets/imap_password; unset P
    chown 10001:10001 secrets/imap_password && chmod 400 secrets/imap_password
@@ -84,12 +84,15 @@ Outlook kuralları istemci tarafında çalışıyorsa, Outlook'taki klasör düz
 
 ## Adım 5 — AI bağlantısı (LiteLLM) 🔒
 
-`.env`: `FM_AI_PROVIDER=openai_compatible`, `FM_AI_BASE_URL=http://litellm-litellm-1:4000/v1`, `FM_AI_MODEL=flash-lite`
-(veya litellm `config.yaml`'daki başka bir model adı), `FM_AI_API_KEY=<LiteLLM anahtarı, varsa>`. Sonra
-`docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d api`.
-LiteLLM yapılandırmasına dokunulmaz; mevcut modeller kullanılır.
+1. LiteLLM anahtarının nerede tanımlı olduğunu **değerini göstermeden** bul:
+   `grep -nE "master_key|MASTER_KEY" /opt/litellm/config.yaml /opt/litellm/docker-compose.yml /opt/litellm/.env 2>/dev/null | sed -E 's/((master_key|MASTER_KEY)[^:=]*[:=] *).*/\1***/'`
+2. Anahtarı FredyMail'in sır klasörüne yaz (ekranda görünmez):
+   `read -rsp "LiteLLM anahtarı: " K; echo; printf '%s' "$K" > secrets/ai_api_key; unset K; chown 10001:10001 secrets/ai_api_key; chmod 400 secrets/ai_api_key`
+3. `.env`: `FM_AI_PROVIDER=openai_compatible`, `FM_AI_BASE_URL=http://litellm-litellm-1:4000/v1`, `FM_AI_MODEL=flash-lite`
+   (litellm `config.yaml`'daki model adlarından biri), `FM_AI_API_KEY=` boş kalır.
+4. `docker compose up -d api` → Ayarlar sayfasında "AI: açık" ve model görünür; bir mailde "Analiz et".
 
-**Geri dönüş:** `FM_AI_PROVIDER=none`.
+LiteLLM yapılandırmasına dokunulmaz. **Geri dönüş:** `FM_AI_PROVIDER=none` + `docker compose up -d api`.
 
 ## Adım 6 — Dışa açma 🔒 (DNS değişikliği)
 

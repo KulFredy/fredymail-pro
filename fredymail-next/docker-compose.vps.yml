@@ -8,8 +8,8 @@
 #    Tunnel'ın public hostname'i Cloudflare panelinde http://api:8080 adresine yönlendirilir.
 #    Mutlaka Cloudflare Access (e-posta OTP) ile ikinci bir kapı eklenmesi önerilir.
 
-# 3) IMAP parolası .env yerine ./secrets/imap_password dosyasından okunur
-#    (uid 10001'e ait, chmod 400; docs/DAGITIM.md → Adım 3).
+# 3) Sırlar .env yerine ./secrets/ klasöründeki dosyalardan okunur (uid 10001'e ait, chmod 400):
+#    imap_password (Adım 3) ve isteğe bağlı ai_api_key (Adım 5). Olmayan dosya yok sayılır.
 
 services:
   api:
@@ -17,15 +17,17 @@ services:
     environment:
       FM_TRUST_PROXY: ${FM_TRUST_PROXY:-none}
       FM_IMAP_PASSWORD_FILE: /run/secrets/imap_password
+      FM_AI_API_KEY_FILE: /run/secrets/ai_api_key
     volumes:
-      - ./secrets/imap_password:/run/secrets/imap_password:ro
+      - ./secrets:/run/secrets:ro
 
   worker:
     networks: [internal, egress, ai-shared]
     environment:
       FM_IMAP_PASSWORD_FILE: /run/secrets/imap_password
+      FM_AI_API_KEY_FILE: /run/secrets/ai_api_key
     volumes:
-      - ./secrets/imap_password:/run/secrets/imap_password:ro
+      - ./secrets:/run/secrets:ro
 
   cloudflared:
     image: cloudflare/cloudflared:2024.12.2
