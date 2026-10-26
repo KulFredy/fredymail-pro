@@ -14,7 +14,9 @@ from .config import get_settings
 @lru_cache
 def get_engine() -> Engine:
     s = get_settings()
-    return create_engine(s.database_url, pool_pre_ping=True, pool_size=5, max_overflow=5, future=True)
+    # hide_parameters: SQL hatalarında parametre değerleri (mail içeriği) istisna mesajına/loglara girmez
+    return create_engine(s.database_url, pool_pre_ping=True, pool_size=5, max_overflow=5, future=True,
+                         hide_parameters=True)
 
 
 @lru_cache

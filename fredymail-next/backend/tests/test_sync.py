@@ -199,3 +199,54 @@ def test_extra_excludes_keep_defaults(settings):
     assert not folder_is_default_enabled(FolderInfo("Karantina", "/", []), s)  # varsayılan hâlâ geçerli
     assert not folder_is_default_enabled(FolderInfo("Trash/Adsız Klasör", "/", []), s)
     assert folder_is_default_enabled(FolderInfo("Müşteriler/Kamera Dünyası", "/", []), s)
+
+
+def test_nul_bytes_are_stripped_not_rejected(db, settings, demo_dir, tmp_path):
+    """PDF metinlerinde sık görülen NUL (0x00) karakteri kaydı engellememeli."""
+    from fredymail.demo.generate import tiny_pdf
+
+    d = tmp_path / "nul" / "INBOX"
+    d.mkdir(parents=True)
+    raw = (b"From: a@b.test\r\nTo: fatih@ornek-ithalat.test\r\nSubject: Fatura\x00 NUL\r\n"
+           b"Message-ID: <nul1@b.test>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=X\r\n\r\n"
+           b"--X\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nTutar\x00 1.000 TL\r\n"
+           b"--X\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"f\x00.pdf\"\r\n"
+           b"Content-Transfer-Encoding: base64\r\n\r\n"
+           + __import__("base64").encodebytes(tiny_pdf(["FATURA", "Toplam"])) + b"--X--\r\n")
+    (d / "00001.eml").write_bytes(raw)
+    res = run_sync(db, lambda: EmlDirSource(d.parent, kind="demo", keep_payload_max=5_000_000), settings,
+                   origin="demo", sleep=lambda s: None)
+    assert res.created == 1 and sum(f.errors for f in res.folders) == 0
+    m = db.execute(select(Message).where(Message.message_id_header == "nul1@b.test")).scalar_one()
+    assert "\x00" not in m.subject + m.body_text and "Tutar" in m.body_text
+
+
+def test_store_errors_never_log_mail_content(db, settings, demo_dir, caplog, monkeypatch):
+    from fredymail.db import get_engine
+    from fredymail.mail import sync as sync_mod
+
+    assert get_engine().hide_parameters  # SQL hatalarında parametre (mail içeriği) gösterilmez
+    real = sync_mod.store_fetched
+
+    def boom(db_, account, folder, uv, fm, s):
+        if fm.parsed is not None and "SJ-500" in fm.parsed.subject:
+            raise RuntimeError("GIZLI-ICERIK " + fm.parsed.body_text)
+        return real(db_, account, folder, uv, fm, s)
+
+    monkeypatch.setattr(sync_mod, "store_fetched", boom)
+    with caplog.at_level("DEBUG"):
+        run_sync(db, lambda: EmlDirSource(demo_dir, kind="demo"), settings, origin="demo", sleep=lambda s: None)
+    assert "mail kaydedilemedi" in caplog.text
+    assert "GIZLI-ICERIK" not in caplog.text and "stok durumu" not in caplog.text
+
+
+def test_retry_failed_refetches(db, settings, demo_dir):
+    from fredymail.cli import main
+
+    run_sync(db, lambda: BrokenParseSource(demo_dir, kind="demo"), settings, origin="demo", sleep=lambda s: None)
+    assert db.execute(select(func.count()).select_from(Message).where(Message.dedupe_key.startswith("err:"))).scalar_one()
+    assert main(["retry-failed", "--yes"]) == 0
+    res = run_sync(db, lambda: EmlDirSource(demo_dir, kind="demo"), settings, origin="demo", sleep=lambda s: None)
+    assert res.created >= 1
+    db.expire_all()
+    assert db.execute(select(func.count()).select_from(Message).where(Message.dedupe_key.startswith("err:"))).scalar_one() == 0

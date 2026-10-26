@@ -136,12 +136,35 @@ def _location_exists(db: Session, folder: Folder, uidvalidity: int, uid: int) ->
     ).first() is not None
 
 
+def _nul_free(v):
+    """Postgres TEXT/JSONB alanları NUL (0x00) karakterini kabul etmez; PDF metinlerinde sık görülür."""
+    if isinstance(v, str):
+        return v.replace("\x00", "")
+    if isinstance(v, list):
+        return [_nul_free(x) for x in v]
+    if isinstance(v, dict):
+        return {k: _nul_free(x) for k, x in v.items()}
+    return v
+
+
+def _sanitize(p) -> None:
+    for f in ("message_id", "in_reply_to", "references", "subject", "from_name", "from_email", "to", "cc",
+              "reply_to", "body_text", "body_html"):
+        setattr(p, f, _nul_free(getattr(p, f)))
+    for a in p.attachments:
+        a.filename = _nul_free(a.filename)
+        a.content_type = _nul_free(a.content_type)
+        a.content_id = _nul_free(a.content_id)
+
+
 def store_fetched(db: Session, account: Account, folder: Folder, uidvalidity: int, fm: FetchedMessage,
                   settings: Settings) -> str:
     """Tek maili idempotent biçimde yazar. Dönüş: created | duplicate | exists | error"""
     if _location_exists(db, folder, uidvalidity, fm.uid):
         return "exists"
     p = fm.parsed
+    if p is not None:
+        _sanitize(p)
     if p is None:
         key = f"err:{folder.id}:{uidvalidity}:{fm.uid}"
         msg = db.execute(select(Message).where(Message.account_id == account.id, Message.dedupe_key == key)).scalar_one_or_none()
@@ -178,7 +201,7 @@ def store_fetched(db: Session, account: Account, folder: Folder, uidvalidity: in
                              content_id=a.content_id, is_inline=a.is_inline, file_kind=a.file_kind, sha256=a.sha256)
             if settings.attachment_text_extraction and a.payload is not None and not a.is_inline:
                 txt, st = extract_text(a.payload, a.filename, a.content_type, settings.attachment_extract_max_chars)
-                att.extracted_text, att.extraction_status = txt, st
+                att.extracted_text, att.extraction_status = _nul_free(txt), st
             msg.attachments.append(att)
     else:
         # Aynı mail başka bir klasörde de var (veya Outlook arşivinden içe aktarılıyor)
@@ -233,7 +256,8 @@ def sync_folder(db: Session, source: MailSource, account: Account, folder: Folde
                 with db.begin_nested():
                     r = store_fetched(db, account, folder, st.uidvalidity, fm, settings)
             except Exception as e:  # beklenmeyen hata tek maili etkiler; tekrar tekrar denenmez
-                log.exception("mail kaydedilemedi klasör_id=%s uid=%s", folder.id, fm.uid)
+                # Yalnızca hata TÜRÜ loglanır; mesaj/traceback mail içeriği taşıyabilir
+                log.error("mail kaydedilemedi klasör_id=%s uid=%s hata=%s", folder.id, fm.uid, type(e).__name__)
                 with db.begin_nested():
                     r = store_fetched(db, account, folder, st.uidvalidity,
                                       FetchedMessage(uid=fm.uid, flags=fm.flags, parsed=None,

@@ -60,6 +60,7 @@ fredymail-next/
 | `sync-once [--folder X] [--yes-live]` | Tek senkron döngüsü |
 | `import-eml <dizin> [--prefix Outlook]` · `import-mbox <dosya> --folder X` | Outlook arşivini içe aktarır |
 | `reindex --yes` | Arama indeksini Postgres'ten yeniden üretir |
+| `retry-failed [--yes]` | Kaydedilemeyen (hata kaydı tutulan) mailleri bir sonraki senkronda yeniden çektirir |
 | `purge-deleted --days 30 --yes` | Sunucudan silinmiş mailleri kalıcı temizler |
 | `hash-password` · `totp-setup` · `gen-secret` | Giriş ayarları |
 

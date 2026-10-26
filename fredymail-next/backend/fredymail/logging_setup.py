@@ -58,4 +58,6 @@ def setup_logging(level: str = "INFO") -> None:
     root.setLevel(level.upper())
     for noisy in ("imapclient", "imaplib", "httpx", "httpcore", "uvicorn.access"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+    for very_noisy in ("pypdf", "openpyxl", "sqlalchemy"):
+        logging.getLogger(very_noisy).setLevel(logging.ERROR)
     root._fm_configured = True  # type: ignore[attr-defined]

@@ -80,4 +80,5 @@ Geri dönüş: `git checkout <önceki commit> && docker compose build && docker 
 | Bir klasör sürekli `error` | Sunucu tarafı sorun / izin | Ayarlar → Senkron'da hata metni. Klasörü kapatıp açmak devre kesiciyi sıfırlar. |
 | Worker sağlıksız | DB bağlantısı / çökme | `docker compose logs --tail 100 worker` |
 | AI 409 "bütçe doldu" | Günlük sınır | Ertesi gün sıfırlanır veya `FM_AI_DAILY_BUDGET_USD` artırılır |
+| Ayarlar'da "ayrıştırılamayan mail" kayıtları | Kayıt sırasında hata (ör. düzeltilmiş bir hata) | Güncellemeden sonra `docker compose run --rm --no-deps worker fredymail retry-failed --yes` |
 | Port çakışması | 8088 kullanımda | `.env` → `FM_HTTP_PORT=8090` |

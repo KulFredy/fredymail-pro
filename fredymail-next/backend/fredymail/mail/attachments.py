@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import logging
+import warnings
 
 from .parse import decode_bytes
 
@@ -15,6 +16,14 @@ log = logging.getLogger(__name__)
 
 
 def extract_text(payload: bytes, filename: str, content_type: str, max_chars: int) -> tuple[str | None, str]:
+    # pypdf/openpyxl bozuk dosyalarda çok sayıda zararsız uyarı basar; log gürültüsü olmasın
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        txt, status = _extract(payload, filename, content_type, max_chars)
+    return (txt.replace("\x00", "") if txt else txt), status
+
+
+def _extract(payload: bytes, filename: str, content_type: str, max_chars: int) -> tuple[str | None, str]:
     name = filename.lower()
     try:
         if name.endswith(".pdf") or content_type == "application/pdf":

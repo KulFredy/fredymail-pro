@@ -150,6 +150,35 @@ def cmd_purge_deleted(a) -> int:
     return 0
 
 
+def cmd_retry_failed(a) -> int:
+    """Kaydı başarısız olmuş (hata kaydı tutulan) mailleri siler; bir sonraki senkronda yeniden çekilirler."""
+    import time
+
+    from sqlalchemy import delete, func, select
+
+    from .db import new_session
+    from .mail.sync import sync_lock
+    from .models import Message
+
+    db = new_session()
+    n = db.execute(select(func.count()).select_from(Message).where(Message.dedupe_key.startswith("err:"))).scalar_one()
+    print(f"Hata kaydı olan mail: {n}")
+    if not n or not a.yes:
+        if n:
+            print("Yeniden denemek için --yes ekleyin (posta sunucusunda hiçbir şey değişmez).")
+        return 0
+    for _ in range(60):  # çalışan senkronun bitmesini bekle (en fazla ~5 dk)
+        with sync_lock(db) as got:
+            if got:
+                r = db.execute(delete(Message).where(Message.dedupe_key.startswith("err:")))
+                db.commit()
+                print(f"{r.rowcount} hata kaydı silindi; bir sonraki senkron döngüsünde yeniden çekilecek.")
+                return 0
+        time.sleep(5)
+    print("Senkron kilidi alınamadı; daha sonra tekrar deneyin.", file=sys.stderr)
+    return 4
+
+
 def cmd_hash_password(a) -> int:
     from .security.auth import hash_password
 
@@ -246,6 +275,10 @@ def main(argv: list[str] | None = None) -> int:
     pd.add_argument("--days", type=int, default=30)
     pd.add_argument("--yes", action="store_true")
     pd.set_defaults(fn=cmd_purge_deleted)
+
+    rf = sp.add_parser("retry-failed", help="Kaydedilemeyen mailleri yeniden çektir")
+    rf.add_argument("--yes", action="store_true")
+    rf.set_defaults(fn=cmd_retry_failed)
 
     sp.add_parser("hash-password", help="Giriş parolası için argon2 özeti üret").set_defaults(fn=cmd_hash_password)
     gs = sp.add_parser("gen-secret", help="Rastgele gizli anahtar üret")
