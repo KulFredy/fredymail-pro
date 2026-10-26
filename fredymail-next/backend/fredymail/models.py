@@ -10,11 +10,12 @@ Temel tasarım:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -225,6 +226,21 @@ class Draft(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class Task(Base):
+    """Yapılacaklar: elle ya da AI'ın çıkardığı eylemlerden eklenir; kaynak maile bağlıdır."""
+
+    __tablename__ = "tasks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    message_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id", ondelete="SET NULL"), index=True)
+    thread_id: Mapped[int | None] = mapped_column(ForeignKey("threads.id", ondelete="SET NULL"), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    due: Mapped[date | None] = mapped_column(Date)
+    done: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    source: Mapped[str] = mapped_column(String(10), default="user")  # user | ai
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AiRun(Base):

@@ -21,7 +21,7 @@ from .logging_setup import setup_logging
 from .mail.source import EmlDirSource, ImapSource, SourceAuthError, SourceError
 from .mail.sync import run_sync
 from .models import Folder, KeyValue
-from .search.meili import Meili, MeiliError, index_dirty
+from .search.meili import Meili, MeiliError, index_dirty, migrate_index_version
 
 log = logging.getLogger("fredymail.worker")
 _stop = False
@@ -92,6 +92,8 @@ def run_forever(settings: Settings | None = None) -> None:
             if not index_ready:
                 try:
                     meili.ensure_index()
+                    if migrate_index_version(db, meili):
+                        log.info("arama indeksi şeması güncellendi; belgeler arka planda yeniden indeksleniyor")
                     index_ready = True
                 except MeiliError as e:
                     log.warning("indeks hazırlanamadı: %s", e)

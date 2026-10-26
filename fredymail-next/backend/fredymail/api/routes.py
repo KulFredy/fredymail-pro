@@ -26,6 +26,7 @@ from ..models import (
     SavedSearch,
     SyncRun,
     Tag,
+    Task,
     Thread,
 )
 from ..search.meili import Meili, reindex_one
@@ -51,12 +52,39 @@ def api_search(
     date_from: date | None = None, date_to: date | None = None, has_attachment: bool | None = None,
     file_kind: str = "", doc_kind: str = "", tag_id: int | None = None, unread: bool | None = None,
     important: bool | None = None, sort: str = "", page: int = 1, per_page: int = 50,
+    year: int | None = None, participant: str = "", facets: bool = False,
     db: Session = Depends(get_db), meili: Meili = Depends(get_meili),
 ):
     p = SearchParams(q=q, view=view, folder_id=folder_id, sender=sender, recipient=recipient, date_from=date_from,
                      date_to=date_to, has_attachment=has_attachment, file_kind=file_kind, doc_kind=doc_kind,
-                     tag_id=tag_id, unread=unread, important=important, sort=sort, page=page, per_page=per_page)
-    return search(db, meili, p)
+                     tag_id=tag_id, unread=unread, important=important, sort=sort, page=page, per_page=per_page,
+                     year=year, participant=participant)
+    return search(db, meili, p, with_facets=facets)
+
+
+@router.get("/insights")
+def api_insights(period: str = "this_month", db: Session = Depends(get_db),
+                 settings: Settings = Depends(get_settings)):
+    from ..search.insights import PERIOD_LABELS, insights
+
+    aw = len(followups(db, "awaiting", settings.awaiting_reply_days, settings.my_addresses, limit=200))
+    nr = len(followups(db, "needs_reply", settings.needs_reply_days, settings.my_addresses, limit=200))
+    out = insights(db, period, settings.my_addresses, aw, nr)
+    out["periods"] = PERIOD_LABELS
+    return out
+
+
+class AskIn(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+    allow_ai: bool = True
+
+
+@router.post("/ask")
+def api_ask(body: AskIn, db: Session = Depends(get_db), meili: Meili = Depends(get_meili),
+            settings: Settings = Depends(get_settings)):
+    from ..search.ask import run_question
+
+    return run_question(db, meili, settings, body.question, allow_ai=body.allow_ai)
 
 
 @router.get("/followups")
@@ -443,6 +471,79 @@ def create_saved(body: SavedSearchIn, db: Session = Depends(get_db)):
 @router.delete("/saved-searches/{sid}")
 def delete_saved(sid: int, db: Session = Depends(get_db)):
     db.execute(delete(SavedSearch).where(SavedSearch.id == sid))
+    db.commit()
+    return {"ok": True}
+
+
+# ------------------------------------------------------------------ yapılacaklar
+
+
+class TaskIn(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    due: date | None = None
+    message_id: int | None = None
+    source: str = Field(default="user", pattern="^(user|ai)$")
+
+
+class TaskPatch(BaseModel):
+    text: str | None = Field(default=None, max_length=500)
+    due: date | None = None
+    clear_due: bool = False
+    done: bool | None = None
+
+
+def _task_out(t: Task) -> dict:
+    return {"id": t.id, "text": t.text, "due": t.due.isoformat() if t.due else None, "done": t.done,
+            "source": t.source, "message_id": t.message_id, "thread_id": t.thread_id,
+            "created_at": t.created_at.isoformat(), "done_at": t.done_at.isoformat() if t.done_at else None}
+
+
+@router.get("/tasks")
+def list_tasks(message_id: int | None = None, thread_id: int | None = None, include_done: bool = False,
+               db: Session = Depends(get_db)):
+    q = select(Task)
+    if message_id:
+        q = q.where(Task.message_id == message_id)
+    if thread_id:
+        q = q.where(Task.thread_id == thread_id)
+    if not include_done:
+        q = q.where(Task.done.is_(False))
+    q = q.order_by(Task.done, Task.due.asc().nulls_last(), Task.id.desc()).limit(500)
+    return [_task_out(t) for t in db.execute(q).scalars()]
+
+
+@router.post("/tasks")
+def create_task(body: TaskIn, db: Session = Depends(get_db)):
+    thread_id = None
+    if body.message_id:
+        thread_id = _get_msg(db, body.message_id).thread_id
+    t = Task(text=body.text.strip(), due=body.due, message_id=body.message_id, thread_id=thread_id, source=body.source)
+    db.add(t)
+    db.commit()
+    return _task_out(t)
+
+
+@router.patch("/tasks/{tid}")
+def update_task(tid: int, body: TaskPatch, db: Session = Depends(get_db)):
+    t = db.get(Task, tid)
+    if t is None:
+        raise HTTPException(404, "Görev yok")
+    if body.text is not None:
+        t.text = body.text.strip() or t.text
+    if body.clear_due:
+        t.due = None
+    elif body.due is not None:
+        t.due = body.due
+    if body.done is not None:
+        t.done = body.done
+        t.done_at = datetime.now(UTC) if body.done else None
+    db.commit()
+    return _task_out(t)
+
+
+@router.delete("/tasks/{tid}")
+def delete_task(tid: int, db: Session = Depends(get_db)):
+    db.execute(delete(Task).where(Task.id == tid))
     db.commit()
     return {"ok": True}
 

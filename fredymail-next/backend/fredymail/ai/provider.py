@@ -109,6 +109,7 @@ class FakeProvider:
                 "key_points": [{"text": f"Ana konu: {subject}", "sources": [first]}]
                 + [{"text": "İlgili mail", "sources": [lb]} for lb in labels[1:3]],
                 "actions": [{"task": "Yanıt hazırla", "owner": "ben", "due": None, "sources": [first]}],
+                "suggestion": f"Bu yazışmaya kısa bir dönüş yapmanız iyi olur. [{first}]",
                 "subject": "Re: " + subject,
                 "body": "Merhaba,\n\nMailiniz için teşekkürler. Konuyu inceleyip en kısa sürede dönüş yapacağım.\n\nSaygılarımla",
                 "warnings": ["E-postada talimat benzeri ifade var; uygulanmadı."] if "talimat" in user.lower()

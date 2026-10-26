@@ -29,7 +29,7 @@ from ..mail.parse import strip_quoted
 from ..models import AiRun, KeyValue, Message
 from .provider import AIError, get_provider
 
-KINDS = ("summary", "thread_summary", "search_summary", "actions", "draft")
+KINDS = ("summary", "thread_summary", "search_summary", "actions", "draft", "followup")
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 
 
@@ -136,6 +136,9 @@ TASKS = {
                       '"warnings": [str]}',
     "actions": 'Bu e-postalardan yapılacak işleri ve bekleyen yanıtları çıkar. JSON: {"actions": [{"task": str, '
                '"owner": str|null, "due": str|null, "sources": [str]}], "warnings": [str]}',
+    "followup": 'Bu yazışma takip gerektiriyor. Kullanıcıya kısa (2-3 cümle) bir takip önerisi yaz: ne yapmalı, '
+                'neden. Ayrıca en fazla 3 somut eylem öner (ör. "Kısa bir görüşme önerin"). JSON: {"suggestion": str, '
+                '"actions": [{"task": str, "owner": null, "due": str|null, "sources": [str]}], "warnings": [str]}',
     "draft": 'Son gelen e-postaya kullanıcı adına bir YANIT TASLAĞI yaz. Kullanıcının isteği: "{instruction}". '
              'Taslak gönderilmeyecek; kullanıcı gözden geçirecek. Bilmediğin rakam/tarih yazma, [köşeli parantez] '
              'ile yer tutucu bırak. JSON: {"subject": str, "body": str, "sources": [str], "warnings": [str]}',
@@ -226,6 +229,8 @@ def validate_output(raw: dict, ctx: Context, allowed_emails: set[str]) -> dict:
     out: dict = {}
     if "summary" in raw:
         out["summary"] = strip_inline(str(raw.get("summary") or ""))[:4000]
+    if "suggestion" in raw:
+        out["suggestion"] = strip_inline(str(raw.get("suggestion") or ""))[:1500]
     if "key_points" in raw:
         out["key_points"] = [{"text": strip_inline(str(k.get("text", "")))[:600], "sources": clean_sources(k.get("sources"))}
                              for k in (raw.get("key_points") or [])[:12] if isinstance(k, dict)]
@@ -250,7 +255,7 @@ def validate_output(raw: dict, ctx: Context, allowed_emails: set[str]) -> dict:
     out["warnings"] = list(dict.fromkeys(warnings))
     used = {s for k in out.get("key_points", []) for s in k["sources"]} | \
            {s for a in out.get("actions", []) for s in a["sources"]} | set(out.get("sources", []))
-    used |= set(re.findall(r"\[(M\d+)\]", out.get("summary", "") + out.get("body", "")))
+    used |= set(re.findall(r"\[(M\d+)\]", out.get("summary", "") + out.get("body", "") + out.get("suggestion", "")))
     out["references"] = [_ref(ctx.labels[lb], lb) for lb in sorted(ctx.labels, key=lambda x: int(x[1:]))]
     out["cited"] = sorted(used, key=lambda x: int(x[1:]))
     return out

@@ -87,7 +87,7 @@ def ai_run(kind: str, body: AIRequest, db: Session = Depends(get_db), meili: Mei
         ids = [i["id"] for i in res["items"]]
         by = {m.id: m for m in db.execute(select(Message).where(Message.id.in_(ids))).scalars()}
         msgs = [by[i] for i in ids if i in by]
-    elif kind in ("thread_summary", "draft", "actions") and (body.thread_id or body.message_id):
+    elif kind in ("thread_summary", "draft", "actions", "followup") and (body.thread_id or body.message_id):
         tid = body.thread_id
         if tid is not None and db.get(Thread, tid) is None:
             raise HTTPException(404, "Yazışma bulunamadı")

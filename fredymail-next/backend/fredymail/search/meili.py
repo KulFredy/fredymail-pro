@@ -17,9 +17,13 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..config import Settings
-from ..models import Message, MessageTag, Tag
+from ..mail.classify import fold
+from ..models import KeyValue, Message, MessageTag, Tag
 
 log = logging.getLogger(__name__)
+
+# İndeks şeması değişince artırılır; worker eski belgeleri arka planda yeniden indeksler.
+INDEX_VERSION = 3
 
 HL_PRE = ""  # vurgulama işaretleri: HTML değil, istemci güvenle <mark>'a çevirir
 HL_POST = ""
@@ -30,8 +34,12 @@ INDEX_SETTINGS = {
                              "attachment_text", "notes"],
     "filterableAttributes": ["folder_ids", "from_email", "from_domain", "to_emails", "date_ts", "has_attachments",
                              "file_kinds", "doc_kinds", "is_from_me", "is_read", "is_important", "tag_ids",
-                             "thread_id", "is_automated", "snoozed_until_ts", "deleted"],
-    "sortableAttributes": ["date_ts"],
+                             "thread_id", "is_automated", "snoozed_until_ts", "deleted", "year"],
+    "sortableAttributes": ["date_ts", "size", "subject_sort", "from_sort"],
+    "faceting": {"maxValuesPerFacet": 100, "sortFacetValuesBy": {"*": "count"}},
+    # "sort" en önde: kullanıcı sıralama seçince (tarih/boyut/konu/gönderen) o birincil kriter olur;
+    # sıralama seçilmezse bu kural etkisizdir ve sonuçlar alaka düzeyine göre gelir.
+    "rankingRules": ["sort", "words", "typo", "proximity", "attribute", "exactness"],
     "displayedAttributes": ["id", "thread_id", "subject", "from_name", "from_email", "body", "date_ts"],
     "localizedAttributes": [{"attributePatterns": ["*"], "locales": ["tur", "eng"]}],
     "synonyms": {
@@ -157,6 +165,10 @@ def build_document(m: Message, tag_ids: list[int], tag_names: list[str], notes: 
         "doc_kinds": m.doc_kinds or [],
         "folder_ids": folder_ids,
         "date_ts": int(m.date.timestamp()) if m.date else 0,
+        "year": m.date.year if m.date else 0,
+        "size": m.size or 0,
+        "subject_sort": (m.normalized_subject or "")[:80],
+        "from_sort": fold(m.from_name or m.from_email or "")[:80],
         "is_from_me": m.is_from_me,
         "is_read": m.is_read,
         "is_important": m.is_important,
@@ -218,10 +230,30 @@ def reindex_one(db: Session, meili: Meili, message_id: int) -> None:
         m.index_dirty = True
 
 
+def migrate_index_version(db: Session, meili: Meili) -> bool:
+    """İndeks şeması eskiyse ayarları günceller ve tüm belgeleri kirli işaretler (arama bu sırada çalışır)."""
+    kv = db.get(KeyValue, "index_version")
+    if kv is not None and kv.value.get("v") == INDEX_VERSION:
+        return False
+    meili.ensure_index()
+    db.execute(update(Message).values(index_dirty=True))
+    if kv is None:
+        db.add(KeyValue(key="index_version", value={"v": INDEX_VERSION}))
+    else:
+        kv.value = {"v": INDEX_VERSION}
+    db.commit()
+    return True
+
+
 def rebuild(db: Session, meili: Meili) -> int:
     """İndeksi silip Postgres'ten yeniden kurar (yalnızca FredyMail'in kendi indeksi)."""
     meili.delete_index()
     meili.ensure_index()
     db.execute(update(Message).values(index_dirty=True))
+    kv = db.get(KeyValue, "index_version")
+    if kv is None:
+        db.add(KeyValue(key="index_version", value={"v": INDEX_VERSION}))
+    else:
+        kv.value = {"v": INDEX_VERSION}
     db.commit()
     return index_dirty(db, meili, max_batches=100000)
