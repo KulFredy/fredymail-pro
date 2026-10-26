@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
+import unicodedata
 from datetime import UTC, datetime, timedelta
 
 from argon2 import PasswordHasher
@@ -28,15 +29,24 @@ _ph = PasswordHasher()
 _DUMMY_HASH = _ph.hash(secrets.token_hex(16))
 
 
+def _norm(password: str) -> str:
+    # Türkçe karakterler (ı ş ğ ç ö ü İ) farklı cihaz/klavyelerden farklı Unicode biçimlerinde (NFC/NFD) gelebilir;
+    # aynı parolanın her yerden aynı sonucu vermesi için tek biçime çevrilir.
+    return unicodedata.normalize("NFC", password)
+
+
 def hash_password(password: str) -> str:
-    return _ph.hash(password)
+    return _ph.hash(_norm(password))
 
 
 def verify_password(stored_hash: str, password: str) -> bool:
-    try:
-        return _ph.verify(stored_hash or _DUMMY_HASH, password)
-    except (VerificationError, InvalidHashError):
-        return False
+    for candidate in dict.fromkeys((_norm(password), password)):  # eski (normalize edilmemiş) özetlerle uyum
+        try:
+            if _ph.verify(stored_hash or _DUMMY_HASH, candidate):
+                return True
+        except (VerificationError, InvalidHashError):
+            continue
+    return False
 
 
 def _token_hash(settings: Settings, token: str) -> str:

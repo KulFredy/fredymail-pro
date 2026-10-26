@@ -255,3 +255,16 @@ def test_ai_search_summary_validates_filters(client):
     assert r.status_code == 400
     r = client.post("/api/ai/search_summary", json={"query": "fatura", "filters": {"doc_kind": "invoice"}}, headers=H)
     assert r.status_code == 200 and r.json()["references"]
+
+
+def test_password_unicode_normalization():
+    import unicodedata
+
+    from fredymail.security.auth import hash_password, verify_password
+
+    pw_nfc = unicodedata.normalize("NFC", "Şişli-Güneş-Çiçeği-2026")
+    pw_nfd = unicodedata.normalize("NFD", pw_nfc)
+    assert pw_nfc != pw_nfd
+    h = hash_password(pw_nfd)  # parola bir cihazda NFD girildi
+    assert verify_password(h, pw_nfc) and verify_password(h, pw_nfd)  # her iki biçim de kabul
+    assert not verify_password(h, "Sisli-Gunes-Cicegi-2026")
