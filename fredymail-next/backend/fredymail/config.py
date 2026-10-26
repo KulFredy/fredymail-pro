@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     sync_body_text_max_chars: int = 200_000
     sync_max_retries: int = 4
     sync_deletion_check_every: int = 10  # her N döngüde sunucudan silinenleri kontrol et
+    # Toplu kayıp kilidi: bir klasörde bir anda bu orandan ve adetten fazla mail kaybolursa (sunucu arızası,
+    # yedekten dönüş...) silmeler UYGULANMAZ, FredyMail'deki kopyalar korunur ve uyarı verilir.
+    sync_mass_delete_ratio: float = 0.2
+    sync_mass_delete_min: int = 50
 
     # --- Ekler ---
     attachment_text_extraction: bool = False

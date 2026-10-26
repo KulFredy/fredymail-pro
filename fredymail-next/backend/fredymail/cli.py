@@ -179,6 +179,35 @@ def cmd_retry_failed(a) -> int:
     return 4
 
 
+def cmd_accept_deletions(a) -> int:
+    """Toplu kayıp kilidine takılan klasörde silinmelerin GERÇEK olduğunu onaylar."""
+    from sqlalchemy import select
+
+    from .db import new_session
+    from .mail.sync import set_mass_delete_allowed
+    from .models import Folder
+
+    db = new_session()
+    q = select(Folder).where(Folder.status == "anomaly")
+    if a.folder:
+        q = select(Folder).where(Folder.name == a.folder)
+    folders = db.execute(q).scalars().all()
+    if not folders:
+        print("Toplu kayıp kilidinde bekleyen klasör yok.")
+        return 0
+    for f in folders:
+        print(f"- {f.name}: {f.last_error or ''}")
+    if not a.yes:
+        print("Bu klasörlerdeki kayıpları onaylamak için --yes ekleyin. (Mailler FredyMail aramasından kalkar; "
+              "posta sunucusunda hiçbir şey değişmez.)")
+        return 0
+    for f in folders:
+        set_mass_delete_allowed(db, f.id, True)
+    db.commit()
+    print("Onaylandı; bir sonraki senkron döngüsünde uygulanacak.")
+    return 0
+
+
 def cmd_hash_password(a) -> int:
     from .security.auth import hash_password
 
@@ -275,6 +304,11 @@ def main(argv: list[str] | None = None) -> int:
     pd.add_argument("--days", type=int, default=30)
     pd.add_argument("--yes", action="store_true")
     pd.set_defaults(fn=cmd_purge_deleted)
+
+    ad = sp.add_parser("accept-deletions", help="Toplu kayıp kilidindeki silinmeleri onayla")
+    ad.add_argument("--folder")
+    ad.add_argument("--yes", action="store_true")
+    ad.set_defaults(fn=cmd_accept_deletions)
 
     rf = sp.add_parser("retry-failed", help="Kaydedilemeyen mailleri yeniden çektir")
     rf.add_argument("--yes", action="store_true")

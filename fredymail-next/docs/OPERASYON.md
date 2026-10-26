@@ -71,6 +71,25 @@ docker compose up -d          # migrate servisi şema değişikliklerini otomati
 Geri dönüş: `git checkout <önceki commit> && docker compose build && docker compose up -d`. Şema geri alınması gerekirse
 önce yedekten geri yükleyin (migration'lar ileri yönlü test edilir).
 
+## Acil durum: posta sunucusu arızası / yedekten geri dönüş
+
+**Otomatik olarak olanlar**
+- Bir klasörde bir anda mailler kaybolursa (≥50 mail ve bilinenlerin ≥%20'si) **toplu kayıp kilidi** devreye girer:
+  silinmeler uygulanmaz, FredyMail'deki kopyalar aramada ve okumada kalır, klasör `anomaly` durumuna geçer,
+  Telegram uyarısı (ayarlıysa) gönderilir. Küçük, normal silmeler etkilenmez.
+- Sunucu tamamen erişilemezse senkron sınırlı denemeden sonra durur (devre kesici); arayüz çalışmaya devam eder.
+- Sağlayıcı kutuyu yedekten geri yüklerse (yeni UIDVALIDITY) mailler Message-ID ile eşleşir: **kopya oluşmaz,
+  etiket/not/önemli/erteleme korunur.** Klasör görünümleri yeniden tarama bitene kadar kısa süre eksik görünebilir; arama etkilenmez.
+
+**Senin yapacakların**
+1. FredyMail'den çalışmaya devam et (arama + mail metni/HTML yerelde). ⚠️ Ekler sunucudan anlık çekildiği için arıza süresince indirilemez.
+2. `purge-deleted` ve `accept-deletions` komutlarını **çalıştırma**.
+3. Sağlayıcıya (Doruk.net) bildir. Hangi klasörlerin etkilendiğini Ayarlar → Senkron'da veya şu komutla gör:
+   `docker compose run --rm --no-deps worker fredymail accept-deletions` (onay vermeden yalnızca listeler).
+4. Sunucu düzelince kilit kendiliğinden kalkar. Geri gelmeyen mailler FredyMail'de durmaya devam eder (metin ve meta veri; ham MIME tutulmadığı için sunucuya geri yüklenemez).
+5. Kayıp gerçekse (ör. klasörü sen boşalttıysan): `fredymail accept-deletions --folder "<klasör>" --yes`.
+6. FredyMail'in kendi verisi için: gece yedeği + `scripts/restore.sh` (yukarıda).
+
 ## Sorun giderme
 
 | Belirti | Olası neden | Çözüm |

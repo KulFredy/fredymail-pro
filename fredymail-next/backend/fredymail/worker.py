@@ -130,6 +130,12 @@ def run_forever(settings: Settings | None = None) -> None:
                                  .where(Folder.consecutive_failures >= 3)).scalar_one()
             if failing:
                 send_alert(db, settings, f"{failing} klasörde art arda senkron hatası var. Durum: Ayarlar → Senkron.")
+            anomalies = db.execute(select(func.count()).select_from(Folder)
+                                   .where(Folder.status == "anomaly")).scalar_one()
+            if anomalies:
+                hb["anomaly_folders"] = anomalies
+                send_alert(db, settings, f"{anomalies} klasörde sunucudan toplu mail kaybı görüldü. FredyMail kopyaları "
+                                         "koruyor; sunucu sağlayıcısıyla kontrol edin.")
             hb["state"] = "idle"
             _set_kv(db, "worker", hb)
         except Exception:

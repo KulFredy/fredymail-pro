@@ -250,3 +250,74 @@ def test_retry_failed_refetches(db, settings, demo_dir):
     assert res.created >= 1
     db.expire_all()
     assert db.execute(select(func.count()).select_from(Message).where(Message.dedupe_key.startswith("err:"))).scalar_one() == 0
+
+
+class ShrinkingSource(EmlDirSource):
+    """Sunucu arızası: klasör bir anda boş / eksik görünür."""
+
+    keep = None  # None = hepsi; sayı = yalnızca ilk N UID görünür
+
+    def search_uids(self, since):
+        uids = super().search_uids(since)
+        return uids if ShrinkingSource.keep is None else uids[:ShrinkingSource.keep]
+
+
+def test_mass_disappearance_is_not_applied(db, settings, demo_dir):
+    """Sunucu arızasında mailler aramadan kaybolmamalı; onay sonrası gerçek silinme uygulanmalı."""
+    from fredymail.cli import main
+    from fredymail.search.query import SearchParams, search
+
+    s = settings.model_copy(update={"sync_deletion_check_every": 1})
+    ShrinkingSource.keep = None
+    run_sync(db, lambda: ShrinkingSource(demo_dir, kind="demo"), s, origin="server", sleep=lambda x: None)
+    db.execute(Folder.__table__.update().values(origin="server"))
+    db.commit()
+    before = search(db, None, SearchParams(view="inbox"))["total"]
+
+    ShrinkingSource.keep = 0  # sunucu INBOX'ı (ve tüm klasörleri) boş döndürüyor
+    run_sync(db, lambda: ShrinkingSource(demo_dir, kind="demo"), s, origin="server", sleep=lambda x: None)
+    db.expire_all()
+    inbox = db.execute(select(Folder).where(Folder.name == "INBOX")).scalar_one()
+    assert inbox.status == "anomaly" and "accept-deletions" in inbox.last_error
+    assert search(db, None, SearchParams(view="inbox"))["total"] == before  # kopyalar korundu
+
+    # sunucu düzelince kilit kendiliğinden kalkar
+    ShrinkingSource.keep = None
+    run_sync(db, lambda: ShrinkingSource(demo_dir, kind="demo"), s, origin="server", sleep=lambda x: None)
+    db.expire_all()
+    assert db.execute(select(Folder).where(Folder.name == "INBOX")).scalar_one().status == "idle"
+
+    # kullanıcı onaylarsa toplu silinme uygulanır
+    ShrinkingSource.keep = 0
+    run_sync(db, lambda: ShrinkingSource(demo_dir, kind="demo"), s, origin="server", sleep=lambda x: None)
+    assert main(["accept-deletions", "--folder", "INBOX", "--yes"]) == 0
+    run_sync(db, lambda: ShrinkingSource(demo_dir, kind="demo"), s, origin="server", sleep=lambda x: None)
+    db.expire_all()
+    assert search(db, None, SearchParams(view="inbox"))["total"] == 0
+    ShrinkingSource.keep = None
+
+
+def test_server_restore_with_new_uidvalidity_keeps_user_state(db, settings, demo_dir):
+    """Sunucu yedekten dönünce (yeni UIDVALIDITY) mailler kopyalanmaz; etiket/not/önemli korunur."""
+    from fredymail.models import MessageTag, Note, Tag
+
+    ChangingUidValiditySource.uv = 1
+    run_sync(db, lambda: ChangingUidValiditySource(demo_dir, kind="demo"), settings, origin="demo", sleep=lambda s: None)
+    m = db.execute(select(Message).where(Message.subject.like("SJ-500%"))).scalar_one()
+    t = Tag(name="Bayi")
+    db.add(t)
+    db.flush()
+    db.add_all([MessageTag(message_id=m.id, tag_id=t.id), Note(message_id=m.id, body="stok perşembe")])
+    m.is_important = True
+    db.commit()
+    total = count(db, Message)
+
+    ChangingUidValiditySource.uv = 777  # sağlayıcı kutuyu yedekten geri yükledi
+    res = run_sync(db, lambda: ChangingUidValiditySource(demo_dir, kind="demo"), settings, origin="demo",
+                   sleep=lambda s: None)
+    db.expire_all()
+    assert res.created == 0 and count(db, Message) == total
+    m2 = db.get(Message, m.id)
+    assert m2.is_important and len(m2.locations) == 1
+    assert db.execute(select(func.count()).select_from(Note).where(Note.message_id == m.id)).scalar_one() == 1
+    ChangingUidValiditySource.uv = 1

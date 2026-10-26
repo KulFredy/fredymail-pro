@@ -26,7 +26,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from ..config import Settings
-from ..models import Account, Attachment, Folder, Message, MessageLocation, SyncRun, Thread
+from ..models import Account, Attachment, Folder, KeyValue, Message, MessageLocation, SyncRun, Thread
 from .attachments import extract_text
 from .classify import doc_kinds
 from .source import FetchedMessage, FolderInfo, MailSource, SourceAuthError, SourceError
@@ -296,9 +296,40 @@ def sync_folder(db: Session, source: MailSource, account: Account, folder: Folde
         all_uids = set(source.search_uids(None)) if since else set(server_uids)
         gone = known - all_uids
         if gone:
-            stats.removed = _remove_locations(db, folder, st.uidvalidity, gone, settings)
+            mass = (len(gone) >= settings.sync_mass_delete_min
+                    and len(gone) > settings.sync_mass_delete_ratio * max(len(known), 1))
+            if mass and not mass_delete_allowed(db, folder.id):
+                stats.status = "anomaly"
+                stats.error = (f"Sunucuda {len(gone)} mail (%{len(gone) * 100 // max(len(known), 1)}) bir anda kayboldu. "
+                               "Sunucu arızası olabilir; FredyMail'deki kopyalar korunuyor. Silinmeler gerçekse: "
+                               f'fredymail accept-deletions --folder "{folder.name}" --yes')
+                log.warning("toplu kayıp kilidi devrede klasör_id=%s kaybolan=%s bilinen=%s",
+                            folder.id, len(gone), len(known))
+            else:
+                stats.removed = _remove_locations(db, folder, st.uidvalidity, gone, settings)
+                set_mass_delete_allowed(db, folder.id, False)
             db.commit()
     return stats
+
+
+def mass_delete_allowed(db: Session, folder_id: int) -> bool:
+    kv = db.get(KeyValue, "allow_mass_delete")
+    return bool(kv and kv.value.get(str(folder_id)))
+
+
+def set_mass_delete_allowed(db: Session, folder_id: int, allowed: bool) -> None:
+    kv = db.get(KeyValue, "allow_mass_delete")
+    if kv is None:
+        if not allowed:
+            return
+        kv = KeyValue(key="allow_mass_delete", value={})
+        db.add(kv)
+    v = dict(kv.value or {})
+    if allowed:
+        v[str(folder_id)] = True
+    else:
+        v.pop(str(folder_id), None)
+    kv.value = v
 
 
 def _remove_locations(db: Session, folder: Folder, uidvalidity: int, uids: set[int], settings: Settings) -> int:
@@ -393,9 +424,14 @@ def _run_sync_locked(db: Session, source_factory, settings: Settings, result: Sy
             while True:
                 try:
                     stats = sync_folder(db, source, account, folder, settings, budget,
-                                        deletion_check=(cycle % max(settings.sync_deletion_check_every, 1) == 0),
+                                        deletion_check=(cycle % max(settings.sync_deletion_check_every, 1) == 0
+                                                        or mass_delete_allowed(db, folder.id)),
                                         on_batch=heartbeat)
-                    folder.status, folder.last_error, folder.consecutive_failures = "idle", None, 0
+                    folder.consecutive_failures = 0
+                    if stats.status == "anomaly":
+                        folder.status, folder.last_error = "anomaly", stats.error
+                    else:
+                        folder.status, folder.last_error = "idle", None
                     break
                 except SourceAuthError as e:
                     db.rollback()
