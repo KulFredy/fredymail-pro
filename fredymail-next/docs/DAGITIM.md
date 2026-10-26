@@ -118,6 +118,15 @@ LiteLLM yapılandırmasına dokunulmaz. **Geri dönüş:** `FM_AI_PROVIDER=none`
 
 Mac, Windows PC ve telefondan aynı adresle erişirsin; cihazlara kurulum gerekmez.
 
+**Uygulanan kurulum (26 Eki 2026):** kök alan adı `fredymailsearch.online` → tünel `fredymail-vps` → `http://api:8080`;
+Access uygulaması "FredyMail" (yalnız sahibin e-postası, One-time PIN, 24 saat oturum). Eski tüneller (`fredy-bridge`,
+`fredymail`, `fredymailpro`) ve onlara giden DNS kayıtları silindi. Token yalnız VPS'teki `.env` dosyasında (izin 600).
+Token'ı `.env`'e eklerken `read` komutunu **ayrı satırda** çalıştır; komutlar toplu yapıştırılırsa `read` sonraki satırı alır.
+
+**Bazı ev/ofis bağlantılarında `ERR_CONNECTION_REFUSED`:** Türkiye'de bazı internet sağlayıcıları Cloudflare'in ücretsiz
+plan IP bloklarını (ör. `188.114.96.x/97.x`) engelleyebiliyor. Mobil veride açılıp evde açılmıyorsa sorun sağlayıcıdadır;
+cihaza ücretsiz **Cloudflare WARP (1.1.1.1)** uygulaması kurup bağlanmak yeterlidir. Sunucuda değişiklik gerekmez.
+
 **Geri dönüş:** `docker compose ... --profile tunnel stop cloudflared` + Cloudflare'de public hostname'i sil (DNS kaydı kalkar).
 Veriler etkilenmez.
 
