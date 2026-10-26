@@ -1,0 +1,57 @@
+[project]
+name = "fredymail"
+version = "0.1.0"
+description = "FredyMail Next — salt okunur IMAP senkronu, arama ve kaynaklı AI asistanı"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "sqlalchemy>=2.0.30,<2.1",
+  "psycopg[binary]>=3.2,<4",
+  "alembic>=1.13,<2",
+  "pydantic>=2.7,<3",
+  "pydantic-settings>=2.3,<3",
+  "httpx>=0.27,<1",
+  "imapclient>=3.0,<5",
+  "nh3>=0.2.17,<1",
+  "argon2-cffi>=23.1,<26",
+  "pyotp>=2.9,<3",
+  "dnspython>=2.6,<3",
+  "pypdf>=4.2,<7",
+  "openpyxl>=3.1,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<9",
+  "ruff>=0.5,<1",
+]
+
+[project.scripts]
+fredymail = "fredymail.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["fredymail*"]
+
+[tool.setuptools.package-data]
+fredymail = ["demo/*.json"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+ignore = ["S101", "S311", "B008", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S108"]
+"migrations/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
