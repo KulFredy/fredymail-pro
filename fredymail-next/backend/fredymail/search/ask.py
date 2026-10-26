@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from ..mail.classify import DOC_KIND_LABELS, FILE_KIND_LABELS, fold
 from ..models import Message
 from .insights import period_range, top_domains, top_recipients, top_senders, volume
-from .query import SearchParams, _view_filters_pg, followups, resolve_people, search
+from .query import SearchParams, _view_filters_pg, followup_args, followups, resolve_people, search
 
 MODES = ("search", "stats", "followups")
 STATS = ("top_senders", "top_recipients", "top_domains", "count", "volume")
@@ -333,9 +333,9 @@ def run_question(db: Session, meili, settings, question: str, now: datetime | No
     out: dict = {"question": question, "engine": engine, "mode": plan.mode, "understood": understood,
                  "plan": asdict(plan), "params": _params_dict(params), "period_label": rng.label}
     if plan.mode == "followups":
-        days = settings.needs_reply_days if plan.followup_kind == "needs_reply" else settings.awaiting_reply_days
         out["followup_kind"] = plan.followup_kind
-        out["followups"] = followups(db, plan.followup_kind, days, settings.my_addresses)
+        out["followups"] = followups(db, plan.followup_kind, **followup_args(settings, plan.followup_kind),
+                                     scope="external")
         return out
     if plan.mode == "stats":
         out["stat"] = plan.stat

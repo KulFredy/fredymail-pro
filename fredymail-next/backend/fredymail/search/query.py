@@ -412,27 +412,34 @@ def set_sender_muted(db: Session, email: str, muted: bool) -> list[str]:
     return sorted(cur)
 
 
-def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: int | None = 100) -> list[dict]:
-    """kind='needs_reply': bir insan BANA yazdı, ben yanıt vermedim (\\Answered da yok, otomatik/toplu değil).
+def _domain(email: str) -> str:
+    return email.rsplit("@", 1)[-1].lower() if "@" in (email or "") else ""
+
+
+def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: int | None = 100, *,
+              team_domains: frozenset[str] = frozenset(), scope: str = "all", window_days: int | None = None) -> list[dict]:
+    """kind='needs_reply': bir insan BANA ("Kime" alanında) yazdı, ben yanıt vermedim (\\Answered yok, otomatik değil).
     kind='awaiting': ben bir şey istedim/sordum/belge gönderdim, karşı taraf N gündür dönmedi.
+    scope: 'external' (müşteri/tedarikçi), 'team' (ekip içi alan adları) veya 'all'.
     Daha önce yazıştığım kişiler önce gelir."""
     from ..mail.parse import strip_quoted
 
     now = datetime.now(UTC)
     cutoff = now - timedelta(days=days)
     q = select(Thread).where(Thread.message_count > 0)
+    window = window_days or (45 if kind == "awaiting" else 30)
     if kind == "awaiting":
         q = q.where(Thread.last_from_me.is_(True), Thread.last_outbound_date <= cutoff,
-                    Thread.last_outbound_date >= now - timedelta(days=45))
+                    Thread.last_outbound_date >= now - timedelta(days=window))
     else:
         q = q.where(Thread.last_from_me.is_(False), Thread.has_human_inbound.is_(True),
-                    Thread.last_inbound_date <= cutoff, Thread.last_inbound_date >= now - timedelta(days=60))
+                    Thread.last_inbound_date <= cutoff, Thread.last_inbound_date >= now - timedelta(days=window))
     q = q.where(or_(Thread.followup_dismissed_at.is_(None),
                     Thread.followup_dismissed_at < func.coalesce(Thread.last_date, Thread.first_date)))
     threads = db.execute(q.order_by(Thread.last_date.desc()).limit(3000)).scalars().all()
     known = _known_contacts(db, my_addresses)
     muted = set(muted_senders(db))
-    picked: list[tuple[bool, Thread, Message]] = []
+    picked: list[tuple[bool, Thread, Message, bool]] = []
     for t in threads:
         last = db.execute(
             select(Message).where(Message.thread_id == t.id, Message.deleted_on_server.is_(False))
@@ -444,11 +451,13 @@ def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: 
         if kind == "needs_reply":
             if last.is_automated or "\\Answered" in (last.server_flags or []):
                 continue
-            if my_addresses and not rcpts & my_addresses:
-                continue  # bana doğrudan yazılmamış (Bcc / dağıtım listesi)
+            to = {a["email"].lower() for a in (last.to_addrs or [])}
+            if my_addresses and not to & my_addresses:
+                continue  # bana "Kime" ile yazılmamış (yalnız Cc/Bcc veya dağıtım listesi) → bilgi amaçlı
             if (last.from_email or "").lower() in muted:
                 continue
             prio = last.from_email in known
+            team = _domain(last.from_email) in team_domains
         else:
             externals = rcpts - my_addresses
             if not externals or {e.lower() for e in externals} <= muted:
@@ -458,10 +467,13 @@ def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: 
             if not (_REQUEST.search(body) or has_doc):
                 continue  # "teşekkürler" türü, yanıt beklemeyen mail
             prio = bool(externals & known)
-        picked.append((prio, t, last))
+            team = bool(team_domains) and all(_domain(e) in team_domains for e in externals)
+        if scope == "external" and team or scope == "team" and not team:
+            continue
+        picked.append((prio, t, last, team))
     picked.sort(key=lambda x: (not x[0], -(x[1].last_date.timestamp() if x[1].last_date else 0)))
     out = []
-    for prio, t, last in picked[: limit if limit else None]:
+    for prio, t, last, team in picked[: limit if limit else None]:
         ref = t.last_outbound_date if kind == "awaiting" else t.last_inbound_date
         out.append({
             "thread_id": t.id,
@@ -471,10 +483,19 @@ def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: 
             "last_date": t.last_date.isoformat() if t.last_date else None,
             "days_waiting": (now - ref).days if ref else None,
             "known_contact": prio,
+            "team": team,
             "last_message": serialize_list(db, [last])[0],
         })
     return out
 
 
-def followup_total(db: Session, kind: str, days: int, my_addresses: set[str]) -> int:
-    return len(followups(db, kind, days, my_addresses, limit=None))
+def followup_total(db: Session, kind: str, days: int, my_addresses: set[str], **kw) -> int:
+    return len(followups(db, kind, days, my_addresses, limit=None, **kw))
+
+
+def followup_args(settings, kind: str) -> dict:
+    """Ayarlardan takip listesi parametreleri (API, Pano ve asistan aynı kuralı kullanır)."""
+    needs = kind == "needs_reply"
+    return {"days": settings.needs_reply_days if needs else settings.awaiting_reply_days,
+            "my_addresses": settings.my_addresses, "team_domains": settings.team_domain_set,
+            "window_days": settings.needs_reply_window_days if needs else settings.awaiting_window_days}

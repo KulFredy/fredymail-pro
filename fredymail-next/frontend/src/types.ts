@@ -139,6 +139,8 @@ export interface FollowupItem {
   message_count: number;
   last_date: string | null;
   days_waiting: number | null;
+  known_contact?: boolean;
+  team?: boolean;
   last_message: MessageItem;
 }
 

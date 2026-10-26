@@ -89,6 +89,7 @@ class Mail:
     msgid: str = ""
     refs: list[str] = field(default_factory=list)
     no_threading_headers: bool = False
+    cc: list[tuple[str, str]] = field(default_factory=list)
 
 
 def _addr(p: tuple[str, str]) -> str:
@@ -102,6 +103,8 @@ def build(m: Mail, now: datetime) -> bytes:
     msg = EmailMessage()
     msg["From"] = _addr(m.sender)
     msg["To"] = ", ".join(_addr(t) for t in m.to)
+    if m.cc:
+        msg["Cc"] = ", ".join(_addr(t) for t in m.cc)
     msg["Subject"] = m.subject
     msg["Date"] = format_datetime(now - timedelta(days=m.days_ago))
     msg["Message-ID"] = m.msgid
@@ -225,6 +228,11 @@ def scenarios(rng: random.Random) -> list[Mail]:
                       "Saygılarımla", 4, attachments=[("image001.png", "image/png", b"\x89PNG\r\n\x1a\n" + b"0" * 900)]))
     mails.append(Mail("Sent", ME, [P["fotomarket"]], "Re: Fotomarket kampanya önerisi",
                       "Okan Bey, teşekkürler, bilginize.\nFatih", 6.5))
+    # Takip kuralları: yalnız Cc'de olduğum (bilgi amaçlı) mail ve ekip içi yanıtsız soru
+    mails.append(Mail("INBOX", P["lumora"], [P["emre"]], "Numune gönderimi planı",
+                      "Emre Bey,\n\nNumuneleri cuma kargoya veriyoruz, adresi teyit eder misiniz?\n\nSelin", 3, cc=[ME]))
+    mails.append(Mail("INBOX", P["emre"], [ME], "Depo sayımı için onay",
+                      "Fatih Bey,\n\nCumartesi depo sayımı yapabilir miyiz? Onayınızı bekliyorum.\n\nEmre", 3))
 
     # 13) Dolgu: geçmişe yayılmış rutin yazışmalar
     topics = [

@@ -5,14 +5,22 @@ import { Reader, replySubject, replyTarget } from "./Reader";
 import { EMPTY_SEARCH, navigate, type FollowKind } from "./route";
 import { useStore } from "./store";
 import type { AiResult, FollowupItem } from "./types";
-import { avatarColor, daysLabel, daysTone, domainOf, initials, parseDue } from "./util";
+import { avatarColor, daysLabel, daysTone, domainOf, initials, parseDue, readPref, writePref } from "./util";
 import { Banner, Empty, Icon, Skeleton, Spinner } from "./ui";
 
 type Range = "all" | "today" | "week";
+type Scope = "external" | "team";
+interface FollowupResp { days: number; window_days: number; has_team: boolean; total: number; totals: Record<Scope, number>; items: FollowupItem[] }
 
 export function FollowupsPage({ kind, msg }: { kind: FollowKind; msg: number | null }) {
   const [items, setItems] = useState<FollowupItem[] | null>(null);
   const [days, setDays] = useState(0);
+  const [info, setInfo] = useState<FollowupResp | null>(null);
+  const [scope, setScopeState] = useState<Scope>(() => (readPref("fm.fu.scope") === "team" ? "team" : "external"));
+  const setScope = (s: Scope) => {
+    writePref("fm.fu.scope", s);
+    setScopeState(s);
+  };
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState<Range>("all");
   const [open, setOpen] = useState<number | null>(null);
@@ -21,13 +29,14 @@ export function FollowupsPage({ kind, msg }: { kind: FollowKind; msg: number | n
   const load = useCallback(() => {
     setError(null);
     setItems(null);
-    api.get<{ days: number; items: FollowupItem[] }>(`/api/followups?kind=${kind}`)
+    api.get<FollowupResp>(`/api/followups?kind=${kind}&scope=${scope}`)
       .then((r) => {
         setDays(r.days);
+        setInfo(r);
         setItems(r.items);
       })
       .catch((e: ApiError) => setError(e.message));
-  }, [kind]);
+  }, [kind, scope]);
   useEffect(load, [load]);
 
   const remove = (tid: number) => {
@@ -73,8 +82,8 @@ export function FollowupsPage({ kind, msg }: { kind: FollowKind; msg: number | n
             <h1>Yanıt Bekleyenler</h1>
             <p className="lead">
               {needs
-                ? `Bir kişinin yazdığı, ${days}+ gündür yanıtlamadığınız yazışmalar. Bültenler ve Outlook'ta yanıtlananlar hariç.`
-                : `Sizin yazdığınız, ${days}+ gündür karşı tarafın yanıt vermediği yazışmalar.`}
+                ? `Size “Kime” ile yazılmış, ${days}–${info?.window_days ?? 30} gündür yanıtlamadığınız yazışmalar. Cc'de olduklarınız, bültenler, otomatik raporlar ve Outlook'ta yanıtlananlar hariç.`
+                : `Sizin yazdığınız, ${days}–${info?.window_days ?? 45} gündür karşı tarafın yanıt vermediği yazışmalar.`}
             </p>
           </div>
           <span className="count-badge"><Icon name="sparkle" size={15} /> {items ? shown.length : "…"} öğe</span>
@@ -89,6 +98,16 @@ export function FollowupsPage({ kind, msg }: { kind: FollowKind; msg: number | n
               Yanıt beklediğim {counts.awaiting > 0 && <span className="badge">{counts.awaiting}</span>}
             </button>
           </div>
+          {info?.has_team && (
+            <div className="seg" role="tablist" aria-label="Kimden">
+              <button role="tab" aria-selected={scope === "external"} className={scope === "external" ? "on" : ""} onClick={() => setScope("external")} data-testid="scope-external">
+                Müşteri &amp; tedarikçi <span className="badge">{info.totals.external}</span>
+              </button>
+              <button role="tab" aria-selected={scope === "team"} className={scope === "team" ? "on" : ""} onClick={() => setScope("team")} data-testid="scope-team">
+                Ekip içi <span className="badge">{info.totals.team}</span>
+              </button>
+            </div>
+          )}
           <div className="chip-row" role="group" aria-label="Zaman">
             {([["all", "Tümü"], ["today", "Bugün"], ["week", "Bu hafta"]] as [Range, string][]).map(([k, l]) => (
               <button key={k} className={`chip solid ${range === k ? "on" : ""}`} onClick={() => setRange(k)}>{l}</button>

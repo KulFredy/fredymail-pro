@@ -138,3 +138,18 @@ def test_reports_are_automated_and_senders_can_be_muted(db, synced, settings):
     assert "SJ-500 aksiyon kamera stok durumu" not in needs()
     set_sender_muted(db, "merve@kameradunyasi.test", False)
     assert muted_senders(db) == [] and "SJ-500 aksiyon kamera stok durumu" in needs()
+
+
+def test_followup_rules_to_only_team_scope_and_window(db, synced, settings):
+    from fredymail.search.query import followup_args
+
+    args = followup_args(settings, "needs_reply")
+    assert args["team_domains"] == frozenset({"ornek-ithalat.test"}) and args["window_days"] == 30
+    every = followups(db, "needs_reply", limit=None, **args)
+    subj = {x["subject"]: x for x in every}
+    assert "Numune gönderimi planı" not in subj  # yalnız Cc'deyim → yanıt beklemiyor
+    assert subj["Depo sayımı için onay"]["team"] is True and subj["SJ-500 aksiyon kamera stok durumu"]["team"] is False
+    ext = followups(db, "needs_reply", limit=None, scope="external", **args)
+    team = followups(db, "needs_reply", limit=None, scope="team", **args)
+    assert len(ext) + len(team) == len(every) and all(not x["team"] for x in ext) and all(x["team"] for x in team)
+    assert not followups(db, "needs_reply", limit=None, **{**args, "window_days": 1})  # pencere dışı düşer

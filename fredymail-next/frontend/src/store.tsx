@@ -77,12 +77,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const refreshSync = useCallback(() => quiet(api.get<SyncStatus>("/api/sync/status"), setSync), []);
   const refreshCounts = useCallback(() => {
     Promise.all([
-      api.get<{ items: unknown[] }>("/api/followups?kind=needs_reply"),
-      api.get<{ items: unknown[] }>("/api/followups?kind=awaiting"),
+      api.get<{ total: number }>("/api/followups?kind=needs_reply&scope=external"),
+      api.get<{ total: number }>("/api/followups?kind=awaiting&scope=external"),
       api.get<unknown[]>("/api/drafts"),
       api.get<unknown[]>("/api/tasks"),
     ])
-      .then(([a, b, c, d]) => setCounts({ needs_reply: a.items.length, awaiting: b.items.length, drafts: c.length, tasks: d.length }))
+      .then(([a, b, c, d]) => setCounts({ needs_reply: a.total, awaiting: b.total, drafts: c.length, tasks: d.length }))
       .catch(() => undefined);
   }, []);
 

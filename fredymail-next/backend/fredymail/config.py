@@ -42,6 +42,11 @@ DEFAULT_EXCLUDED_FOLDERS = (
 )
 
 
+PUBLIC_MAIL_DOMAINS = frozenset({"gmail.com", "googlemail.com", "hotmail.com", "outlook.com", "live.com", "msn.com",
+                                 "yahoo.com", "icloud.com", "me.com", "yandex.com", "yandex.com.tr", "proton.me",
+                                 "protonmail.com", "mail.com", "aol.com"})
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="FM_", env_file=None, extra="ignore")
 
@@ -130,6 +135,10 @@ class Settings(BaseSettings):
 
     awaiting_reply_days: int = 3
     needs_reply_days: int = 2
+    needs_reply_window_days: int = 30  # bundan eski yanıtsız mailler "yanıtlamam gereken"de gösterilmez
+    awaiting_window_days: int = 45
+    # Ekip içi sayılan alan adları (virgülle). Boşsa hesap adreslerinin alan adı (gmail vb. hariç) kullanılır.
+    team_domains: str = ""
 
     # --- Uyarılar (opsiyonel) ---
     alert_telegram_bot_token: str = ""
@@ -152,6 +161,14 @@ class Settings(BaseSettings):
         if self.account_email:
             addrs.add(self.account_email.strip().lower())
         return addrs
+
+    @property
+    def team_domain_set(self) -> frozenset[str]:
+        explicit = {d.strip().lower().lstrip("@") for d in self.team_domains.split(",") if d.strip()}
+        if explicit:
+            return frozenset(explicit)
+        return frozenset(a.split("@", 1)[1] for a in self.my_addresses
+                         if "@" in a and a.split("@", 1)[1] not in PUBLIC_MAIL_DOMAINS)
 
     @property
     def excluded_folders(self) -> set[str]:

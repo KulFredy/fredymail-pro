@@ -32,6 +32,7 @@ from ..models import (
 from ..search.meili import Meili, reindex_one
 from ..search.query import (
     SearchParams,
+    followup_args,
     followup_total,
     followups,
     muted_senders,
@@ -75,8 +76,8 @@ def api_insights(period: str = "this_month", db: Session = Depends(get_db),
                  settings: Settings = Depends(get_settings)):
     from ..search.insights import PERIOD_LABELS, insights
 
-    aw = followup_total(db, "awaiting", settings.awaiting_reply_days, settings.my_addresses)
-    nr = followup_total(db, "needs_reply", settings.needs_reply_days, settings.my_addresses)
+    aw = followup_total(db, "awaiting", **followup_args(settings, "awaiting"), scope="external")
+    nr = followup_total(db, "needs_reply", **followup_args(settings, "needs_reply"), scope="external")
     out = insights(db, period, settings.my_addresses, aw, nr)
     out["periods"] = PERIOD_LABELS
     return out
@@ -97,10 +98,15 @@ def api_ask(body: AskIn, db: Session = Depends(get_db), meili: Meili = Depends(g
 
 @router.get("/followups")
 def api_followups(kind: str = Query("needs_reply", pattern="^(needs_reply|awaiting)$"),
+                  scope: str = Query("external", pattern="^(external|team|all)$"),
                   db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
-    days = settings.needs_reply_days if kind == "needs_reply" else settings.awaiting_reply_days
-    items = followups(db, kind, days, settings.my_addresses, limit=None)
-    return {"kind": kind, "days": days, "total": len(items), "items": items[:200]}
+    args = followup_args(settings, kind)
+    items = followups(db, kind, limit=None, **args)
+    team = sum(1 for i in items if i["team"])
+    shown = [i for i in items if scope == "all" or i["team"] == (scope == "team")]
+    return {"kind": kind, "scope": scope, "days": args["days"], "window_days": args["window_days"],
+            "has_team": bool(settings.team_domain_set), "total": len(shown),
+            "totals": {"external": len(items) - team, "team": team}, "items": shown[:200]}
 
 
 class MuteIn(BaseModel):
