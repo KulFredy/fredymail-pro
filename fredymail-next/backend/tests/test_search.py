@@ -97,3 +97,17 @@ def test_followup_views(db, synced, settings):
     assert "Fiyat teklifi: Fuar standı ekipmanları" in [x["subject"] for x in awaiting]
     # Nordlicht thread'inde son mesaj karşı taraftan → bekleyen değil
     assert not any("Nordlicht" in x["subject"] for x in awaiting)
+
+
+def test_index_version_migration_rebuilds_cleanly(db, synced, meili):
+    from fredymail.models import KeyValue
+    from fredymail.search.meili import INDEX_VERSION, migrate_index_version
+
+    index_dirty(db, meili)
+    db.merge(KeyValue(key="index_version", value={"v": INDEX_VERSION - 1}))
+    db.commit()
+    assert migrate_index_version(db, meili) is True
+    assert meili.stats()["numberOfDocuments"] == 0  # eski belgeler gitti (disk şişmez)
+    index_dirty(db, meili)
+    assert meili.stats()["numberOfDocuments"] == live_count(db)
+    assert migrate_index_version(db, meili) is False  # ikinci kez çalışmaz

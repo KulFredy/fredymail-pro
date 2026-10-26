@@ -231,10 +231,13 @@ def reindex_one(db: Session, meili: Meili, message_id: int) -> None:
 
 
 def migrate_index_version(db: Session, meili: Meili) -> bool:
-    """İndeks şeması eskiyse ayarları günceller ve tüm belgeleri kirli işaretler (arama bu sırada çalışır)."""
+    """İndeks şeması eskiyse indeksi silip baştan kurar ve tüm belgeleri kirli işaretler.
+    Yerinde güncelleme yerine silme: Meilisearch (LMDB) silinen verinin yerini diske geri vermez, indeks şişer.
+    Yeniden kurulum sürerken arama Postgres yedek aramasıyla çalışmaya devam eder."""
     kv = db.get(KeyValue, "index_version")
     if kv is not None and kv.value.get("v") == INDEX_VERSION:
         return False
+    meili.delete_index()
     meili.ensure_index()
     db.execute(update(Message).values(index_dirty=True))
     if kv is None:
