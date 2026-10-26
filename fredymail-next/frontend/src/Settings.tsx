@@ -4,10 +4,10 @@ import { useStore } from "./store";
 import { folderLabel, fmtRelative } from "./util";
 import { Banner, Icon, Spinner } from "./ui";
 
-export function SettingsPage({ onMenu }: { onMenu: () => void }) {
+export function SettingsPage() {
   const { sync, ai, folders, tags, refreshSync, refreshAi, refreshFolders, refreshTags, toast, meta } = useStore();
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
-  const [newTag, setNewTag] = useState({ name: "", color: "#4f5bd5" });
+  const [newTag, setNewTag] = useState({ name: "", color: "#0f7a4f" });
 
   useEffect(() => {
     refreshSync();
@@ -27,14 +27,14 @@ export function SettingsPage({ onMenu }: { onMenu: () => void }) {
   }
 
   return (
-    <main className="settings" aria-label="Ayarlar">
-      <header className="list-head">
-        <div className="row gap-sm">
-          <button className="icon-btn only-mobile" onClick={onMenu} aria-label="Menüyü aç"><Icon name="menu" /></button>
+    <main className="page" aria-label="Ayarlar">
+      <div className="page-inner">
+      <div className="page-head">
+        <div>
           <h1>Ayarlar & Senkron</h1>
+          <p className="lead">Senkron durumu, klasörler, AI gizliliği ve etiketler.{meta && ` · sürüm ${meta.version}`}</p>
         </div>
-        {meta && <span className="muted small">sürüm {meta.version}</span>}
-      </header>
+      </div>
       <div className="settings-grid">
         <section className="card">
           <h2>Senkron durumu</h2>
@@ -182,6 +182,7 @@ export function SettingsPage({ onMenu }: { onMenu: () => void }) {
             </div>
           )}
         </section>
+      </div>
       </div>
     </main>
   );

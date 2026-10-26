@@ -50,6 +50,9 @@ export function fmtListDate(iso: string | null): string {
   const d = new Date(iso);
   const now = new Date();
   if (d.toDateString() === now.toDateString()) return dtTime.format(d);
+  const y = new Date(now);
+  y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return "Dün";
   if (d.getFullYear() === now.getFullYear()) return dtDay.format(d);
   return dtFull.format(d);
 }
@@ -80,10 +83,12 @@ export function initials(name: string, email: string): string {
   return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toLocaleUpperCase("tr-TR");
 }
 
+const AVATAR = ["#0f7a4f", "#2c5fb4", "#a63369", "#b5630b", "#6a43c2", "#12707b", "#b4373a", "#4d6b7d", "#3d7a1f", "#8a4fb0"];
+
 export function avatarColor(seed: string): string {
   let h = 0;
-  for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return `hsl(${h % 360} 45% 46%)`;
+  for (const ch of seed.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return AVATAR[h % AVATAR.length];
 }
 
 export const ROLE_LABEL: Record<string, string> = {
@@ -142,4 +147,99 @@ export function snoozePresets(): { label: string; at: Date }[] {
 export function toLocalInput(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** Soru gibi görünen girdiler "Sor" moduna gider. */
+export function isQuestion(text: string): boolean {
+  const t = text.trim().toLocaleLowerCase("tr-TR");
+  if (!t) return false;
+  if (t.endsWith("?")) return true;
+  return /^(kim|kime|kimden|kaç|hangi|ne |neler|nedir|en çok|en az|nerede|ne zaman|göster|listele)/.test(t);
+}
+
+export const ASK_SUGGESTIONS = [
+  "Bu ay en çok kimden mail aldım?",
+  "Hangi firmalarla en çok yazıştım bu yıl?",
+  "Bu hafta kaç mail geldi?",
+  "Son 30 gün cevaplanmamış mailler",
+  "Aylara göre mail dağılımı",
+  "2025 fiyat listeleri pdf",
+];
+
+/** Bilgisayarın mail programında açmak için mailto: bağlantısı (uzun metin kırpılır). */
+export const MAILTO_MAX = 1800;
+export function mailtoHref(to: string[] | string, subject: string, body: string): { href: string; truncated: boolean } {
+  const list = (Array.isArray(to) ? to : to.split(/[,;\s]+/)).filter(Boolean);
+  let b = body;
+  let truncated = false;
+  if (b.length > MAILTO_MAX) {
+    b = `${b.slice(0, MAILTO_MAX).trimEnd()}…\n\n[Metnin devamı kısaltıldı — tamamını FredyMail'de "Panoya kopyala" ile alın.]`;
+    truncated = true;
+  }
+  const q = `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(b)}`;
+  return { href: `mailto:${list.map(encodeURIComponent).join(",")}?${q}`, truncated };
+}
+
+export function todayKey(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+export function addDays(n: number, d = new Date()): string {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return todayKey(x);
+}
+
+/** Görev son tarihi → etiket + renk. */
+export function dueInfo(due: string | null): { label: string; tone: "red" | "green" | "grey" } | null {
+  if (!due) return null;
+  const today = todayKey();
+  if (due < today) return { label: `Gecikti · ${fmtDay(due)}`, tone: "red" };
+  if (due === today) return { label: "Bugün", tone: "red" };
+  if (due === addDays(1)) return { label: "Yarın", tone: "green" };
+  return { label: fmtDay(due), tone: "grey" };
+}
+
+export function fmtDay(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", ...(y !== new Date().getFullYear() ? { year: "numeric" } : {}) }).format(dt);
+}
+
+/** AI'nin önerdiği tarihi (varsa) ISO güne çevirir. */
+export function parseDue(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const t = s.trim().toLocaleLowerCase("tr-TR");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  if (t.includes("bugün") || t === "today") return todayKey();
+  if (t.includes("yarın") || t === "tomorrow") return addDays(1);
+  return null;
+}
+
+export function daysTone(days: number | null): "red" | "amber" | "green" | "grey" {
+  if (days == null) return "grey";
+  if (days >= 3) return "red";
+  if (days >= 1) return "amber";
+  return "green";
+}
+
+export function daysLabel(days: number | null): string {
+  if (days == null) return "—";
+  if (days <= 0) return "Bugün";
+  return `${days} gün`;
+}
+
+export function domainOf(email: string): string {
+  return (email.split("@")[1] ?? "").toLowerCase();
+}
+
+/** Günün saatine göre selamlama. */
+export function greeting(): string {
+  const h = new Date().getHours();
+  return h < 6 ? "İyi geceler" : h < 12 ? "Günaydın" : h < 18 ? "İyi günler" : "İyi akşamlar";
+}
+
+export function fmtNum(n: number | null | undefined): string {
+  return (n ?? 0).toLocaleString("tr-TR");
 }

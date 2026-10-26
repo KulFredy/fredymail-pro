@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, onUnauthorized, qs } from "./api";
+import { AskPage } from "./Ask";
+import { Composer } from "./Composer";
+import { Dashboard } from "./Dashboard";
 import { DraftsPage } from "./Drafts";
+import { FollowupsPage } from "./Followups";
 import { Login } from "./Login";
-import { MessageList, type ListRow } from "./MessageList";
+import { MessageList } from "./MessageList";
 import { Reader, ReaderEmpty } from "./Reader";
-import { navigate, searchParams, useRoute, type Route, type SearchState } from "./route";
-import { SearchBar } from "./SearchBar";
+import { goMail, navigate, searchParams, useRoute, type Route } from "./route";
 import { SettingsPage } from "./Settings";
 import { Sidebar } from "./Sidebar";
 import { StoreProvider, useStore } from "./store";
-import type { FollowupItem, MessageItem, SearchResult } from "./types";
+import { TasksPage } from "./Tasks";
+import { Topbar } from "./Topbar";
+import type { Facets, MessageItem, SearchResult } from "./types";
 import { folderLabel, isTypingTarget } from "./util";
-import { Banner, Modal, Spinner, Toasts } from "./ui";
+import { Banner, Icon, Modal, Spinner, Toasts } from "./ui";
 
 type Auth = { state: "checking" } | { state: "out"; totp: boolean } | { state: "in" };
 
@@ -45,7 +50,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const route = useRoute();
   const [drawer, setDrawer] = useState(false);
   const [help, setHelp] = useState(false);
-  const { toasts, sync } = useStore();
+  const { toasts, sync, composer, closeComposer, counts } = useStore();
+  const gPending = useRef(0);
 
   // genel kısayollar
   useEffect(() => {
@@ -54,51 +60,90 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       if (isTypingTarget(e.target)) return;
       if (document.querySelector(".modal-backdrop")) return;
       const k = e.key;
+      if (gPending.current) {
+        window.clearTimeout(gPending.current);
+        gPending.current = 0;
+        const dest: Record<string, () => void> = {
+          p: () => navigate({ page: "dashboard", period: "this_month" }),
+          i: () => goMail({ view: "inbox" }),
+          b: () => navigate({ page: "followups", kind: "needs_reply", msg: null }),
+          t: () => navigate({ page: "tasks" }),
+          s: () => navigate({ page: "ask", q: "" }),
+        };
+        if (dest[k]) {
+          e.preventDefault();
+          dest[k]();
+          return;
+        }
+      }
       if (k === "/") {
         e.preventDefault();
-        if (route.page !== "mail") navigate({ page: "mail", search: { ...emptyAll() }, msg: null });
-        window.setTimeout(() => window.dispatchEvent(new Event("fm-focus-search")), 0);
+        window.dispatchEvent(new Event("fm-focus-search"));
       } else if (k === "?") {
         setHelp(true);
-      } else if (["u", "s", "z", "l", "n", "a"].includes(k)) {
-        const map: Record<string, string> = { u: "unread", s: "important", z: "snooze", l: "tag", n: "note", a: "ai" };
+      } else if (["u", "s", "z", "l", "n", "a", "r"].includes(k)) {
+        const map: Record<string, string> = { u: "unread", s: "important", z: "snooze", l: "tag", n: "note", a: "ai", r: "reply" };
         window.dispatchEvent(new CustomEvent("fm-action", { detail: map[k] }));
       } else if (["j", "k", "Enter", "o", "Escape"].includes(k)) {
         window.dispatchEvent(new CustomEvent("fm-nav", { detail: k }));
       } else if (k === "g") {
-        navigate({ page: "mail", search: { ...emptyAll(), view: "inbox" }, msg: null });
+        // "g" tek başına gelen kutusu; ardından p/i/b/t/s ile diğer sayfalar
+        gPending.current = window.setTimeout(() => {
+          gPending.current = 0;
+          goMail({ view: "inbox" });
+        }, 700);
       }
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
-  }, [route.page]);
+  }, []);
+
+  useEffect(() => setDrawer(false), [route]);
 
   const workerDown = sync && sync.source !== "demo" && sync.sync_enabled && !sync.worker.healthy;
-  const onMenu = () => setDrawer(true);
+  const tab = route.page === "mail" ? "mail" : route.page === "followups" ? "followups" : route.page === "ask" || route.page === "dashboard" ? "ask" : "";
 
   return (
     <div className={`app ${drawer ? "drawer-open" : ""}`}>
       <a className="skip" href="#main">İçeriğe geç</a>
       <div className="drawer-backdrop" onClick={() => setDrawer(false)} aria-hidden="true" />
       <Sidebar route={route} onNavigated={() => setDrawer(false)} onLogout={onLogout} />
-      <div className="content" id="main">
+      <div className="content">
+        <Topbar route={route} onMenu={() => setDrawer(true)} />
         {workerDown && (
-          <Banner kind="warn">Senkron servisi yanıt vermiyor; yeni mailler gelmeyebilir. Ayrıntı: Ayarlar & Senkron.</Banner>
+          <div style={{ padding: "0 16px" }}>
+            <Banner kind="warn">Senkron servisi yanıt vermiyor; yeni mailler gelmeyebilir. Ayrıntı: Ayarlar & Senkron.</Banner>
+          </div>
         )}
-        {route.page === "mail" && <MailPage route={route} onMenu={onMenu} />}
-        {route.page === "followups" && <FollowupsPage route={route} onMenu={onMenu} />}
-        {route.page === "drafts" && <DraftsPage draftId={route.draft} onMenu={onMenu} />}
-        {route.page === "settings" && <SettingsPage onMenu={onMenu} />}
+        <div className="main" id="main">
+          {route.page === "mail" && <MailPage route={route} />}
+          {route.page === "dashboard" && <Dashboard period={route.period} />}
+          {route.page === "ask" && <AskPage q={route.q} />}
+          {route.page === "followups" && <FollowupsPage kind={route.kind} msg={route.msg} />}
+          {route.page === "tasks" && <TasksPage />}
+          {route.page === "drafts" && <DraftsPage draftId={route.draft} />}
+          {route.page === "settings" && <SettingsPage />}
+        </div>
       </div>
+      <nav className="bottom-tabs" aria-label="Alt gezinti">
+        <button className={tab === "mail" ? "on" : ""} onClick={() => goMail({ view: "inbox" })}>
+          <span className="icon-wrap"><Icon name="inbox" size={22} /></span> Posta
+        </button>
+        <button onClick={() => { if (route.page !== "mail") goMail({ view: "all" }); window.setTimeout(() => window.dispatchEvent(new Event("fm-focus-search")), 30); }}>
+          <span className="icon-wrap"><Icon name="search" size={22} /></span> Ara
+        </button>
+        <button className={tab === "followups" ? "on" : ""} onClick={() => navigate({ page: "followups", kind: "needs_reply", msg: null })}>
+          <span className="icon-wrap"><Icon name="reply" size={22} />{counts.needs_reply + counts.awaiting > 0 && <span className="dotn" />}</span> Bekleyenler
+        </button>
+        <button className={tab === "ask" ? "on" : ""} onClick={() => navigate({ page: "ask", q: "" })}>
+          <span className="icon-wrap"><Icon name="sparkle" size={22} /></span> Asistan
+        </button>
+      </nav>
       {help && <ShortcutHelp onClose={() => setHelp(false)} />}
+      {composer && <Composer init={composer} onClose={closeComposer} />}
       <Toasts items={toasts} />
     </div>
   );
-}
-
-function emptyAll(): SearchState {
-  return { q: "", view: "all", folder_id: "", sender: "", recipient: "", date_from: "", date_to: "", has_attachment: "",
-    file_kind: "", doc_kind: "", tag_id: "", unread: "", important: "", sort: "", smart: "" };
 }
 
 const VIEW_TITLES: Record<string, string> = {
@@ -128,9 +173,10 @@ function useListNav(ids: number[], selected: number | null, open: (id: number | 
   }, []);
 }
 
-function MailPage({ route, onMenu }: { route: Extract<Route, { page: "mail" }>; onMenu: () => void }) {
+function MailPage({ route }: { route: Extract<Route, { page: "mail" }> }) {
   const { folders, saved, tags, meta, refreshFolders } = useStore();
   const [res, setRes] = useState<SearchResult | null>(null);
+  const [facets, setFacets] = useState<Facets | undefined>(undefined);
   const [items, setItems] = useState<MessageItem[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -146,6 +192,7 @@ function MailPage({ route, onMenu }: { route: Extract<Route, { page: "mail" }>; 
       const r = await api.get<SearchResult>(`/api/search${qs(searchParams(route.search, pg))}`);
       if (id !== reqId.current) return;
       setRes(r);
+      if (pg === 1) setFacets(r.facets);
       setItems((prev) => (pg === 1 ? r.items : [...prev, ...r.items.filter((x) => !prev.some((p) => p.id === x.id))]));
       setPage(pg);
     } catch (e) {
@@ -161,7 +208,9 @@ function MailPage({ route, onMenu }: { route: Extract<Route, { page: "mail" }>; 
   }, [load]);
 
   const open = (id: number | null) => navigate({ ...route, msg: id }, true);
-  useListNav(items.map((i) => i.id), route.msg, open);
+  const ids = items.map((i) => i.id);
+  useListNav(ids, route.msg, open);
+  const idx = route.msg ? ids.indexOf(route.msg) : -1;
 
   const s = route.search;
   let title = VIEW_TITLES[s.view] ?? "Mailler";
@@ -171,135 +220,73 @@ function MailPage({ route, onMenu }: { route: Extract<Route, { page: "mail" }>; 
     const f = folders.find((x) => String(x.id) === s.folder_id);
     title = f ? folderLabel(f) : "Klasör";
     subtitle = f && f.name !== title ? f.name : undefined;
-  } else if (s.tag_id) title = `Etiket: ${tags.find((t) => String(t.id) === s.tag_id)?.name ?? ""}`;
+  } else if (s.tag_id) title = tags.find((t) => String(t.id) === s.tag_id)?.name ?? "Etiket";
   else if (s.doc_kind && !s.q) title = meta?.doc_kinds[s.doc_kind] ?? "Belgeler";
+  else if (s.sender && !s.q) title = s.sender;
   if (s.q) {
-    subtitle = `“${s.q}” için sonuçlar${res?.engine === "meilisearch" && res.processing_ms != null ? ` · ${res.processing_ms} ms` : ""}`;
-    if (!s.smart) title = "Arama";
+    subtitle = `“${s.q}”${res?.engine === "meilisearch" && res.processing_ms != null ? ` · ${res.processing_ms} ms` : ""}`;
+    if (!s.smart) title = "Arama sonuçları";
   }
   if (s.smart) subtitle = "Akıllı klasör · sunucudaki klasörlere dokunmaz";
 
   const notice = res?.degraded ? res.notice ?? "Arama motoru kullanılamıyor; basit arama sonuçları gösteriliyor." : null;
+  const update = (u: MessageItem) => {
+    setItems((list) => list.map((x) => (x.id === u.id ? { ...x, ...u } : x)));
+    if ((s.view === "unread" && u.is_read) || (s.view === "inbox" && u.snoozed_until)) refreshFolders();
+  };
 
   return (
     <div className={`mail-page ${route.msg ? "has-detail" : ""}`}>
-      <SearchBar search={s} onMenu={onMenu} />
-      <div className="panes">
-        <MessageList
-          title={title}
-          subtitle={subtitle}
-          items={items}
-          total={res?.total ?? 0}
-          loading={loading}
-          error={error}
-          notice={notice}
-          selectedId={route.msg}
-          onSelect={(id) => navigate({ ...route, msg: id }, !!route.msg)}
-          onLoadMore={() => load(page + 1)}
-          onRetry={() => load(1)}
-          emptyTitle={s.q ? "Sonuç bulunamadı" : "Burada mail yok"}
-          emptyText={s.q ? "Farklı kelimeler deneyin veya filtreleri gevşetin. Türkçe/İngilizce eş anlamlılar (fatura ↔ invoice) otomatik aranır." : undefined}
+      <MessageList
+        title={title}
+        subtitle={subtitle}
+        items={items}
+        total={res?.total ?? 0}
+        loading={loading}
+        error={error}
+        notice={notice}
+        selectedId={route.msg}
+        search={s}
+        facets={facets}
+        onSelect={(id) => navigate({ ...route, msg: id }, !!route.msg)}
+        onUpdated={update}
+        onLoadMore={() => load(page + 1)}
+        onRetry={() => load(1)}
+        emptyTitle={s.q ? "Sonuç bulunamadı" : "Burada mail yok"}
+        emptyText={s.q ? "Farklı kelimeler deneyin veya filtreleri gevşetin. Türkçe/İngilizce eş anlamlılar (fatura ↔ invoice) otomatik aranır." : undefined}
+      />
+      {route.msg ? (
+        <Reader
+          key={route.msg}
+          msgId={route.msg}
+          onBack={() => navigate({ ...route, msg: null })}
+          onChanged={update}
+          onOpenMessage={(id) => navigate({ ...route, msg: id })}
+          onPrev={idx > 0 ? () => open(ids[idx - 1]) : null}
+          onNext={idx >= 0 && idx < ids.length - 1 ? () => open(ids[idx + 1]) : null}
         />
-        {route.msg ? (
-          <Reader
-            key={route.msg}
-            msgId={route.msg}
-            search={s.q || s.doc_kind || s.sender ? s : null}
-            onBack={() => navigate({ ...route, msg: null })}
-            onChanged={(u) => {
-              setItems((list) => list.map((x) => (x.id === u.id ? u : x)));
-              if ((s.view === "unread" && u.is_read) || (s.view === "inbox" && u.snoozed_until)) refreshFolders();
-            }}
-            onOpenMessage={(id) => navigate({ ...route, msg: id })}
-          />
-        ) : (
-          <ReaderEmpty />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function FollowupsPage({ route, onMenu }: { route: Extract<Route, { page: "followups" }>; onMenu: () => void }) {
-  const [items, setItems] = useState<(ListRow & { _thread: number })[]>([]);
-  const [days, setDays] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { refreshCounts } = useStore();
-
-  const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    api.get<{ days: number; items: FollowupItem[] }>(`/api/followups?kind=${route.kind}`)
-      .then((r) => {
-        setDays(r.days);
-        setItems(r.items.map((f) => ({ ...f.last_message, days_waiting: f.days_waiting, thread_count: f.message_count, _thread: f.thread_id })));
-      })
-      .catch((e: ApiError) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [route.kind]);
-  useEffect(load, [load]);
-
-  const open = (id: number | null) => navigate({ ...route, msg: id }, true);
-  useListNav(items.map((i) => i.id), route.msg, open);
-  const sel = items.find((i) => i.id === route.msg);
-  const needs = route.kind === "needs_reply";
-
-  return (
-    <div className={`mail-page ${route.msg ? "has-detail" : ""}`}>
-      <SearchBar search={null} onMenu={onMenu} />
-      <div className="panes">
-        <MessageList
-          title={needs ? "Yanıtlamam gerekenler" : "Yanıt bekliyorum"}
-          subtitle={needs
-            ? `Bir kişinin yazdığı, ${days}+ gündür yanıtlamadığınız yazışmalar (bültenler ve Outlook'ta yanıtlananlar hariç)`
-            : `Sizin yazdığınız, ${days}+ gündür karşı tarafın yanıt vermediği yazışmalar`}
-          items={items}
-          total={items.length}
-          loading={loading}
-          error={error}
-          selectedId={route.msg}
-          onSelect={(id) => navigate({ ...route, msg: id }, !!route.msg)}
-          onRetry={load}
-          emptyTitle={needs ? "Bekleyen yanıt yok 🎉" : "Yanıt beklenen yazışma yok"}
-          waitingLabel={needs ? "yanıt bekliyor" : "yanıt gelmedi"}
-        />
-        {route.msg ? (
-          <Reader
-            key={route.msg}
-            msgId={route.msg}
-            search={null}
-            followupThreadId={sel?._thread ?? null}
-            onBack={() => navigate({ ...route, msg: null })}
-            onChanged={(u) => setItems((list) => list.map((x) => (x.id === u.id ? { ...x, ...u } : x)))}
-            onOpenMessage={(id) => navigate({ page: "mail", search: emptyAll(), msg: id })}
-            onDismissed={() => {
-              setItems((l) => l.filter((x) => x.id !== route.msg));
-              refreshCounts();
-              navigate({ ...route, msg: null });
-            }}
-          />
-        ) : (
-          <ReaderEmpty />
-        )}
-      </div>
+      ) : (
+        <ReaderEmpty />
+      )}
     </div>
   );
 }
 
 function ShortcutHelp({ onClose }: { onClose: () => void }) {
   const rows: [string, string][] = [
-    ["/", "Aramaya odaklan"],
+    ["/", "Aramaya / soruya odaklan"],
     ["j / k", "Sonraki / önceki mail"],
     ["Enter / o", "Seçili maili aç"],
     ["Esc", "Menüyü kapat / listeye dön"],
+    ["r", "Yanıt taslağı (AI kapalıysa boş yanıt)"],
+    ["a", "FredyMail Intelligence ile analiz et"],
     ["u", "Okundu ↔ okunmadı"],
     ["s", "Önemli olarak işaretle"],
     ["z", "Ertele menüsü"],
     ["l", "Etiket menüsü"],
     ["n", "Not ekle"],
-    ["a", "AI ile özetle"],
-    ["g", "Gelen kutusuna git"],
+    ["g", "Gelen kutusu"],
+    ["g p · g b · g t · g s", "Pano · Bekleyenler · Yapılacaklar · Sor"],
     ["?", "Bu yardım"],
   ];
   return (
@@ -307,7 +294,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
       <table className="table shortcuts">
         <tbody>
           {rows.map(([k, d]) => (
-            <tr key={k}><td><kbd>{k}</kbd></td><td>{d}</td></tr>
+            <tr key={k}><td>{k.split(" · ").map((x) => <kbd key={x} style={{ marginRight: 4 }}>{x}</kbd>)}</td><td>{d}</td></tr>
           ))}
         </tbody>
       </table>
@@ -315,3 +302,4 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
     </Modal>
   );
 }
+

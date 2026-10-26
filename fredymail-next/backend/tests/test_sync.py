@@ -321,3 +321,32 @@ def test_server_restore_with_new_uidvalidity_keeps_user_state(db, settings, demo
     assert m2.is_important and len(m2.locations) == 1
     assert db.execute(select(func.count()).select_from(Note).where(Note.message_id == m.id)).scalar_one() == 1
     ChangingUidValiditySource.uv = 1
+
+
+def test_real_world_noise_classification(db, synced):
+    """Gerçek veride görülen gürültü: başlıksız bülten, imza görseli, 'teşekkürler' maili."""
+    rev = db.execute(select(Message).where(Message.from_email == "info@revotas-ornek.test")).scalar_one()
+    assert rev.is_automated  # List-Unsubscribe yok ama gövde kalıbı tanındı
+    kiy = db.execute(select(Message).where(Message.subject == "RE: SJCAM online satış iş birliği")).scalar_one()
+    assert not kiy.has_attachments and all(a.is_inline for a in kiy.attachments)  # image001.png ek sayılmaz
+    assert "invoice" not in kiy.doc_kinds  # metinde 'fatura' geçiyor ama belge eki yok
+
+
+def test_reclassify_fixes_existing_rows(db, synced):
+    from fredymail.cli import main
+    from fredymail.models import Attachment
+
+    rev = db.execute(select(Message).where(Message.from_email == "info@revotas-ornek.test")).scalar_one()
+    kiy = db.execute(select(Message).where(Message.subject == "RE: SJCAM online satış iş birliği")).scalar_one()
+    # eski kurallarla kaydedilmiş gibi boz
+    rev.is_automated = False
+    kiy.has_attachments, kiy.doc_kinds = True, ["invoice"]
+    for a in kiy.attachments:
+        a.is_inline = False
+    db.commit()
+    assert main(["reclassify", "--yes"]) == 0
+    db.expire_all()
+    assert db.get(Message, rev.id).is_automated
+    k = db.get(Message, kiy.id)
+    assert not k.has_attachments and k.doc_kinds == [] and k.index_dirty
+    assert all(a.is_inline for a in db.execute(select(Attachment).where(Attachment.message_id == k.id)).scalars())

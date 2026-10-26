@@ -10,12 +10,14 @@ Her iki yolda da kayıtlar Postgres'ten okunur; böylece etiket/okundu gibi duru
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import and_, exists, false, func, or_, select, text, true
 from sqlalchemy.orm import Session
 
+from ..mail.classify import fold
 from ..models import Attachment, Folder, Message, MessageLocation, MessageTag, Note, Tag, Thread
 from .meili import HL_POST, HL_PRE, Meili, MeiliError
 
@@ -43,6 +45,7 @@ class SearchParams:
     thread_id: int | None = None
     year: int | None = None
     participant: str = ""  # gönderen VEYA alıcı ("X ile yazışmalar")
+    direction: str = ""  # "" | in (yalnız gelenler) | out (yalnız gönderdiklerim)
     sort: str = ""  # SORTS
     page: int = 1
     per_page: int = 50
@@ -99,6 +102,8 @@ def _view_filters_pg(p: SearchParams, db: Session) -> list:
         conds.append(Message.is_read.is_(False))
     if p.folder_id:
         conds.append(exists().where(MessageLocation.message_id == Message.id, MessageLocation.folder_id == p.folder_id))
+    if p.direction in ("in", "out"):
+        conds.append(Message.is_from_me.is_(p.direction == "out"))
     senders = resolve_people(db, p.sender, "from")
     if senders is not None:
         conds.append(Message.from_email.in_(senders))
@@ -153,6 +158,8 @@ def _meili_filter(p: SearchParams, db: Session) -> list:
         f.append("is_read = false")
     if p.folder_id:
         f.append(f"folder_ids = {int(p.folder_id)}")
+    if p.direction in ("in", "out"):
+        f.append(f"is_from_me = {'true' if p.direction == 'out' else 'false'}")
     senders = resolve_people(db, p.sender, "from")
     if senders is not None:
         f.append(f"from_email IN [{', '.join(json.dumps(s) for s in senders)}]")
@@ -257,37 +264,43 @@ def search(db: Session, meili: Meili | None, p: SearchParams, with_facets: bool 
     return res
 
 
-_FACET_RESET = {"year": None, "file_kind": "", "doc_kind": ""}
+# Her çip grubunun sayısı yalnızca KENDİ filtresi kaldırılarak hesaplanır; diğer seçili filtreler geçerli kalır
+# (ör. PDF seçiliyken yıl çipleri "o yılın PDF'li sonuç sayısını" gösterir).
+_FACET_GROUPS = {"years": ("year", None), "file_kinds": ("file_kind", ""), "doc_kinds": ("doc_kind", "")}
+_MEILI_FACET = {"years": "year", "file_kinds": "file_kinds", "doc_kinds": "doc_kinds"}
 
 
 def _facets_meili(db: Session, meili: Meili, p: SearchParams, q: str) -> dict:
-    """Her filtre çipinin sayısı, o çipin kendi filtresi uygulanmadan hesaplanır (seçince sonuç ne olur)."""
     from dataclasses import replace
 
-    base = replace(p, **_FACET_RESET)
-    r = meili.search({"q": q, "filter": _meili_filter(base, db), "limit": 0,
-                      "facets": ["year", "file_kinds", "doc_kinds"]})
-    dist = r.get("facetDistribution", {})
-    return {"years": {str(k): v for k, v in sorted(dist.get("year", {}).items(), reverse=True) if str(k) != "0"},
-            "file_kinds": dist.get("file_kinds", {}), "doc_kinds": dist.get("doc_kinds", {})}
+    out: dict = {}
+    for group, (field_name, empty) in _FACET_GROUPS.items():
+        base = replace(p, **{field_name: empty})
+        r = meili.search({"q": q, "filter": _meili_filter(base, db), "limit": 0, "facets": [_MEILI_FACET[group]]})
+        out[group] = r.get("facetDistribution", {}).get(_MEILI_FACET[group], {})
+    out["years"] = {str(k): v for k, v in sorted(out["years"].items(), reverse=True) if str(k) != "0"}
+    return out
 
 
 def _facets_pg(db: Session, p: SearchParams, q: str) -> dict:
     from dataclasses import replace
 
-    base = replace(p, **_FACET_RESET)
-    conds = _view_filters_pg(base, db) + _text_conds(q)
-    where = and_(*conds)
+    def where_without(field_name, empty):
+        return and_(*(_view_filters_pg(replace(p, **{field_name: empty}), db) + _text_conds(q)))
+
     yr = func.extract("year", Message.date)
+    w = where_without("year", None)
     years = {str(int(y)): c for y, c in db.execute(
-        select(yr, func.count()).where(where, Message.date.is_not(None)).group_by(yr).order_by(yr.desc())).all()}
+        select(yr, func.count()).where(w, Message.date.is_not(None)).group_by(yr).order_by(yr.desc())).all()}
+    w = where_without("file_kind", "")
     fk = {k: c for k, c in db.execute(
         select(Attachment.file_kind, func.count(func.distinct(Attachment.message_id)))
         .join(Message, Message.id == Attachment.message_id)
-        .where(where, Attachment.is_inline.is_(False)).group_by(Attachment.file_kind)).all()}
+        .where(w, Attachment.is_inline.is_(False)).group_by(Attachment.file_kind)).all()}
+    w = where_without("doc_kind", "")
     dk_col = func.jsonb_array_elements_text(Message.doc_kinds).table_valued("value").render_derived()
     dk = {k: c for k, c in db.execute(
-        select(dk_col.c.value, func.count()).select_from(Message).join(dk_col, true()).where(where)
+        select(dk_col.c.value, func.count()).select_from(Message).join(dk_col, true()).where(w)
         .group_by(dk_col.c.value)).all()}
     return {"years": years, "file_kinds": fk, "doc_kinds": dk}
 
@@ -361,22 +374,42 @@ def _search_pg(db: Session, p: SearchParams, q: str) -> dict:
 # ------------------------------------------------------------------ iş akışı görünümleri
 
 
-def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: int = 100) -> list[dict]:
-    """kind='awaiting': ben yazdım, karşı taraf N gündür yanıt vermedi.
-    kind='needs_reply': bir insan yazdı, ben yanıt vermedim (sunucuda \\Answered da yok)."""
-    cutoff = datetime.now(UTC) - timedelta(days=days)
+_REQUEST = re.compile("|".join([
+    r"\?", r"\brica\b", r"rica ederim", r"ricamiz", r"lutfen", r"bekliyorum", r"bekliyoruz", r"donus", r"geri donus",
+    r"teklif", r"fiyat", r"onay", r"bilgi(lendirme)? (verir|ver|rica)", r"iletebilir", r"gonderebilir", r"paylasabilir",
+    r"musait", r"toplanti", r"gorusme", r"could you", r"can you", r"please", r"let me know", r"kindly", r"looking forward",
+    r"awaiting", r"waiting for", r"confirm",
+]))
+
+
+def _known_contacts(db: Session, my_addresses: set[str]) -> set[str]:
+    """Bugüne kadar mail gönderdiğim adresler (öncelik sinyali)."""
+    out: set[str] = set()
+    for (addrs,) in db.execute(select(Message.to_addrs).where(Message.is_from_me.is_(True))):
+        out.update(a.get("email", "") for a in (addrs or []))
+    return out - my_addresses
+
+
+def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: int | None = 100) -> list[dict]:
+    """kind='needs_reply': bir insan BANA yazdı, ben yanıt vermedim (\\Answered da yok, otomatik/toplu değil).
+    kind='awaiting': ben bir şey istedim/sordum/belge gönderdim, karşı taraf N gündür dönmedi.
+    Daha önce yazıştığım kişiler önce gelir."""
+    from ..mail.parse import strip_quoted
+
+    now = datetime.now(UTC)
+    cutoff = now - timedelta(days=days)
     q = select(Thread).where(Thread.message_count > 0)
     if kind == "awaiting":
         q = q.where(Thread.last_from_me.is_(True), Thread.last_outbound_date <= cutoff,
-                    Thread.last_outbound_date >= datetime.now(UTC) - timedelta(days=120))
+                    Thread.last_outbound_date >= now - timedelta(days=45))
     else:
         q = q.where(Thread.last_from_me.is_(False), Thread.has_human_inbound.is_(True),
-                    Thread.last_inbound_date <= cutoff,
-                    Thread.last_inbound_date >= datetime.now(UTC) - timedelta(days=60))
+                    Thread.last_inbound_date <= cutoff, Thread.last_inbound_date >= now - timedelta(days=60))
     q = q.where(or_(Thread.followup_dismissed_at.is_(None),
                     Thread.followup_dismissed_at < func.coalesce(Thread.last_date, Thread.first_date)))
-    threads = db.execute(q.order_by(Thread.last_date.desc()).limit(limit * 2)).scalars().all()
-    out = []
+    threads = db.execute(q.order_by(Thread.last_date.desc()).limit(3000)).scalars().all()
+    known = _known_contacts(db, my_addresses)
+    picked: list[tuple[bool, Thread, Message]] = []
     for t in threads:
         last = db.execute(
             select(Message).where(Message.thread_id == t.id, Message.deleted_on_server.is_(False))
@@ -384,12 +417,26 @@ def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: 
         ).scalar_one_or_none()
         if last is None:
             continue
-        if kind == "needs_reply" and (last.is_automated or "\\Answered" in (last.server_flags or [])):
-            continue
-        if kind == "awaiting":
-            externals = [a["email"] for a in (last.to_addrs or []) if a["email"] not in my_addresses]
+        rcpts = {a["email"] for a in (last.to_addrs or []) + (last.cc_addrs or [])}
+        if kind == "needs_reply":
+            if last.is_automated or "\\Answered" in (last.server_flags or []):
+                continue
+            if my_addresses and not rcpts & my_addresses:
+                continue  # bana doğrudan yazılmamış (Bcc / dağıtım listesi)
+            prio = last.from_email in known
+        else:
+            externals = rcpts - my_addresses
             if not externals:
                 continue
+            body = fold(strip_quoted(last.body_text or "")[:3000] + " " + (last.subject or ""))
+            has_doc = any(not a.is_inline for a in last.attachments)
+            if not (_REQUEST.search(body) or has_doc):
+                continue  # "teşekkürler" türü, yanıt beklemeyen mail
+            prio = bool(externals & known)
+        picked.append((prio, t, last))
+    picked.sort(key=lambda x: (not x[0], -(x[1].last_date.timestamp() if x[1].last_date else 0)))
+    out = []
+    for prio, t, last in picked[: limit if limit else None]:
         ref = t.last_outbound_date if kind == "awaiting" else t.last_inbound_date
         out.append({
             "thread_id": t.id,
@@ -397,9 +444,12 @@ def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: 
             "participants": t.participants[:5],
             "message_count": t.message_count,
             "last_date": t.last_date.isoformat() if t.last_date else None,
-            "days_waiting": (datetime.now(UTC) - ref).days if ref else None,
+            "days_waiting": (now - ref).days if ref else None,
+            "known_contact": prio,
             "last_message": serialize_list(db, [last])[0],
         })
-        if len(out) >= limit:
-            break
     return out
+
+
+def followup_total(db: Session, kind: str, days: int, my_addresses: set[str]) -> int:
+    return len(followups(db, kind, days, my_addresses, limit=None))

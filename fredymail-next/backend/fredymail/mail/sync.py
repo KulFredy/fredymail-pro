@@ -35,6 +35,7 @@ from .threading import assign_thread, refresh_thread
 log = logging.getLogger(__name__)
 
 SYNC_LOCK_KEY = 0x46524544  # "FRED"
+_CANONICAL = {"inbox", "sent", "drafts", "trash", "spam", "junk", "archive"}
 ROLE_NAMES_TR = {"inbox": "Gelen Kutusu", "sent": "Gönderilen", "drafts": "Taslaklar", "trash": "Çöp Kutusu",
                  "junk": "Gereksiz", "archive": "Arşiv"}
 
@@ -107,7 +108,8 @@ def discover_folders(db: Session, account: Account, source: MailSource, settings
         if info.delimiter and info.delimiter in info.name:
             parent = info.name.rsplit(info.delimiter, 1)[0]
         display = info.name.split(info.delimiter)[-1] if info.delimiter else info.name
-        if parent is None and info.role in ROLE_NAMES_TR:  # yalnızca üst düzey sistem klasörleri çevrilir
+        # Yalnızca standart adlı üst düzey sistem klasörleri çevrilir ("Sent Messages" gibi ikinciler adını korur)
+        if parent is None and info.role in ROLE_NAMES_TR and info.name.lower() in _CANONICAL:
             display = ROLE_NAMES_TR[info.role]
         if f is None:
             f = Folder(account_id=account.id, name=info.name, display_name=display, delimiter=info.delimiter,
@@ -117,6 +119,7 @@ def discover_folders(db: Session, account: Account, source: MailSource, settings
             db.add(f)
         else:
             f.flags, f.role, f.delimiter, f.parent_name = info.flags, info.role, info.delimiter, parent
+            f.display_name = display
             if source_path:
                 f.source_path = source_path
         out.append(f)

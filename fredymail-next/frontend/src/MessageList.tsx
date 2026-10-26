@@ -1,32 +1,45 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { api, ApiError } from "./api";
+import { SearchSummary } from "./Intel";
+import { hasFilters, navigate, type SearchState } from "./route";
 import { useStore } from "./store";
-import type { MessageItem } from "./types";
-import { avatarColor, fmtListDate, folderLabel, initials } from "./util";
-import { Banner, Empty, Highlight, Icon, Skeleton } from "./ui";
+import type { Facets, MessageItem } from "./types";
+import { avatarColor, fmtListDate, fmtSize, folderLabel, initials } from "./util";
+import { Banner, Empty, Highlight, Icon, Modal, Skeleton } from "./ui";
 
-export interface ListRow extends MessageItem {
-  days_waiting?: number | null;
-}
+export const SORTS: [string, string][] = [
+  ["relevance", "Alaka"],
+  ["date_desc", "En yeni"],
+  ["date_asc", "En eski"],
+  ["size_desc", "Boyut ↓ (büyükten)"],
+  ["size_asc", "Boyut ↑ (küçükten)"],
+  ["subject_asc", "Konu A→Z"],
+  ["sender_asc", "Gönderen A→Z"],
+];
 
 interface Props {
   title: string;
   subtitle?: string;
-  items: ListRow[];
+  items: MessageItem[];
   total: number;
   loading: boolean;
   error: string | null;
   notice?: string | null;
   selectedId: number | null;
+  search: SearchState;
+  facets?: Facets;
   onSelect: (id: number) => void;
+  onUpdated: (m: MessageItem) => void;
   onLoadMore?: () => void;
   onRetry: () => void;
   emptyTitle?: string;
   emptyText?: string;
-  waitingLabel?: string;
 }
 
 export function MessageList(p: Props) {
-  const { meta, folders } = useStore();
+  const { meta, folders, tags, toast, refreshSaved, ai } = useStore();
+  const [sortOpen, setSortOpen] = useState(false);
+  const [summary, setSummary] = useState(false);
   const roleOf = new Map(folders.map((f) => [f.id, f]));
   const pillName = (id: number, name: string) => {
     const f = roleOf.get(id);
@@ -35,105 +48,262 @@ export function MessageList(p: Props) {
     return f.origin === "import" ? `Outlook/${f.display_name}` : folderLabel(f);
   };
   const listRef = useRef<HTMLDivElement>(null);
+  const s = p.search;
+  const set = (patch: Partial<SearchState>) => {
+    const next = { ...s, ...patch, smart: "" };
+    if (next.view === "inbox" && (next.q || hasFilters(next))) next.view = "all";
+    navigate({ page: "mail", search: next, msg: null });
+  };
+  const toggle = (k: keyof SearchState, v: string) => set({ [k]: s[k] === v ? "" : v });
 
   useEffect(() => {
     if (!p.selectedId) return;
-    const el = listRef.current?.querySelector<HTMLElement>(`[data-id="${p.selectedId}"]`);
-    el?.scrollIntoView({ block: "nearest" });
+    listRef.current?.querySelector<HTMLElement>(`[data-id="${p.selectedId}"]`)?.scrollIntoView({ block: "nearest" });
   }, [p.selectedId]);
 
+  useEffect(() => {
+    if (!sortOpen) return;
+    const on = (e: MouseEvent) => !(e.target as HTMLElement).closest(".menu-anchor") && setSortOpen(false);
+    window.addEventListener("mousedown", on);
+    return () => window.removeEventListener("mousedown", on);
+  }, [sortOpen]);
+
+  async function star(m: MessageItem) {
+    try {
+      p.onUpdated(await api.patch<MessageItem>(`/api/messages/${m.id}`, { is_important: !m.is_important }));
+    } catch (e) {
+      toast((e as ApiError).message, "error");
+    }
+  }
+
+  async function saveSmart() {
+    const name = window.prompt("Akıllı klasör adı:", s.q || "Yeni akıllı klasör");
+    if (!name) return;
+    const filters: Record<string, string> = {};
+    for (const k of ["view", "folder_id", "sender", "recipient", "participant", "direction", "date_from", "date_to", "year", "has_attachment",
+      "file_kind", "doc_kind", "tag_id", "unread", "important", "sort"] as const) {
+      if (s[k] && !(k === "view" && (s[k] === "all" || s[k] === "folder"))) filters[k] = s[k];
+    }
+    try {
+      await api.post("/api/saved-searches", { name, query: s.q, filters });
+      refreshSaved();
+      toast("Akıllı klasör kaydedildi. Sunucudaki klasörleriniz değişmedi.", "ok");
+    } catch (e) {
+      toast((e as ApiError).message, "error");
+    }
+  }
+
+  const sortLabel = SORTS.find(([k]) => k === s.sort)?.[1] ?? (s.q ? "Alaka" : "En yeni");
+  const quickAll = !s.unread && !s.important && !s.has_attachment;
+
+  // yıl ve tür çipleri: sunucudan gelen sayımlar + seçili olan (sonuçta görünmese bile)
+  const f = p.facets;
+  const years = Object.entries(f?.years ?? {}).sort((a, b) => Number(b[0]) - Number(a[0]));
+  if (s.year && !years.some(([y]) => y === s.year)) years.unshift([s.year, 0]);
+  const fileKinds = Object.entries(f?.file_kinds ?? {}).sort((a, b) => b[1] - a[1]);
+  if (s.file_kind && !fileKinds.some(([k]) => k === s.file_kind)) fileKinds.unshift([s.file_kind, 0]);
+  const docKinds = Object.entries(f?.doc_kinds ?? {}).sort((a, b) => b[1] - a[1]);
+  if (s.doc_kind && !docKinds.some(([k]) => k === s.doc_kind)) docKinds.unshift([s.doc_kind, 0]);
+
+  const active: { key: keyof SearchState; label: string }[] = [];
+  const add = (key: keyof SearchState, label: string) => s[key] && active.push({ key, label });
+  add("sender", `Gönderen: ${s.sender}`);
+  add("recipient", `Alıcı: ${s.recipient}`);
+  add("participant", `Yazışılan: ${s.participant}`);
+  add("direction", s.direction === "out" ? "Yalnız gönderdiklerim" : "Yalnız gelenler");
+  add("date_from", `${s.date_from} →`);
+  add("date_to", `→ ${s.date_to}`);
+  if (s.folder_id && s.view !== "folder") {
+    const fo = folders.find((x) => String(x.id) === s.folder_id);
+    active.push({ key: "folder_id", label: `Klasör: ${fo ? folderLabel(fo) : s.folder_id}` });
+  }
+  if (s.tag_id) active.push({ key: "tag_id", label: `Etiket: ${tags.find((t) => String(t.id) === s.tag_id)?.name ?? s.tag_id}` });
+  if (s.has_attachment === "false") active.push({ key: "has_attachment", label: "Eksiz" });
+
   return (
-    <section className="list-pane" aria-label={p.title}>
+    <section className="list-pane" aria-label="Mail listesi">
       <header className="list-head">
-        <div>
-          <h1>{p.title}</h1>
-          {p.subtitle && <div className="muted small">{p.subtitle}</div>}
-        </div>
-        {!p.loading && !p.error && <span className="muted small">{p.total.toLocaleString("tr-TR")} mail</span>}
-      </header>
-      {p.notice && <Banner kind="warn">{p.notice}</Banner>}
-      {p.error && (
-        <Banner kind="error">
-          {p.error}{" "}
-          <button className="link" onClick={p.onRetry}>Tekrar dene</button>
-        </Banner>
-      )}
-      <div className="list-scroll" ref={listRef} role="listbox" aria-label="Mailler" tabIndex={-1}>
-        {p.loading && !p.items.length && <Skeleton rows={8} />}
-        {!p.loading && !p.error && !p.items.length && (
-          <Empty icon="inbox" title={p.emptyTitle ?? "Burada mail yok"}>{p.emptyText}</Empty>
-        )}
-        {p.items.map((m) => (
-          <div
-            key={m.id}
-            data-id={m.id}
-            role="option"
-            aria-selected={p.selectedId === m.id}
-            tabIndex={0}
-            className={`mrow ${m.is_read ? "" : "unread"} ${p.selectedId === m.id ? "selected" : ""}`}
-            onClick={() => p.onSelect(m.id)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                p.onSelect(m.id);
-              }
-            }}
-          >
-            <div className="avatar" style={{ background: avatarColor(m.from_email) }} aria-hidden="true">
-              {initials(m.from_name, m.from_email)}
-            </div>
-            <div className="row-main">
-              <div className="row-top">
-                <span className="row-from">
-                  {m.is_from_me ? <span className="muted">Kime: {m.to[0]?.name || m.to[0]?.email || "—"}</span> : <Highlight text={m.highlight?.from_name} fallback={m.from_name || m.from_email} />}
-                </span>
-                {m.thread_count > 1 && <span className="count-pill" title={`${m.thread_count} mesajlık yazışma`}>{m.thread_count}</span>}
-                <span className="row-date" title={m.date ?? ""}>{fmtListDate(m.date)}</span>
-              </div>
-              <div className="row-subject">
-                {m.is_important && <Icon name="star" size={14} className="star on" title="Önemli" />}
-                <Highlight text={m.highlight?.subject} fallback={m.subject} />
-              </div>
-              <div className="row-snippet">
-                {m.highlight?.body ? <Highlight text={m.highlight.body} /> : m.snippet}
-              </div>
-              <div className="row-meta">
-                {p.waitingLabel && m.days_waiting != null && (
-                  <span className="pill warn">{m.days_waiting} gündür {p.waitingLabel}</span>
-                )}
-                {m.doc_kinds.map((k) => (
-                  <span key={k} className={`pill kind-${k}`}>{meta?.doc_kinds[k] ?? k}</span>
-                ))}
-                {m.folders.slice(0, 3).map((f) => (
-                  <span key={f.id} className="pill folder" title={f.path}>{pillName(f.id, f.name)}</span>
-                ))}
-                {m.attachments.slice(0, 2).map((a) => (
-                  <span key={a.id} className="pill att" title={a.filename}>
-                    <Icon name="clip" size={12} />
-                    <span className="ellipsis">{a.filename}</span>
-                  </span>
-                ))}
-                {m.attachments.length > 2 && <span className="pill att">+{m.attachments.length - 2}</span>}
-                {m.tags.map((t) => (
-                  <span key={t.id} className="pill tag" style={{ borderColor: t.color, color: t.color }}>
-                    {t.name}
-                  </span>
-                ))}
-                {m.has_note && <Icon name="note" size={14} className="muted" title="Not var" />}
-                {m.snoozed_until && <Icon name="clock" size={14} className="muted" title={`Ertelendi: ${new Date(m.snoozed_until).toLocaleString("tr-TR")}`} />}
-                {m.answered && <Icon name="reply" size={14} className="muted" title="Yanıtlandı (sunucu bayrağı)" />}
-              </div>
+        <div className="list-title">
+          <div className="grow">
+            <h1 className="ellipsis">{p.title}</h1>
+            <div className="sub ellipsis">
+              {p.loading && !p.items.length ? "Yükleniyor…" : `${p.total.toLocaleString("tr-TR")} mail`}
+              {p.subtitle ? ` · ${p.subtitle}` : ""}
             </div>
           </div>
+          <div className="list-tools">
+            {s.q && ai?.enabled && (
+              <button className="icon-btn" onClick={() => setSummary(true)} title="Sonuçları AI ile özetle" aria-label="Sonuçları AI ile özetle">
+                <Icon name="sparkle" />
+              </button>
+            )}
+            {(s.q || hasFilters(s)) && !s.smart && (
+              <button className="icon-btn" onClick={saveSmart} title="Akıllı klasör olarak kaydet" aria-label="Akıllı klasör olarak kaydet">
+                <Icon name="smart" />
+              </button>
+            )}
+            <div className="menu-anchor">
+              <button className={`btn sm ghost ${s.sort ? "on" : ""}`} onClick={() => setSortOpen(!sortOpen)} aria-haspopup="menu" aria-expanded={sortOpen} title="Sıralama">
+                <Icon name="sort" size={16} /> <span className="hide-mobile">{sortLabel}</span>
+              </button>
+              {sortOpen && (
+                <div className="menu" role="menu" aria-label="Sıralama">
+                  <div className="menu-title">Sırala</div>
+                  {SORTS.map(([k, label]) => (
+                    <button key={k} role="menuitemradio" aria-checked={sortLabel === label} className={`menu-item ${sortLabel === label ? "on" : ""}`}
+                      onClick={() => { setSortOpen(false); set({ sort: k === (s.q ? "relevance" : "date_desc") ? "" : k }); }}>
+                      {label}
+                      {sortLabel === label && <Icon name="check" size={15} />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="chip-row" role="group" aria-label="Hızlı filtreler">
+          <button className={`chip solid ${quickAll ? "on" : ""}`} onClick={() => set({ unread: "", important: "", has_attachment: "" })}>
+            Tümü {quickAll && <span className="count">{p.total.toLocaleString("tr-TR")}</span>}
+          </button>
+          <button className={`chip solid ${s.unread ? "on" : ""}`} onClick={() => toggle("unread", "true")}>Okunmamış</button>
+          <button className={`chip solid ${s.important ? "on" : ""}`} onClick={() => toggle("important", "true")}><Icon name="star" size={14} /> Önemli</button>
+          <button className={`chip solid ${s.has_attachment === "true" ? "on" : ""}`} onClick={() => toggle("has_attachment", "true")}><Icon name="clip" size={14} /> Ekli</button>
+        </div>
+
+        {years.length > 0 && (
+          <div className="facet-row" role="group" aria-label="Yıllar">
+            <span className="facet-label">Yıl</span>
+            <button className={`chip sm ${!s.year ? "on" : ""}`} onClick={() => set({ year: "" })}>Tüm zamanlar</button>
+            {years.map(([y, c]) => (
+              <button key={y} className={`chip sm ${s.year === y ? "on" : ""}`} onClick={() => toggle("year", y)} aria-pressed={s.year === y}>
+                {y} {c > 0 && <span className="count">{c}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        {(fileKinds.length > 0 || docKinds.length > 0) && (
+          <div className="facet-row" role="group" aria-label="Dosya ve belge türleri">
+            <span className="facet-label">Tür</span>
+            {fileKinds.map(([k, c]) => (
+              <button key={`f-${k}`} className={`chip sm ${s.file_kind === k ? "on" : ""}`} onClick={() => toggle("file_kind", k)} aria-pressed={s.file_kind === k}>
+                <Icon name="clip" size={13} /> {meta?.file_kinds[k] ?? k} {c > 0 && <span className="count">{c}</span>}
+              </button>
+            ))}
+            {fileKinds.length > 0 && docKinds.length > 0 && <span className="chip-sep" />}
+            {docKinds.map(([k, c]) => (
+              <button key={`d-${k}`} className={`chip sm ${s.doc_kind === k ? "on" : ""}`} onClick={() => toggle("doc_kind", k)} aria-pressed={s.doc_kind === k}>
+                {meta?.doc_kinds[k] ?? k} {c > 0 && <span className="count">{c}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {active.length > 0 && (
+          <div className="active-filters" aria-label="Etkin filtreler">
+            {active.map((c) => (
+              <button key={c.key} className="chip on" onClick={() => set({ [c.key]: "" })} aria-label={`${c.label} filtresini kaldır`}>
+                {c.label} <Icon name="close" size={12} />
+              </button>
+            ))}
+          </div>
+        )}
+      </header>
+
+      {p.notice && <div style={{ padding: "0 14px" }}><Banner kind="warn">{p.notice}</Banner></div>}
+      {p.error && (
+        <div style={{ padding: "0 14px" }}>
+          <Banner kind="error">{p.error} <button className="link" onClick={p.onRetry}>Tekrar dene</button></Banner>
+        </div>
+      )}
+
+      <div className="list-scroll" ref={listRef} role="listbox" aria-label="Mailler" aria-busy={p.loading}>
+        {p.loading && !p.items.length && <Skeleton rows={8} />}
+        {!p.loading && !p.error && !p.items.length && (
+          <Empty art={s.q ? "search" : "inbox"} title={p.emptyTitle ?? "Burada mail yok"}>{p.emptyText}</Empty>
+        )}
+        {p.items.map((m) => (
+          <Row key={m.id} m={m} selected={m.id === p.selectedId} onSelect={p.onSelect} onStar={star}
+            showFolders={s.view !== "folder"} pillName={pillName} docLabel={(k) => meta?.doc_kinds[k] ?? k} />
         ))}
-        {p.onLoadMore && p.items.length < p.total && !p.error && (
-          <div className="load-more">
+        {p.onLoadMore && p.items.length > 0 && p.items.length < p.total && (
+          <div className="list-foot">
             <button className="btn" onClick={p.onLoadMore} disabled={p.loading}>
-              {p.loading ? "Yükleniyor…" : `Daha fazla yükle (${p.items.length}/${p.total.toLocaleString("tr-TR")})`}
+              {p.loading ? "Yükleniyor…" : `Daha fazla göster (${(p.total - p.items.length).toLocaleString("tr-TR")} kaldı)`}
             </button>
           </div>
         )}
       </div>
+      {summary && (
+        <Modal title="✦ Sonuçların özeti" onClose={() => setSummary(false)} wide>
+          <SearchSummary search={s} onOpen={(id) => { setSummary(false); p.onSelect(id); }} />
+        </Modal>
+      )}
     </section>
   );
+}
+
+function Row({ m, selected, onSelect, onStar, showFolders, pillName, docLabel }: {
+  m: MessageItem;
+  selected: boolean;
+  onSelect: (id: number) => void;
+  onStar: (m: MessageItem) => void;
+  showFolders: boolean;
+  pillName: (id: number, name: string) => string;
+  docLabel: (k: string) => string;
+}) {
+  const who = m.is_from_me ? `Kime: ${m.to.map((a) => a.name || a.email).join(", ") || "—"}` : m.from_name || m.from_email;
+  const seed = m.is_from_me ? m.to[0]?.email ?? m.from_email : m.from_email;
+  const folderPills = showFolders ? m.folders.filter((f) => roleless(f.path)).slice(0, 1) : [];
+  return (
+    <div
+      data-id={m.id}
+      role="option"
+      aria-selected={selected}
+      tabIndex={0}
+      className={`mrow ${selected ? "selected" : ""} ${m.is_read ? "" : "unread"}`}
+      onClick={() => onSelect(m.id)}
+      onKeyDown={(e) => e.key === "Enter" && onSelect(m.id)}
+    >
+      <span className="avatar" style={{ background: avatarColor(seed) }} aria-hidden="true">
+        {initials(m.is_from_me ? m.to[0]?.name ?? "" : m.from_name, seed)}
+      </span>
+      <div className="r-main">
+        <div className="row gap-sm">
+          <span className="r-from ellipsis"><Highlight text={m.highlight.from_name} fallback={who} /></span>
+          {m.thread_count > 1 && <span className="thread-count">{m.thread_count}</span>}
+          {m.answered && <Icon name="reply" size={13} className="faint" title="Yanıtlandı" />}
+        </div>
+        <div className="r-subject ellipsis"><Highlight text={m.highlight.subject} fallback={m.subject || "(konu yok)"} /></div>
+        <div className="r-snip"><Highlight text={m.highlight.body} fallback={m.snippet} /></div>
+        {(m.doc_kinds.length > 0 || m.tags.length > 0 || folderPills.length > 0 || m.snoozed_until) && (
+          <div className="r-meta">
+            {m.doc_kinds.slice(0, 2).map((k) => <span key={k} className={`pill k-${k}`}>{docLabel(k)}</span>)}
+            {m.tags.slice(0, 2).map((t) => (
+              <span key={t.id} className="pill" style={{ background: `color-mix(in srgb, ${t.color} 14%, transparent)`, color: t.color }}>{t.name}</span>
+            ))}
+            {folderPills.map((f) => <span key={f.id} className="pill folder"><Icon name="folder" size={11} /> {pillName(f.id, f.path)}</span>)}
+            {m.snoozed_until && <span className="pill warn"><Icon name="clock" size={11} /> Ertelendi</span>}
+          </div>
+        )}
+      </div>
+      <div className="r-side">
+        <span className="r-date">{fmtListDate(m.date)}</span>
+        <span className="r-icons">
+          {m.has_attachments && <Icon name="clip" size={15} title="Ekli" />}
+          {m.has_note && <Icon name="note" size={15} title="Not var" />}
+          <button className={`star-btn ${m.is_important ? "on" : ""}`} onClick={(e) => { e.stopPropagation(); onStar(m); }}
+            aria-label={m.is_important ? "Önemli işaretini kaldır" : "Önemli olarak işaretle"} aria-pressed={m.is_important}>
+            <Icon name="star" size={16} />
+          </button>
+        </span>
+        {m.size ? <span className="r-size">{fmtSize(m.size)}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+/** Gelen kutusu her mailde var; liste kalabalığı yapmasın. */
+function roleless(path: string): boolean {
+  return path !== "INBOX";
 }

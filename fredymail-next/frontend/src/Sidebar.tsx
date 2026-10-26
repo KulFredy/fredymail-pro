@@ -1,10 +1,10 @@
-import { useMemo } from "react";
-import { api } from "./api";
-import { EMPTY_SEARCH, navigate, type Route, type SearchState } from "./route";
+import { useMemo, useState } from "react";
+import { api, ApiError } from "./api";
+import { goMail, navigate, type Route, type SearchState } from "./route";
 import { useStore } from "./store";
 import type { Folder } from "./types";
 import { folderLabel } from "./util";
-import { Icon } from "./ui";
+import { Icon, Logo } from "./ui";
 
 interface Props {
   route: Route;
@@ -12,62 +12,98 @@ interface Props {
   onLogout: () => void;
 }
 
-function goMail(patch: Partial<SearchState>) {
-  navigate({ page: "mail", search: { ...EMPTY_SEARCH, ...patch }, msg: null });
+function remember(key: string, fallback: boolean): [boolean, (v: boolean) => void] {
+  let initial = fallback;
+  try {
+    const v = localStorage.getItem(key);
+    if (v !== null) initial = v === "1";
+  } catch {
+    /* depolama kapalı olabilir */
+  }
+  return [initial, (v: boolean) => {
+    try {
+      localStorage.setItem(key, v ? "1" : "0");
+    } catch {
+      /* yok say */
+    }
+  }];
 }
 
 export function Sidebar({ route, onNavigated, onLogout }: Props) {
-  const { folders, tags, saved, counts, meta } = useStore();
+  const { folders, tags, saved, counts, meta, refreshTags, toast, openComposer } = useStore();
   const s = route.page === "mail" ? route.search : null;
-  const isView = (v: string) => s !== null && s.view === v && !s.folder_id && !s.tag_id && !s.smart && !s.q && !s.doc_kind && !s.file_kind;
+  const isView = (v: string) => s !== null && s.view === v && !s.folder_id && !s.tag_id && !s.smart && !s.q && !s.doc_kind
+    && !s.file_kind && !s.sender && !s.year && !s.participant && !s.direction;
+  const [foldersInit, saveFolders] = useMemo(() => remember("fm.sidebar.folders", true), []);
+  const [foldersOpen, setFoldersOpen] = useState(foldersInit);
+  const [filter, setFilter] = useState("");
 
-  const tree = useMemo(() => buildTree(folders), [folders]);
+  const tree = useMemo(() => buildTree(folders, filter), [folders, filter]);
   const go = (fn: () => void) => () => {
     fn();
     onNavigated();
   };
 
-  const nav = (label: string, icon: string, active: boolean, onClick: () => void, badge?: number, badgeKind = "") => (
-    <li>
+  const nav = (label: string, icon: string, active: boolean, onClick: () => void, count?: number, hot = false) => (
+    <li key={label}>
       <button className={`nav-item ${active ? "active" : ""}`} onClick={go(onClick)} aria-current={active ? "page" : undefined}>
-        <Icon name={icon} size={17} />
+        <Icon name={icon} size={19} />
         <span className="nav-label">{label}</span>
-        {badge ? <span className={`badge ${badgeKind}`}>{badge}</span> : null}
+        {count ? <span className={`nav-count ${hot ? "hot" : ""}`}>{count.toLocaleString("tr-TR")}</span> : null}
       </button>
     </li>
   );
 
-  const inboxUnread = folders.find((f) => f.role === "inbox")?.unread ?? 0;
+  const inbox = folders.find((f) => f.role === "inbox");
+  const waiting = counts.needs_reply + counts.awaiting;
+
+  async function addTag() {
+    const name = window.prompt("Yeni etiket adı:");
+    if (!name?.trim()) return;
+    const palette = ["#0f7a4f", "#2c5fb4", "#a63369", "#b5630b", "#6a43c2", "#12707b"];
+    try {
+      await api.post("/api/tags", { name: name.trim(), color: palette[tags.length % palette.length] });
+      refreshTags();
+      toast("Etiket oluşturuldu", "ok");
+    } catch (e) {
+      toast((e as ApiError).message, "error");
+    }
+  }
 
   return (
     <nav className="sidebar" aria-label="Posta gezintisi">
-      <div className="brand">
-        <span className="brand-mark">
-          <Icon name="unread" size={18} />
+      <a className="brand" href="#/pano" onClick={onNavigated}>
+        <Logo />
+        <span className="brand-name">
+          <b>FredyMail</b>
+          <small>Intelligence</small>
         </span>
-        <span>FredyMail</span>
-      </div>
+      </a>
+      <button className="btn new-btn" onClick={go(() => openComposer({ to: [], subject: "", body: "" }))}>
+        <Icon name="plus" size={18} /> Yeni taslak
+      </button>
       <div className="sidebar-scroll">
         <ul className="nav-list">
-          {nav("Gelen Kutusu", "inbox", isView("inbox"), () => goMail({ view: "inbox" }), inboxUnread)}
-          {nav("Tümü", "all", isView("all"), () => goMail({ view: "all" }))}
-          {nav("Okunmamış", "unread", isView("unread"), () => goMail({ view: "unread" }))}
+          {nav("Pano", "grid", route.page === "dashboard", () => navigate({ page: "dashboard", period: "this_month" }))}
+          {nav("Gelen Kutusu", "inbox", isView("inbox"), () => goMail({ view: "inbox" }), inbox?.unread, true)}
+          {nav("Yanıt Bekleyenler", "reply", route.page === "followups",
+            () => navigate({ page: "followups", kind: "needs_reply", msg: null }), waiting)}
+          {nav("Yapılacaklar", "tasks", route.page === "tasks", () => navigate({ page: "tasks" }), counts.tasks)}
+          {nav("Asistana sor", "sparkle", route.page === "ask", () => navigate({ page: "ask", q: "" }))}
+          {nav("Taslaklar", "draft", route.page === "drafts", () => navigate({ page: "drafts", draft: null }), counts.drafts)}
+        </ul>
+        <div className="nav-sep" />
+        <ul className="nav-list">
+          {nav("Tüm mailler", "all", isView("all"), () => goMail({ view: "all" }))}
           {nav("Önemli", "star", isView("important"), () => goMail({ view: "important" }))}
           {nav("Gönderilen", "sent", isView("sent"), () => goMail({ view: "sent" }))}
           {nav("Ertelenenler", "clock", isView("snoozed"), () => goMail({ view: "snoozed" }))}
         </ul>
-        <div className="nav-section">Takip</div>
-        <ul className="nav-list">
-          {nav("Yanıtlamam gerekenler", "reply", route.page === "followups" && route.kind === "needs_reply",
-            () => navigate({ page: "followups", kind: "needs_reply", msg: null }), counts.needs_reply, "warn")}
-          {nav("Yanıt bekliyorum", "hourglass", route.page === "followups" && route.kind === "awaiting",
-            () => navigate({ page: "followups", kind: "awaiting", msg: null }), counts.awaiting)}
-          {nav("Taslaklar", "draft", route.page === "drafts", () => navigate({ page: "drafts", draft: null }), counts.drafts)}
-        </ul>
 
         {saved.length > 0 && (
           <>
-            <div className="nav-section">Akıllı klasörler</div>
+            <div className="nav-sep" />
+            <div className="nav-section"><span>Akıllı klasörler</span></div>
             <ul className="nav-list">
               {saved.map((sv) =>
                 nav(sv.name, "smart", s?.smart === String(sv.id), () =>
@@ -78,54 +114,65 @@ export function Sidebar({ route, onNavigated, onLogout }: Props) {
           </>
         )}
 
-        {tree.server.length > 0 && (
-          <>
-            <div className="nav-section">Klasörler</div>
-            <ul className="nav-list">{tree.server.map((n) => folderItem(n))}</ul>
-          </>
-        )}
-        {tree.imported.length > 0 && (
-          <>
-            <div className="nav-section">Outlook arşivi</div>
-            <ul className="nav-list">{tree.imported.map((n) => folderItem(n))}</ul>
-          </>
-        )}
+        <div className="nav-sep" />
+        <div className="nav-section">
+          <span>Etiketler</span>
+          <button onClick={addTag} aria-label="Etiket ekle" title="Etiket ekle"><Icon name="plus" size={16} /></button>
+        </div>
+        <ul className="nav-list">
+          {tags.map((t) => (
+            <li key={t.id}>
+              <button className={`nav-item ${s?.tag_id === String(t.id) ? "active" : ""}`}
+                onClick={go(() => goMail({ view: "all", tag_id: String(t.id) }))}>
+                <span className="tag-dot" style={{ background: t.color }} />
+                <span className="nav-label">{t.name}</span>
+                {t.count ? <span className="nav-count">{t.count}</span> : null}
+              </button>
+            </li>
+          ))}
+          {!tags.length && <li className="account-line">Henüz etiket yok — (+) ile ekleyin</li>}
+        </ul>
 
-        {tags.length > 0 && (
+        {(tree.server.length > 0 || tree.imported.length > 0 || filter) && (
           <>
-            <div className="nav-section">Etiketler</div>
-            <ul className="nav-list">
-              {tags.map((t) => (
-                <li key={t.id}>
-                  <button
-                    className={`nav-item ${s?.tag_id === String(t.id) ? "active" : ""}`}
-                    onClick={go(() => goMail({ view: "all", tag_id: String(t.id) }))}
-                  >
-                    <span className="tag-dot" style={{ background: t.color }} />
-                    <span className="nav-label">{t.name}</span>
-                    {t.count ? <span className="badge subtle">{t.count}</span> : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="nav-sep" />
+            <div className="nav-section">
+              <button className="toggle" onClick={() => { setFoldersOpen(!foldersOpen); saveFolders(!foldersOpen); }} aria-expanded={foldersOpen}>
+                <Icon name={foldersOpen ? "down" : "chevron"} size={15} /> Klasörler
+              </button>
+            </div>
+            {foldersOpen && (
+              <>
+                {folders.length > 12 && (
+                  <div className="folder-filter">
+                    <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Klasör ara…" aria-label="Klasör ara" />
+                  </div>
+                )}
+                <ul className="nav-list">{tree.server.map((n) => folderItem(n))}</ul>
+                {tree.imported.length > 0 && (
+                  <>
+                    <div className="nav-section"><span className="faint small">Outlook arşivi</span></div>
+                    <ul className="nav-list">{tree.imported.map((n) => folderItem(n))}</ul>
+                  </>
+                )}
+              </>
+            )}
           </>
         )}
       </div>
       <div className="sidebar-foot">
-        <button className={`nav-item ${route.page === "settings" ? "active" : ""}`} onClick={go(() => navigate({ page: "settings" }))}>
-          <Icon name="settings" size={17} />
-          <span className="nav-label">Ayarlar & Senkron</span>
-        </button>
-        <button
-          className="nav-item"
-          onClick={async () => {
-            await api.post("/api/auth/logout").catch(() => undefined);
-            onLogout();
-          }}
-        >
-          <Icon name="logout" size={17} />
-          <span className="nav-label">Çıkış</span>
-        </button>
+        <ul className="nav-list">
+          {nav("Ayarlar & Senkron", "settings", route.page === "settings", () => navigate({ page: "settings" }))}
+          <li>
+            <button className="nav-item" onClick={async () => {
+              await api.post("/api/auth/logout").catch(() => undefined);
+              onLogout();
+            }}>
+              <Icon name="logout" size={19} />
+              <span className="nav-label">Çıkış</span>
+            </button>
+          </li>
+        </ul>
         {meta && <div className="account-line" title={meta.account}>{meta.account}</div>}
       </div>
     </nav>
@@ -138,14 +185,14 @@ export function Sidebar({ route, onNavigated, onLogout }: Props) {
       <li key={f.id}>
         <button
           className={`nav-item ${active ? "active" : ""} ${!f.sync_enabled && !f.count ? "dim" : ""}`}
-          style={{ paddingLeft: 12 + n.depth * 14 }}
+          style={{ paddingLeft: 12 + n.depth * 14, minHeight: 36, fontSize: 13.5 }}
           onClick={go(() => goMail({ view: "folder", folder_id: String(f.id) }))}
           title={f.name}
         >
           <Icon name={f.role === "archive" ? "archive" : f.role === "sent" ? "sent" : f.role === "inbox" ? "inbox" : "folder"} size={16} />
           <span className="nav-label">{folderLabel(f)}</span>
-          {f.status === "error" && <Icon name="warn" size={14} className="text-danger" title="Senkron hatası" />}
-          {f.unread ? <span className="badge subtle">{f.unread}</span> : null}
+          {f.status === "error" && <Icon name="warn" size={14} title="Senkron hatası" />}
+          {f.unread ? <span className="nav-count">{f.unread}</span> : null}
         </button>
       </li>
     );
@@ -163,10 +210,13 @@ interface TreeNode {
   depth: number;
 }
 
-function buildTree(folders: Folder[]): { server: TreeNode[]; imported: TreeNode[] } {
-  const visible = folders.filter((f) => f.sync_enabled || f.count > 0);
-  const byName = new Map(visible.map((f) => [f.name, f]));
+function buildTree(folders: Folder[], filter: string): { server: TreeNode[]; imported: TreeNode[] } {
+  const needle = filter.trim().toLocaleLowerCase("tr-TR");
+  const visible = folders.filter((f) => (f.sync_enabled || f.count > 0)
+    && (!needle || f.name.toLocaleLowerCase("tr-TR").includes(needle) || folderLabel(f).toLocaleLowerCase("tr-TR").includes(needle)));
+  const byName = new Map(folders.map((f) => [f.name, f]));
   const depthOf = (f: Folder): number => {
+    if (needle) return 0;
     let d = 0;
     let p = f.parent;
     while (p) {

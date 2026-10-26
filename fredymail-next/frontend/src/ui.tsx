@@ -35,6 +35,23 @@ const PATHS: Record<string, string> = {
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
   keyboard: "M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10",
   archive: "M3 4h18v4H3zM5 8v12h14V8M10 12h4",
+  grid: "M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z",
+  tasks: "M9 6h11M9 12h11M9 18h11M4 5.5l1 1 2-2M4 11.5l1 1 2-2M4 17.5l1 1 2-2",
+  more: "M12 5h.01M12 12h.01M12 19h.01",
+  up: "M6 15l6-6 6 6",
+  down: "M6 9l6 6 6-6",
+  sort: "M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4",
+  calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  building: "M4 21V4h11v17M15 9h5v12M8 8h3M8 12h3M8 16h3M2 21h20",
+  user: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0",
+  receipt: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3",
+  edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4",
+  external: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
+  bulb: "M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z",
+  ask: "M12 21a9 9 0 10-8-4.8L3 21l4.8-1A9 9 0 0012 21zM9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1-1.5 2M12 16.5h.01",
+  layers: "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5",
+  bell: "M6 16V11a6 6 0 0112 0v5l2 2H4zM10 21h4",
 };
 
 export function Icon({ name, size = 18, className = "", title }: { name: string; size?: number; className?: string; title?: string }) {
@@ -46,7 +63,7 @@ export function Icon({ name, size = 18, className = "", title }: { name: string;
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.8}
+      strokeWidth={1.75}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden={title ? undefined : true}
@@ -107,13 +124,95 @@ export function Banner({ kind = "info", children, onClose }: { kind?: "info" | "
   );
 }
 
-export function Empty({ icon = "inbox", title, children }: { icon?: string; title: string; children?: ReactNode }) {
+/** Marka işareti: yeşil yaprak + kıvılcım. */
+export function Logo({ size = 38 }: { size?: number }) {
+  return (
+    <svg className="brand-logo" width={size} height={size} viewBox="0 0 40 40" aria-hidden="true">
+      <defs>
+        <linearGradient id="fm-leaf" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#3ddc97" />
+          <stop offset="1" stopColor="#0f7a4f" />
+        </linearGradient>
+      </defs>
+      <path d="M6 30C6 15 16 6 33 6c0 17-9 27-24 27-1.2 0-2.2-.1-3-.3z" fill="url(#fm-leaf)" />
+      <path d="M9.5 30.5C15 23 20 18 27 12.5" stroke="#eafff4" strokeWidth="2" strokeLinecap="round" fill="none" opacity=".9" />
+      <path d="M31 22l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1z" fill="#c8f7de" />
+    </svg>
+  );
+}
+
+const ART: Record<string, ReactNode> = {
+  inbox: (
+    <>
+      <rect x="22" y="30" width="76" height="46" rx="10" fill="var(--brand-soft)" />
+      <path d="M22 52h20l5 9h26l5-9h20" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinejoin="round" />
+      <rect x="36" y="14" width="48" height="30" rx="6" fill="var(--surface)" stroke="var(--border-strong)" strokeWidth="2" />
+      <path d="M44 24h32M44 32h20" stroke="var(--faint)" strokeWidth="2.5" strokeLinecap="round" />
+    </>
+  ),
+  done: (
+    <>
+      <circle cx="60" cy="46" r="32" fill="var(--brand-soft)" />
+      <path d="M45 46l10 10 20-22" fill="none" stroke="var(--brand)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M96 18l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM22 66l1.5 3.5 3.5 1.5-3.5 1.5L22 76l-1.5-3.5L17 71l3.5-1.5z" fill="var(--brand)" opacity=".6" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="54" cy="42" r="24" fill="var(--brand-soft)" stroke="var(--brand)" strokeWidth="3" />
+      <path d="M72 60l16 16" stroke="var(--brand)" strokeWidth="5" strokeLinecap="round" />
+      <path d="M44 42h20" stroke="var(--brand)" strokeWidth="3" strokeLinecap="round" opacity=".5" />
+    </>
+  ),
+  draft: (
+    <>
+      <rect x="30" y="12" width="56" height="68" rx="8" fill="var(--surface)" stroke="var(--border-strong)" strokeWidth="2" />
+      <path d="M40 28h36M40 38h36M40 48h22" stroke="var(--faint)" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M70 66l18-18 6 6-18 18h-6z" fill="var(--brand-soft)" stroke="var(--brand)" strokeWidth="2.5" strokeLinejoin="round" />
+    </>
+  ),
+  read: (
+    <>
+      <rect x="18" y="20" width="84" height="56" rx="10" fill="var(--brand-soft)" />
+      <path d="M18 28l42 28 42-28" fill="none" stroke="var(--brand)" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M92 8l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="var(--brand)" />
+    </>
+  ),
+};
+
+export function Empty({ icon = "inbox", art, title, children }: { icon?: string; art?: keyof typeof ART | string; title: string; children?: ReactNode }) {
   return (
     <div className="empty">
-      <Icon name={icon} size={36} />
+      {art && ART[art] ? (
+        <svg className="empty-art" viewBox="0 0 120 92" aria-hidden="true">{ART[art]}</svg>
+      ) : (
+        <Icon name={icon} size={36} />
+      )}
       <h3>{title}</h3>
       {children && <p>{children}</p>}
     </div>
+  );
+}
+
+const FILE_COLORS: Record<string, string> = {
+  pdf: "#d64545", spreadsheet: "#1f8a55", document: "#2c5fb4", presentation: "#d0782a", image: "#8a4fb0",
+  archive: "#6b7b88", einvoice: "#12707b", email: "#4d6b7d", other: "#6b7b88",
+};
+const FILE_TEXT: Record<string, string> = {
+  pdf: "PDF", spreadsheet: "XLS", document: "DOC", presentation: "PPT", image: "IMG", archive: "ZIP", einvoice: "XML",
+  email: "EML", other: "DOS",
+};
+
+/** Dosya türü simgesi (kâğıt + renkli etiket). */
+export function FileIcon({ kind }: { kind: string }) {
+  const c = FILE_COLORS[kind] ?? FILE_COLORS.other;
+  return (
+    <svg className="ficon" viewBox="0 0 36 40" aria-hidden="true">
+      <path d="M6 2h17l9 9v25a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" fill="var(--surface)" stroke="var(--border-strong)" strokeWidth="1.5" />
+      <path d="M23 2v7a2 2 0 002 2h7" fill="none" stroke="var(--border-strong)" strokeWidth="1.5" />
+      <rect x="1" y="20" width="26" height="12" rx="3" fill={c} />
+      <text x="14" y="29" textAnchor="middle" fontSize="8" fontWeight="800" fill="#fff" fontFamily="system-ui, sans-serif">{FILE_TEXT[kind] ?? "DOS"}</text>
+    </svg>
   );
 }
 
@@ -205,6 +304,8 @@ export function Toasts({ items }: { items: { id: number; text: string; kind: str
     <div className="toasts" aria-live="polite">
       {items.map((t) => (
         <div key={t.id} className={`toast toast-${t.kind}`}>
+          {t.kind === "ok" && <Icon name="check" size={16} />}
+          {t.kind === "error" && <Icon name="warn" size={16} />}
           {t.text}
         </div>
       ))}

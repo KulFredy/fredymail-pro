@@ -3,10 +3,10 @@ import { api, ApiError } from "./api";
 import { navigate, EMPTY_SEARCH } from "./route";
 import { useStore } from "./store";
 import type { Draft } from "./types";
-import { fmtListDate } from "./util";
+import { avatarColor, fmtListDate, initials, mailtoHref } from "./util";
 import { Banner, Empty, Icon, Skeleton } from "./ui";
 
-export function DraftsPage({ draftId, onMenu }: { draftId: number | null; onMenu: () => void }) {
+export function DraftsPage({ draftId }: { draftId: number | null }) {
   const [list, setList] = useState<Draft[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(() => {
@@ -20,33 +20,33 @@ export function DraftsPage({ draftId, onMenu }: { draftId: number | null; onMenu
     <div className={`two-pane ${draftId ? "has-detail" : ""}`}>
       <section className="list-pane" aria-label="Taslaklar">
         <header className="list-head">
-          <div className="row gap-sm">
-            <button className="icon-btn only-mobile" onClick={onMenu} aria-label="Menüyü aç"><Icon name="menu" /></button>
-            <h1>Taslaklar</h1>
+          <div className="list-title">
+            <div>
+              <h1>Taslaklar</h1>
+              <div className="sub">{list ? `${list.length} taslak` : "Yükleniyor…"}</div>
+            </div>
           </div>
-          {list && <span className="muted small">{list.length} taslak</span>}
+          <Banner kind="info">FredyMail mail göndermez. Taslağı gözden geçirip mail programınızda açın veya kopyalayın.</Banner>
         </header>
-        <Banner kind="info">FredyMail mail göndermez. Taslağı gözden geçirip kopyalayın ve Outlook'ta gönderin.</Banner>
         {error && <Banner kind="error">{error} <button className="link" onClick={load}>Tekrar dene</button></Banner>}
         <div className="list-scroll" role="listbox" aria-label="Taslak listesi">
           {!list && !error && <Skeleton rows={4} />}
-          {list && !list.length && <Empty icon="draft" title="Taslak yok">Bir mailin AI panelinden “Yanıt taslağı” oluşturabilirsiniz.</Empty>}
+          {list && !list.length && <Empty art="draft" title="Taslak yok">Bir mailde “Taslak oluştur” ile AI yanıt taslağı hazırlayabilirsiniz.</Empty>}
           {list?.map((d) => (
             <div key={d.id} role="option" aria-selected={d.id === draftId} tabIndex={0} className={`mrow ${d.id === draftId ? "selected" : ""}`}
               onClick={() => navigate({ page: "drafts", draft: d.id })}
               onKeyDown={(e) => e.key === "Enter" && navigate({ page: "drafts", draft: d.id })}>
-              <div className="row-main">
-                <div className="row-top">
-                  <span className="row-from">{d.to.join(", ") || "(alıcı yok)"}</span>
-                  <span className="row-date">{fmtListDate(d.updated_at)}</span>
-                </div>
-                <div className="row-subject">{d.subject || "(konu yok)"}</div>
-                <div className="row-snippet">{d.body.slice(0, 140)}</div>
-                <div className="row-meta">
+              <span className="avatar" style={{ background: avatarColor(d.to[0] ?? "?") }} aria-hidden="true">{initials("", d.to[0] ?? "?")}</span>
+              <div className="r-main">
+                <span className="r-from ellipsis">{d.to.join(", ") || "(alıcı yok)"}</span>
+                <span className="r-subject ellipsis">{d.subject || "(konu yok)"}</span>
+                <span className="r-snip">{d.body.slice(0, 140)}</span>
+                <div className="r-meta">
                   {d.source === "ai" && <span className="pill ai"><Icon name="sparkle" size={12} /> AI</span>}
                   <span className={`pill ${d.reviewed ? "ok" : "warn"}`}>{d.reviewed ? "Gözden geçirildi" : "Gözden geçirilmedi"}</span>
                 </div>
               </div>
+              <div className="r-side"><span className="r-date">{fmtListDate(d.updated_at)}</span></div>
             </div>
           ))}
         </div>
@@ -54,7 +54,7 @@ export function DraftsPage({ draftId, onMenu }: { draftId: number | null; onMenu
       {sel ? (
         <DraftEditor key={sel.id} draft={sel} onSaved={(d) => setList((l) => l?.map((x) => (x.id === d.id ? d : x)) ?? null)} onDeleted={() => { load(); navigate({ page: "drafts", draft: null }); }} />
       ) : (
-        <section className="reader empty-reader"><Empty icon="draft" title={draftId ? "Taslak bulunamadı" : "Bir taslak seçin"} /></section>
+        <section className="reader empty-reader"><Empty art="draft" title={draftId ? "Taslak bulunamadı" : "Bir taslak seçin"} /></section>
       )}
     </div>
   );
@@ -86,7 +86,7 @@ function DraftEditor({ draft, onSaved, onDeleted }: { draft: Draft; onSaved: (d:
     const text = `Konu: ${subject}\n\n${body}`;
     try {
       await navigator.clipboard.writeText(text);
-      toast("Panoya kopyalandı. Outlook'ta yeni yanıta yapıştırabilirsiniz.", "ok");
+      toast("Panoya kopyalandı. Mail programınızda yeni yanıta yapıştırabilirsiniz.", "ok");
     } catch {
       toast("Kopyalanamadı; metni seçip elle kopyalayın.", "error");
     }
@@ -97,7 +97,8 @@ function DraftEditor({ draft, onSaved, onDeleted }: { draft: Draft; onSaved: (d:
       <div className="reader-toolbar">
         <button className="icon-btn only-mobile" onClick={() => navigate({ page: "drafts", draft: null })} aria-label="Geri"><Icon name="back" /></button>
         <strong>Taslak</strong>
-        <div className="toolbar-actions">
+        <span className="tb-spacer" />
+        <div className="row gap-sm">
           {draft.reply_to_message_id && (
             <button className="btn sm ghost" onClick={() => navigate({ page: "mail", search: { ...EMPTY_SEARCH, view: "all" }, msg: draft.reply_to_message_id })}>
               Orijinal maili aç
@@ -111,7 +112,7 @@ function DraftEditor({ draft, onSaved, onDeleted }: { draft: Draft; onSaved: (d:
           }}><Icon name="trash" size={14} /> Sil</button>
         </div>
       </div>
-      <div className="reader-scroll pad">
+      <div className="reader-scroll"><div className="reader-inner">
         <Banner kind="warn">
           <strong>Bu bir taslaktır ve gönderilmez.</strong> {draft.source === "ai" && "AI tarafından üretildi; rakamları, tarihleri ve [köşeli parantez] yer tutucularını kontrol edin. "}
           Hazır olduğunda kopyalayıp Outlook'tan gönderin.
@@ -134,10 +135,11 @@ function DraftEditor({ draft, onSaved, onDeleted }: { draft: Draft; onSaved: (d:
         </label>
         <div className="row gap wrap mt">
           <button className="btn primary" onClick={save} disabled={!dirty || saving}>{saving ? "Kaydediliyor…" : "Kaydet"}</button>
+          <a className="btn dark" href={mailtoHref(to, subject, body).href}><Icon name="external" size={15} /> E-posta programında aç</a>
           <button className="btn" onClick={copy}><Icon name="copy" size={15} /> Panoya kopyala</button>
-          {!reviewed && <span className="muted small">Kopyalamadan önce gözden geçirip işaretleyin.</span>}
+          {!reviewed && <span className="muted small">Kullanmadan önce gözden geçirip işaretleyin.</span>}
         </div>
-      </div>
+      </div></div>
     </section>
   );
 }

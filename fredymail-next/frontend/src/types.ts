@@ -38,6 +38,7 @@ export interface MessageItem {
   tags: TagRef[];
   has_note: boolean;
   answered: boolean;
+  size?: number | null;
 }
 
 export interface Attachment {
@@ -91,6 +92,13 @@ export interface SearchResult {
   per_page: number;
   processing_ms?: number;
   items: MessageItem[];
+  facets?: Facets;
+}
+
+export interface Facets {
+  years: Record<string, number>;
+  file_kinds: Record<string, number>;
+  doc_kinds: Record<string, number>;
 }
 
 export interface Folder {
@@ -160,6 +168,7 @@ export interface AiRef {
 
 export interface AiResult {
   summary?: string;
+  suggestion?: string;
   key_points?: { text: string; sources: string[] }[];
   actions?: { task: string; owner?: string | null; due?: string | null; sources: string[] }[];
   subject?: string;
@@ -227,4 +236,86 @@ export interface Meta {
   account: string;
   source: string;
   send_enabled: boolean;
+}
+
+export interface VolumePoint {
+  bucket: string;
+  received: number;
+  sent: number;
+}
+
+export interface Volume {
+  unit: "day" | "month";
+  series: VolumePoint[];
+}
+
+export interface RankRow {
+  email?: string;
+  domain?: string;
+  name: string;
+  count: number;
+  filter: Record<string, string>;
+}
+
+export interface Insights {
+  period: string;
+  label: string;
+  from: string | null;
+  to: string | null;
+  counts: {
+    received: number;
+    sent: number;
+    unread: number;
+    with_attachments: number;
+    doc_kinds: Record<string, number>;
+    file_kinds: Record<string, number>;
+    awaiting: number;
+    needs_reply: number;
+  };
+  top_senders: RankRow[];
+  top_domains: RankRow[];
+  top_recipients: RankRow[];
+  volume: Volume;
+  periods: Record<string, string>;
+}
+
+export interface StatRow {
+  label: string;
+  sublabel: string;
+  count: number;
+  filter: Record<string, string>;
+}
+
+export interface AskResult {
+  question: string;
+  engine: "rules" | "ai";
+  mode: "search" | "stats" | "followups";
+  understood: string[];
+  params: Record<string, string | number | boolean | null>;
+  period_label: string;
+  stat?: string;
+  stats?: {
+    title: string;
+    note: string;
+    rows?: StatRow[];
+    volume?: Volume;
+    total?: number;
+    received?: number;
+    sent?: number;
+  };
+  search?: SearchResult;
+  followup_kind?: "needs_reply" | "awaiting";
+  followups?: FollowupItem[];
+}
+
+export interface Task {
+  id: number;
+  text: string;
+  due: string | null;
+  done: boolean;
+  source: "user" | "ai";
+  message_id: number | null;
+  thread_id: number | null;
+  created_at: string;
+  done_at: string | null;
 }

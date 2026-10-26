@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 /** Hash tabanlı yönlendirme: durum URL'de tutulur, yenilemede korunur.
- *  #/mail?view=inbox&q=...&msg=12   #/followups/needs_reply?msg=3   #/drafts/5   #/settings */
+ *  #/mail?view=inbox&q=...&msg=12   #/pano?period=this_month   #/sor?q=...   #/followups/needs_reply?msg=3
+ *  #/tasks   #/drafts/5   #/settings */
 
 export interface SearchState {
   q: string;
@@ -9,8 +10,11 @@ export interface SearchState {
   folder_id: string;
   sender: string;
   recipient: string;
+  participant: string;
+  direction: string; // "" | "in" | "out"
   date_from: string;
   date_to: string;
+  year: string;
   has_attachment: string; // "" | "true" | "false"
   file_kind: string;
   doc_kind: string;
@@ -27,8 +31,11 @@ export const EMPTY_SEARCH: SearchState = {
   folder_id: "",
   sender: "",
   recipient: "",
+  participant: "",
+  direction: "",
   date_from: "",
   date_to: "",
+  year: "",
   has_attachment: "",
   file_kind: "",
   doc_kind: "",
@@ -39,9 +46,14 @@ export const EMPTY_SEARCH: SearchState = {
   smart: "",
 };
 
+export type FollowKind = "needs_reply" | "awaiting";
+
 export type Route =
   | { page: "mail"; search: SearchState; msg: number | null }
-  | { page: "followups"; kind: "needs_reply" | "awaiting"; msg: number | null }
+  | { page: "dashboard"; period: string }
+  | { page: "ask"; q: string }
+  | { page: "followups"; kind: FollowKind; msg: number | null }
+  | { page: "tasks" }
   | { page: "drafts"; draft: number | null }
   | { page: "settings" };
 
@@ -51,9 +63,12 @@ export function parseHash(hash: string): Route {
   const p = new URLSearchParams(query);
   const parts = path.split("/").filter(Boolean);
   const msg = p.get("msg") ? Number(p.get("msg")) : null;
+  if (parts[0] === "pano") return { page: "dashboard", period: p.get("period") || "this_month" };
+  if (parts[0] === "sor") return { page: "ask", q: p.get("q") ?? "" };
   if (parts[0] === "followups") {
     return { page: "followups", kind: parts[1] === "awaiting" ? "awaiting" : "needs_reply", msg };
   }
+  if (parts[0] === "tasks") return { page: "tasks" };
   if (parts[0] === "drafts") return { page: "drafts", draft: parts[1] ? Number(parts[1]) : null };
   if (parts[0] === "settings") return { page: "settings" };
   const search = { ...EMPTY_SEARCH };
@@ -65,13 +80,18 @@ export function parseHash(hash: string): Route {
   return { page: "mail", search, msg };
 }
 
+const FILTER_KEYS: (keyof SearchState)[] = ["folder_id", "sender", "recipient", "participant", "direction", "date_from", "date_to",
+  "year", "has_attachment", "file_kind", "doc_kind", "tag_id", "unread", "important"];
+
 export function hasFilters(s: SearchState): boolean {
-  return (["folder_id", "sender", "recipient", "date_from", "date_to", "has_attachment", "file_kind", "doc_kind",
-    "tag_id", "unread", "important"] as (keyof SearchState)[]).some((k) => s[k] !== "");
+  return FILTER_KEYS.some((k) => s[k] !== "");
 }
 
 export function buildHash(r: Route): string {
+  if (r.page === "dashboard") return `#/pano${r.period && r.period !== "this_month" ? `?period=${r.period}` : ""}`;
+  if (r.page === "ask") return `#/sor${r.q ? `?q=${encodeURIComponent(r.q)}` : ""}`;
   if (r.page === "followups") return `#/followups/${r.kind}${r.msg ? `?msg=${r.msg}` : ""}`;
+  if (r.page === "tasks") return "#/tasks";
   if (r.page === "drafts") return `#/drafts${r.draft ? `/${r.draft}` : ""}`;
   if (r.page === "settings") return "#/settings";
   const p = new URLSearchParams();
@@ -87,6 +107,24 @@ export function navigate(r: Route, replace = false) {
   if (replace) window.history.replaceState(null, "", h);
   else window.history.pushState(null, "", h);
   window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
+/** Filtre değişikliğiyle posta listesine git (gelen kutusu yerine "tümü" görünümü). */
+export function goMail(patch: Partial<SearchState>, msg: number | null = null) {
+  const next = { ...EMPTY_SEARCH, ...patch };
+  if (!patch.view) next.view = next.q || hasFilters(next) ? "all" : "inbox";
+  navigate({ page: "mail", search: next, msg });
+}
+
+/** /api/ask'in döndürdüğü arama parametrelerini liste durumuna çevirir. */
+export function fromParams(params: Record<string, unknown>, extra: Record<string, string> = {}): Partial<SearchState> {
+  const out: Partial<SearchState> = {};
+  for (const k of Object.keys(EMPTY_SEARCH) as (keyof SearchState)[]) {
+    const v = params[k];
+    if (v !== undefined && v !== null && v !== "" && v !== false) out[k] = String(v);
+  }
+  if (out.sort === "date_desc" && !out.q) delete out.sort;
+  return { ...out, ...extra };
 }
 
 export function useRoute(): Route {
@@ -111,8 +149,11 @@ export function searchParams(s: SearchState, page: number) {
     folder_id: s.folder_id,
     sender: s.sender,
     recipient: s.recipient,
+    participant: s.participant,
+    direction: s.direction,
     date_from: s.date_from,
     date_to: s.date_to,
+    year: s.year,
     has_attachment: s.has_attachment,
     file_kind: s.file_kind,
     doc_kind: s.doc_kind,
@@ -122,5 +163,6 @@ export function searchParams(s: SearchState, page: number) {
     sort: s.sort,
     page,
     per_page: 50,
+    facets: page === 1,
   };
 }

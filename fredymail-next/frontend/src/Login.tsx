@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "./api";
-import { Icon } from "./ui";
+import { Icon, Logo } from "./ui";
 
 export function Login({ totpRequired, onDone }: { totpRequired: boolean; onDone: () => void }) {
   const [username, setUsername] = useState("");
@@ -26,15 +26,30 @@ export function Login({ totpRequired, onDone }: { totpRequired: boolean; onDone:
 
   return (
     <main className="login-wrap">
-      <form className="login-card" onSubmit={submit} aria-labelledby="login-title">
-        <div className="brand big">
-          <span className="brand-mark">
-            <Icon name="unread" size={22} />
-          </span>
-          <span>FredyMail</span>
+      <section className="login-art" aria-hidden="true">
+        <div className="brand">
+          <Logo size={42} />
+          <span className="brand-name"><b>FredyMail</b><small>Intelligence</small></span>
         </div>
-        <h1 id="login-title">Giriş yap</h1>
-        <p className="muted">Akıllı posta çalışma masanız. Bu sistem mail göndermez, sunucudaki klasörlerinize dokunmaz.</p>
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <h2>Yıllarca biriken postanız, tek bir sakin çalışma masasında.</h2>
+          <ul>
+            <li><Icon name="search" size={18} /> Türkçe/İngilizce eş anlamlılarla, eklerin içinde bile arama</li>
+            <li><Icon name="sparkle" size={18} /> Doğal dille sorun: “bu ay en çok kimden mail aldım?”</li>
+            <li><Icon name="reply" size={18} /> Yanıt bekleyenler, yapılacaklar ve taslaklar tek yerde</li>
+            <li><Icon name="check" size={18} /> Salt okunur: hiçbir mail gönderilmez, klasörleriniz değişmez</li>
+          </ul>
+        </div>
+        <span className="small" style={{ color: "#8fb3a3", position: "relative", zIndex: 1 }}>Kişisel posta arşivi · yalnızca sizin sunucunuzda</span>
+      </section>
+      <div className="login-side">
+      <form className="login-card" onSubmit={submit} aria-labelledby="login-title">
+        <div className="brand">
+          <Logo />
+          <span className="brand-name"><b>FredyMail</b><small>Intelligence</small></span>
+        </div>
+        <h1 id="login-title">Tekrar hoş geldiniz</h1>
+        <p className="muted">Akıllı posta çalışma masanıza giriş yapın.</p>
         <label className="field">
           <span>Kullanıcı adı</span>
           <input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
@@ -55,10 +70,12 @@ export function Login({ totpRequired, onDone }: { totpRequired: boolean; onDone:
             <div className="banner-body">{error}</div>
           </div>
         )}
-        <button className="btn primary block" disabled={busy}>
+        <button className="btn primary block lg" disabled={busy}>
           {busy ? "Giriş yapılıyor…" : "Giriş yap"}
         </button>
+        <p className="muted xs mt">Bu sistem mail göndermez, sunucudaki klasörlerinize ve kurallarınıza dokunmaz.</p>
       </form>
+      </div>
     </main>
   );
 }

@@ -30,7 +30,7 @@ from ..models import (
     Thread,
 )
 from ..search.meili import Meili, reindex_one
-from ..search.query import SearchParams, followups, search, serialize_list
+from ..search.query import SearchParams, followup_total, followups, search, serialize_list
 from .deps import get_db, get_meili, require_user, source_for_folder
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
@@ -52,13 +52,13 @@ def api_search(
     date_from: date | None = None, date_to: date | None = None, has_attachment: bool | None = None,
     file_kind: str = "", doc_kind: str = "", tag_id: int | None = None, unread: bool | None = None,
     important: bool | None = None, sort: str = "", page: int = 1, per_page: int = 50,
-    year: int | None = None, participant: str = "", facets: bool = False,
+    year: int | None = None, participant: str = "", direction: str = "", facets: bool = False,
     db: Session = Depends(get_db), meili: Meili = Depends(get_meili),
 ):
     p = SearchParams(q=q, view=view, folder_id=folder_id, sender=sender, recipient=recipient, date_from=date_from,
                      date_to=date_to, has_attachment=has_attachment, file_kind=file_kind, doc_kind=doc_kind,
                      tag_id=tag_id, unread=unread, important=important, sort=sort, page=page, per_page=per_page,
-                     year=year, participant=participant)
+                     year=year, participant=participant, direction=direction)
     return search(db, meili, p, with_facets=facets)
 
 
@@ -67,8 +67,8 @@ def api_insights(period: str = "this_month", db: Session = Depends(get_db),
                  settings: Settings = Depends(get_settings)):
     from ..search.insights import PERIOD_LABELS, insights
 
-    aw = len(followups(db, "awaiting", settings.awaiting_reply_days, settings.my_addresses, limit=200))
-    nr = len(followups(db, "needs_reply", settings.needs_reply_days, settings.my_addresses, limit=200))
+    aw = followup_total(db, "awaiting", settings.awaiting_reply_days, settings.my_addresses)
+    nr = followup_total(db, "needs_reply", settings.needs_reply_days, settings.my_addresses)
     out = insights(db, period, settings.my_addresses, aw, nr)
     out["periods"] = PERIOD_LABELS
     return out
@@ -91,7 +91,8 @@ def api_ask(body: AskIn, db: Session = Depends(get_db), meili: Meili = Depends(g
 def api_followups(kind: str = Query("needs_reply", pattern="^(needs_reply|awaiting)$"),
                   db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     days = settings.needs_reply_days if kind == "needs_reply" else settings.awaiting_reply_days
-    return {"kind": kind, "days": days, "items": followups(db, kind, days, settings.my_addresses)}
+    items = followups(db, kind, days, settings.my_addresses, limit=None)
+    return {"kind": kind, "days": days, "total": len(items), "items": items[:200]}
 
 
 @router.post("/threads/{tid}/dismiss-followup")
@@ -448,7 +449,7 @@ def ensure_default_smart_folders(db: Session) -> None:
         db.commit()
 
 
-_ALLOWED_FILTERS = {"view", "folder_id", "sender", "recipient", "date_from", "date_to", "has_attachment",
+_ALLOWED_FILTERS = {"view", "folder_id", "sender", "recipient", "participant", "direction", "year", "date_from", "date_to", "has_attachment",
                     "file_kind", "doc_kind", "tag_id", "unread", "important", "sort"}
 
 
@@ -568,6 +569,33 @@ def _draft_out(d: Draft) -> dict:
 @router.get("/drafts")
 def list_drafts(db: Session = Depends(get_db)):
     return [_draft_out(d) for d in db.execute(select(Draft).order_by(Draft.updated_at.desc()).limit(200)).scalars()]
+
+
+class DraftCreate(BaseModel):
+    subject: str = Field(default="", max_length=500)
+    body: str = Field(default="", max_length=50_000)
+    to: list[str] = Field(default_factory=list, max_length=50)
+    reply_to_message_id: int | None = None
+
+
+@router.post("/drafts")
+def create_draft(body: DraftCreate, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Boş/elle taslak (yeni ya da yanıt). Taslak YALNIZCA kaydedilir; FredyMail göndermez."""
+    to = [t.strip().lower() for t in body.to if "@" in t]
+    subject, thread_id = body.subject, None
+    if body.reply_to_message_id:
+        m = _get_msg(db, body.reply_to_message_id)
+        thread_id = m.thread_id
+        if not to:
+            to = [a["email"] for a in (m.reply_to or [])] or [m.from_email]
+            to = [e for e in to if e not in settings.my_addresses]
+        if not subject:
+            subject = m.subject if (m.subject or "").lower().startswith(("re:", "ynt:")) else f"Re: {m.subject or ''}"
+    d = Draft(thread_id=thread_id, reply_to_message_id=body.reply_to_message_id, to_addrs=to[:50], subject=subject,
+              body=body.body, source="user", reviewed=False)
+    db.add(d)
+    db.commit()
+    return _draft_out(d)
 
 
 @router.get("/drafts/{did}")

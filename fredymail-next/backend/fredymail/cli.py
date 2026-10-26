@@ -208,6 +208,61 @@ def cmd_accept_deletions(a) -> int:
     return 0
 
 
+def cmd_reclassify(a) -> int:
+    """Kayıtlı mailleri (yeniden indirmeden) güncel kurallarla yeniden sınıflandırır:
+    toplu/otomatik mail, imza görselleri, belge türleri; thread özetleri ve arama indeksi yenilenir."""
+    import time
+
+    from sqlalchemy import select
+
+    from .config import get_settings
+    from .db import new_session
+    from .mail.classify import doc_kinds, is_signature_image, looks_bulk
+    from .mail.sync import sync_lock
+    from .mail.threading import refresh_thread
+    from .models import Message, Thread
+
+    if not a.yes:
+        print("Tüm mailleri güncel kurallarla yeniden sınıflandırır (posta sunucusuna dokunmaz). --yes ile onaylayın.")
+        return 3
+    s = get_settings()
+    db = new_session()
+    for _ in range(60):
+        with sync_lock(db) as got:
+            if not got:
+                time.sleep(5)
+                continue
+            last_id, changed, n = 0, 0, 0
+            while True:
+                msgs = db.execute(select(Message).where(Message.id > last_id).order_by(Message.id).limit(500)).scalars().all()
+                if not msgs:
+                    break
+                for m in msgs:
+                    n += 1
+                    before = (m.is_automated, m.has_attachments, tuple(m.doc_kinds or []))
+                    for att in m.attachments:
+                        if not att.is_inline and is_signature_image(att.filename, att.content_type, att.size, att.content_id):
+                            att.is_inline = True
+                    m.has_attachments = any(not x.is_inline for x in m.attachments)
+                    if not m.is_automated and not m.is_from_me and looks_bulk(m.from_email, m.subject, m.body_text):
+                        m.is_automated = True
+                    m.doc_kinds = doc_kinds(m.subject, m.body_text, [x.filename for x in m.attachments if not x.is_inline],
+                                            [loc.folder.name for loc in m.locations])
+                    if before != (m.is_automated, m.has_attachments, tuple(m.doc_kinds or [])):
+                        m.index_dirty = True
+                        changed += 1
+                last_id = msgs[-1].id
+                db.commit()
+                print(f"  {n} mail tarandı, {changed} güncellendi…", flush=True)
+            for t in db.execute(select(Thread)).scalars():
+                refresh_thread(db, t, s.my_addresses)
+            db.commit()
+            print(f"Bitti: {n} mail, {changed} güncellendi. Arama indeksi worker tarafından arka planda yenilenecek.")
+            return 0
+    print("Senkron kilidi alınamadı; daha sonra tekrar deneyin.", file=sys.stderr)
+    return 4
+
+
 def cmd_hash_password(a) -> int:
     from .security.auth import hash_password
 
@@ -304,6 +359,10 @@ def main(argv: list[str] | None = None) -> int:
     pd.add_argument("--days", type=int, default=30)
     pd.add_argument("--yes", action="store_true")
     pd.set_defaults(fn=cmd_purge_deleted)
+
+    rc = sp.add_parser("reclassify", help="Kayıtlı mailleri güncel kurallarla yeniden sınıflandır")
+    rc.add_argument("--yes", action="store_true")
+    rc.set_defaults(fn=cmd_reclassify)
 
     ad = sp.add_parser("accept-deletions", help="Toplu kayıp kilidindeki silinmeleri onayla")
     ad.add_argument("--folder")

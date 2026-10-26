@@ -54,7 +54,7 @@ def test_ask_top_senders_and_drilldown(db, synced, settings):
     assert all("bulten" not in r["sublabel"] and "no-reply" not in r["sublabel"] for r in rows)  # bültenler hariç
     # satıra tıklayınca uygulanan filtre gerçekten o kişinin maillerini getirir
     first = rows[0]
-    res = search(db, None, SearchParams(sender=first["filter"]["sender"], year=NOW.year if False else None))
+    res = search(db, None, SearchParams(sender=first["filter"]["sender"]))
     assert res["total"] >= 1 and all(i["from_email"] == first["sublabel"] for i in res["items"])
 
 
@@ -136,3 +136,40 @@ def test_insights_and_tasks_api(db, synced, meili, monkeypatch):
     assert len(c.get("/api/tasks", params={"include_done": True}).json()) == 1
     fu = c.post("/api/ai/followup", json={"message_id": mid}, headers=H).json()
     assert fu["suggestion"] and fu["references"]
+
+
+def test_facets_keep_other_filters_and_direction(db, synced, meili):
+    from fredymail.search.meili import index_dirty
+
+    index_dirty(db, meili)
+    for eng in (meili, None):
+        r = search(db, eng, SearchParams(q="fatura" if eng else "", file_kind="pdf"), with_facets=True)
+        # PDF seçiliyken yıl çiplerinin toplamı = PDF'li sonuç sayısı (diğer filtre korunur)
+        assert sum(r["facets"]["years"].values()) == r["total"], eng
+        # dosya türü grubunun kendi filtresi kaldırılır → diğer türler de görünür
+        assert set(r["facets"]["file_kinds"]) >= {"pdf"}
+    rin = search(db, None, SearchParams(direction="in", per_page=100))
+    rout = search(db, None, SearchParams(direction="out", per_page=100))
+    assert rin["total"] and rout["total"]
+    assert all(not i["is_from_me"] for i in rin["items"]) and all(i["is_from_me"] for i in rout["items"])
+
+
+def test_create_blank_and_reply_draft(db, synced, meili, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from fredymail.api import deps
+    from fredymail.api.main import create_app
+    from fredymail.config import get_settings
+    from fredymail.security.auth import hash_password
+
+    s = get_settings()
+    monkeypatch.setattr(s, "admin_password_hash", hash_password("dogru-parola-uzun-1"))
+    monkeypatch.setattr(deps, "_meili", lambda: meili)
+    c = TestClient(create_app())
+    H = {"Origin": "http://testserver", "X-Requested-With": "fredymail"}
+    c.post("/api/auth/login", json={"username": "fatih", "password": "dogru-parola-uzun-1"}, headers=H)
+    d = c.post("/api/drafts", json={"subject": "Yeni", "body": "Merhaba", "to": ["a@b.test"]}, headers=H).json()
+    assert d["source"] == "user" and d["can_send"] is False and d["to"] == ["a@b.test"]
+    mid = search(db, None, SearchParams(q="SJ-500"))["items"][0]["id"]
+    r = c.post("/api/drafts", json={"reply_to_message_id": mid}, headers=H).json()
+    assert r["to"] == ["merve@kameradunyasi.test"] and r["subject"].startswith("Re: ") and r["thread_id"]

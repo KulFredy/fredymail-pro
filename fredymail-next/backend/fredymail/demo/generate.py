@@ -216,7 +216,17 @@ def scenarios(rng: random.Random) -> list[Mail]:
                       attachments=[("Lumora_Bayi_Fiyat_Listesi_2026.pdf", "application/pdf",
                                     tiny_pdf(["LUMORA BAYI FIYAT LISTESI 2026", "50mm f1.8: 7.900 TL"]))], flags="\\Seen"))
 
-    # 12) Dolgu: geçmişe yayılmış rutin yazışmalar
+    # 12) Gerçek veriden dersler: başlıksız pazarlama maili, imza görselli "fatura" geçen yazışma, teşekkür maili
+    mails.append(Mail("INBOX", ("Revotas", "info@revotas-ornek.test"), [ME], "Websitesi özelleştirme ile 30X deneyim",
+                      "Merhaba, Bu maili görüntüleyemiyorsanız lütfen tıklayın http://l2.revotas-ornek.test/trc\n"
+                      "Müşteri deneyimini artırın!", 3))
+    mails.append(Mail("INBOX", ("Kıyıdanav Kamp", "celik@kiyidanav.test"), [ME], "RE: SJCAM online satış iş birliği",
+                      "Çelik Bey selamlar; ilginiz için teşekkür ederim. Fatura ve ödeme koşullarını sonra konuşalım.\n"
+                      "Saygılarımla", 4, attachments=[("image001.png", "image/png", b"\x89PNG\r\n\x1a\n" + b"0" * 900)]))
+    mails.append(Mail("Sent", ME, [P["fotomarket"]], "Re: Fotomarket kampanya önerisi",
+                      "Okan Bey, teşekkürler, bilginize.\nFatih", 6.5))
+
+    # 13) Dolgu: geçmişe yayılmış rutin yazışmalar
     topics = [
         ("Sevkiyat bilgilendirmesi", "Konteyner limana ulaştı, gümrük işlemleri başladı. İrsaliye ektedir.", "brightway"),
         ("Toplantı notları", "Dünkü toplantının notlarını paylaşıyorum. Aksiyonlar: stok sayımı, web sitesi güncellemesi.", "emre"),

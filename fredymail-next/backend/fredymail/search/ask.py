@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 
 from sqlalchemy import and_, func, select
@@ -339,7 +339,7 @@ def run_question(db: Session, meili, settings, question: str, now: datetime | No
         return out
     if plan.mode == "stats":
         out["stat"] = plan.stat
-        params_no_q = params
+        params_no_q = replace(params)
         if plan.stat in ("top_senders", "top_domains") and params.view == "sent":
             params_no_q.view = "all"
         if plan.stat == "top_senders":

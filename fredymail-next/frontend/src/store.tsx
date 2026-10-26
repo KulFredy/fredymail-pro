@@ -10,6 +10,16 @@ export interface Toast {
   kind: "info" | "error" | "ok";
 }
 
+/** İstemci tarafı yazma penceresi: gönderim yok; mail programında açılır veya kopyalanır. */
+export interface ComposeInit {
+  to: string[];
+  subject: string;
+  body: string;
+  draftId?: number | null;
+  replyToMessageId?: number | null;
+  source?: "user" | "ai";
+}
+
 interface Store {
   meta: Meta | null;
   folders: Folder[];
@@ -17,7 +27,10 @@ interface Store {
   saved: SavedSearch[];
   ai: AiStatus | null;
   sync: SyncStatus | null;
-  counts: { needs_reply: number; awaiting: number; drafts: number };
+  counts: { needs_reply: number; awaiting: number; drafts: number; tasks: number };
+  composer: ComposeInit | null;
+  openComposer: (c: ComposeInit) => void;
+  closeComposer: () => void;
   refreshFolders: () => void;
   refreshTags: () => void;
   refreshSaved: () => void;
@@ -43,7 +56,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [saved, setSaved] = useState<SavedSearch[]>([]);
   const [ai, setAi] = useState<AiStatus | null>(null);
   const [sync, setSync] = useState<SyncStatus | null>(null);
-  const [counts, setCounts] = useState({ needs_reply: 0, awaiting: 0, drafts: 0 });
+  const [counts, setCounts] = useState({ needs_reply: 0, awaiting: 0, drafts: 0, tasks: 0 });
+  const [composer, setComposer] = useState<ComposeInit | null>(null);
+  const openComposer = useCallback((c: ComposeInit) => setComposer(c), []);
+  const closeComposer = useCallback(() => setComposer(null), []);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
 
@@ -64,8 +80,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       api.get<{ items: unknown[] }>("/api/followups?kind=needs_reply"),
       api.get<{ items: unknown[] }>("/api/followups?kind=awaiting"),
       api.get<unknown[]>("/api/drafts"),
+      api.get<unknown[]>("/api/tasks"),
     ])
-      .then(([a, b, c]) => setCounts({ needs_reply: a.items.length, awaiting: b.items.length, drafts: c.length }))
+      .then(([a, b, c, d]) => setCounts({ needs_reply: a.items.length, awaiting: b.items.length, drafts: c.length, tasks: d.length }))
       .catch(() => undefined);
   }, []);
 
@@ -87,10 +104,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [refreshFolders, refreshTags, refreshSaved, refreshAi, refreshSync, refreshCounts]);
 
   const value = useMemo<Store>(
-    () => ({ meta, folders, tags, saved, ai, sync, counts, refreshFolders, refreshTags, refreshSaved, refreshAi,
-      refreshSync, refreshCounts, toast, toasts }),
-    [meta, folders, tags, saved, ai, sync, counts, refreshFolders, refreshTags, refreshSaved, refreshAi, refreshSync,
-      refreshCounts, toast, toasts],
+    () => ({ meta, folders, tags, saved, ai, sync, counts, composer, openComposer, closeComposer, refreshFolders,
+      refreshTags, refreshSaved, refreshAi, refreshSync, refreshCounts, toast, toasts }),
+    [meta, folders, tags, saved, ai, sync, counts, composer, openComposer, closeComposer, refreshFolders, refreshTags,
+      refreshSaved, refreshAi, refreshSync, refreshCounts, toast, toasts],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

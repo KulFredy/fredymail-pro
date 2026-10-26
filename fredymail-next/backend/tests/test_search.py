@@ -97,6 +97,12 @@ def test_followup_views(db, synced, settings):
     assert "Fiyat teklifi: Fuar standı ekipmanları" in [x["subject"] for x in awaiting]
     # Nordlicht thread'inde son mesaj karşı taraftan → bekleyen değil
     assert not any("Nordlicht" in x["subject"] for x in awaiting)
+    # bülten (başlıksız da olsa) ve "teşekkürler, bilginize" maili listelere girmez
+    assert not any("30X" in x["subject"] for x in needs)
+    assert not any("Fotomarket kampanya" in x["subject"] for x in awaiting)
+    # daha önce yazıştığım kişi (Lumora/Nordlicht vb.) varsa önce gelir; sıralama bozulmaz
+    flags = [x["known_contact"] for x in needs]
+    assert flags == sorted(flags, reverse=True)
 
 
 def test_index_version_migration_rebuilds_cleanly(db, synced, meili):

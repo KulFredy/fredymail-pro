@@ -26,7 +26,14 @@ from email.utils import getaddresses, parsedate_to_datetime
 
 import nh3
 
-from .classify import detect_automated, detect_injection, file_kind_for, normalize_subject
+from .classify import (
+    detect_automated,
+    detect_injection,
+    file_kind_for,
+    is_signature_image,
+    looks_bulk,
+    normalize_subject,
+)
 
 SNIPPET_LEN = 220
 _WS = re.compile(r"[ \t\r\f\v]+")
@@ -316,6 +323,9 @@ def _build(msg, texts, htmls, atts, *, size, body_max_chars, truncated) -> Parse
     if body_html and len(body_html) > body_max_chars * 3:
         body_html = body_html[: body_max_chars * 3]
         truncated = True
+    for a in atts:
+        if is_signature_image(a.filename, a.content_type, a.size, a.content_id):
+            a.is_inline = True
     froms = _addresses(msg.get_all("From", []))
     headers = {k.lower(): str(v) for k, v in msg.items()}
     subject = _decode_header_value(msg.get("Subject"))[:1000]
@@ -336,7 +346,7 @@ def _build(msg, texts, htmls, atts, *, size, body_max_chars, truncated) -> Parse
         body_html=body_html,
         body_truncated=truncated,
         attachments=atts,
-        is_automated=detect_automated(headers, from_email),
+        is_automated=detect_automated(headers, from_email) or looks_bulk(from_email, subject, body_text),
         injection_suspected=detect_injection(subject + "\n" + body_text[:20000]),
     )
 

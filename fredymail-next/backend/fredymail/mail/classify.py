@@ -87,8 +87,8 @@ def doc_kinds(subject: str, body: str, attachment_names: list[str], folder_names
     for kind, rx in _DOC_RE.items():
         if rx.search(strong):
             kinds.add(kind)
-        elif kind in ("invoice", "pricelist", "proforma") and rx.search(weak) and attachment_names:
-            # gövdede geçiyor ve ek var → büyük ihtimalle belge ekli
+        elif kind in ("invoice", "pricelist", "proforma") and rx.search(weak) and _has_document(attachment_names):
+            # gövdede geçiyor ve gerçek bir belge eki var (imza görseli değil) → büyük ihtimalle belge ekli
             kinds.add(kind)
     for fname in folder_names:
         leaf = fold(fname.replace("\\", "/").split("/")[-1].strip())
@@ -97,6 +97,13 @@ def doc_kinds(subject: str, body: str, attachment_names: list[str], folder_names
     if "proforma" in kinds:  # proforma fatura muhasebe faturası değildir
         kinds.discard("invoice")
     return sorted(kinds)
+
+
+_DOC_EXTS = (".pdf", ".xls", ".xlsx", ".xlsm", ".csv", ".xml", ".doc", ".docx", ".odt", ".ods", ".zip", ".rar")
+
+
+def _has_document(names: list[str]) -> bool:
+    return any(n.lower().endswith(_DOC_EXTS) for n in names)
 
 
 # ---------------------------------------------------------------- dosya türleri
@@ -139,9 +146,38 @@ def file_kind_for(filename: str, content_type: str) -> str:
     return "other"
 
 
+_SIGNATURE_IMG = re.compile(r"^(image|outlook|logo|signature|imza|banner|icon|ikon)[\w-]*\.(png|jpe?g|gif|bmp)$")
+
+
+def is_signature_image(filename: str, content_type: str, size: int | None, content_id: str | None) -> bool:
+    """Outlook imza/logo görselleri (image001.png...) ek sayılmaz: 'Ekli' filtresini ve belge tahminini bozuyor."""
+    if not (content_type or "").lower().startswith("image/"):
+        return False
+    if size is not None and size > 300_000:
+        return False
+    return bool(content_id) or bool(_SIGNATURE_IMG.match(fold(filename or "")))
+
+
 # ---------------------------------------------------------------- otomatik gönderimler
 
-_NOREPLY = re.compile(r"(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?@|newsletter|bulten|info@.*mailchimp|bounce)", re.I)
+_NOREPLY = re.compile(r"(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?@|notify@|newsletter|bulten|"
+                      r"bounce|marketing@|kampanya@|campaign|spam|alerts?@|reports?@|mailer@|automated@|system@|"
+                      r"info@.*mailchimp)", re.I)
+_BULK_BODY = re.compile("|".join([
+    r"goruntuleyemiyorsaniz", r"goruntulenemiyorsa", r"tarayicida (goruntule|ac)", r"web versiyon", r"view (it |this )?(email |e-mail )?in (your )?browser",
+    r"unsubscribe", r"abonelik(ten)? (cik|iptal)", r"aboneligi(nizi)? (iptal|sonlandir)", r"listeden (cik|ayril)",
+    r"e-?bulten", r"bu e-?posta(yi)? (otomatik|sistem tarafindan)", r"otomatik olarak (olusturul|gonderil)",
+    r"this is an automated", r"automatically generated", r"do not reply to this", r"bu (e-?postayi|maili) yanitlamayiniz",
+    r"lutfen (bu (e-?postayi|maili) )?yanitlamayiniz", r"spam report", r"ileti almak istemiyorsaniz",
+]))
+
+
+def looks_bulk(from_email: str, subject: str, body: str) -> bool:
+    """Başlık bilgisi olmasa da toplu/otomatik maili gövde ve gönderen kalıplarından tanır."""
+    if _NOREPLY.search(from_email or ""):
+        return True
+    b = fold(body or "")
+    return bool(_BULK_BODY.search(b[:2500] + " " + b[-2500:] + " " + fold(subject or "")))
 
 
 def detect_automated(headers: dict[str, str], from_email: str) -> bool:
