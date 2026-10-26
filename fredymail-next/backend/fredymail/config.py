@@ -116,6 +116,12 @@ class Settings(BaseSettings):
     ai_max_calls_per_day: int = 100
     ai_price_input_per_mtok: float = 0.0
     ai_price_output_per_mtok: float = 0.0
+    # İki kademe: ağır işlerde (taslak, uzun yazışma) veya hafif modelin çıktısı geçersizse güçlü model.
+    ai_model_heavy: str = ""  # boşsa tek model kullanılır
+    ai_price_input_per_mtok_heavy: float = 0.0
+    ai_price_output_per_mtok_heavy: float = 0.0
+    ai_heavy_kinds: str = "draft"  # her zaman güçlü modelle yapılacak işlemler
+    ai_heavy_min_chars: int = 15000  # bu kadar karakterden uzun bağlamda güçlü model
     ai_redact_pii: bool = True
 
     awaiting_reply_days: int = 3

@@ -114,10 +114,10 @@ export function IntelCard(p: Props) {
   }, [p.threadId, p.message.id]);
   useEffect(loadTasks, [loadTasks]);
 
-  async function analyze() {
+  async function analyze(quality: Quality = "auto") {
     setBusy(true);
     setError(null);
-    const body = { message_id: p.message.id, thread_id: p.threadId };
+    const body = { message_id: p.message.id, thread_id: p.threadId, quality };
     const [a, b] = await Promise.allSettled([
       api.post<AiResult>(`/api/ai/${multi ? "thread_summary" : "summary"}`, body),
       api.post<AiResult>("/api/ai/actions", body),
@@ -130,11 +130,11 @@ export function IntelCard(p: Props) {
     refreshAi();
   }
 
-  async function makeDraft() {
+  async function makeDraft(quality: Quality = "auto") {
     setBusyDraft(true);
     setError(null);
     try {
-      const out = await api.post<AiResult>("/api/ai/draft", { message_id: p.message.id, thread_id: p.threadId, instruction });
+      const out = await api.post<AiResult>("/api/ai/draft", { message_id: p.message.id, thread_id: p.threadId, instruction, quality });
       setDraft(out);
       refreshCounts();
       toast("Taslak hazır. Gözden geçirmeden kullanmayın; FredyMail göndermez.", "ok");
@@ -235,7 +235,7 @@ export function IntelCard(p: Props) {
             Yalnızca siz bastığınızda çalışır; ekler gönderilmez, kişisel numaralar maskelenir.
           </p>
           <div className="row gap-sm">
-            <button className="btn primary" onClick={analyze} disabled={busy} data-testid="analyze">
+            <button className="btn primary" onClick={() => analyze()} disabled={busy} data-testid="analyze">
               <Icon name="sparkle" size={16} /> {busy ? "Analiz ediliyor…" : "Analiz et"}
             </button>
           </div>
@@ -310,7 +310,7 @@ export function IntelCard(p: Props) {
               <div className="draft-box empty">Taslak yalnızca kaydedilir; FredyMail hiçbir maili göndermez.</div>
             )}
             <input value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="İsteğiniz (ör. teşekkür et, teslim tarihini sor)" aria-label="Taslak isteği" />
-            <button className="btn dark" onClick={makeDraft} disabled={busyDraft} data-testid="make-draft">
+            <button className="btn dark" onClick={() => makeDraft()} disabled={busyDraft} data-testid="make-draft">
               <Icon name="sparkle" size={15} /> {draft ? "Yeniden oluştur" : "Taslak oluştur"}
             </button>
           </Col>
@@ -346,15 +346,33 @@ export function IntelCard(p: Props) {
       {meta.length > 0 && (
         <div className="intel-meta" aria-label="AI çağrı ayrıntıları">
           {meta.some((m) => m?.cached) ? "Kısmen önbellekten · " : ""}
-          {meta[0]?.provider}/{meta[0]?.model}
+          {[...new Set(meta.map((m) => `${m?.model}${m?.tier === "heavy" ? " (güçlü)" : ""}`))].join(" + ")}
+          {meta.some((m) => m?.escalated) && " · hafif modelin yanıtı kullanılamadı, güçlü modele geçildi"}
           {` · ${Math.max(...meta.map((m) => m?.messages_sent ?? 0))} mail, ${Math.max(...meta.map((m) => m?.chars_sent ?? 0)).toLocaleString("tr-TR")} karakter gönderildi`}
           {` · ~$${meta.reduce((s, m) => s + (m?.cost_usd ?? 0), 0).toFixed(4)}`}
           {meta.some((m) => m?.pii_redacted) && " · IBAN/kart/TCKN maskelendi"}
           {` · bugün ${ai.usage_today.calls}/${ai.limits.max_calls_per_day} çağrı`}
+          {canUpgrade([summary, actions]) && (
+            <button className="link-btn" onClick={() => analyze("best")} disabled={busy} data-testid="analyze-best">
+              Güçlü modelle yeniden analiz et
+            </button>
+          )}
+          {canUpgrade([draft]) && (
+            <button className="link-btn" onClick={() => makeDraft("best")} disabled={busyDraft}>
+              Taslağı güçlü modelle yeniden yaz
+            </button>
+          )}
         </div>
       )}
     </section>
   );
+}
+
+type Quality = "auto" | "fast" | "best";
+
+/** Güçlü model tanımlıysa ve sonuçlardan biri hafif modelle üretildiyse yükseltme önerilir. */
+export function canUpgrade(rs: (AiResult | null | undefined)[]): boolean {
+  return rs.some((r) => r?.meta?.heavy_available && r.meta.tier !== "heavy");
 }
 
 function Col({ icon, title, extra, children }: { icon: string; title: string; extra?: ReactNode; children: ReactNode }) {
@@ -383,15 +401,20 @@ export function SearchSummary({ search, onOpen }: { search: SearchState; onOpen:
   const [res, setRes] = useState<AiResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { refreshAi } = useStore();
-  useEffect(() => {
+  const run = (quality: Quality) => {
     const { q, smart: _s, sort: _o, ...rest } = search;
     void _s;
     void _o;
     const filters = Object.fromEntries(Object.entries(rest).filter(([k, v]) => v !== "" && !(k === "view" && (v === "all" || v === "folder"))));
-    api.post<AiResult>("/api/ai/search_summary", { query: q, filters })
+    setRes(null);
+    setError(null);
+    api.post<AiResult>("/api/ai/search_summary", { query: q, filters, quality })
       .then(setRes)
       .catch((e) => setError(aiError(e)))
       .finally(refreshAi);
+  };
+  useEffect(() => {
+    run("auto");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (error) return <Banner kind="error">{error}</Banner>;
@@ -417,6 +440,12 @@ export function SearchSummary({ search, onOpen }: { search: SearchState; onOpen:
           </button>
         ))}
       </div>
+      {canUpgrade([res]) && (
+        <div className="intel-meta">
+          {res.meta?.model} ile özetlendi ·{" "}
+          <button className="link-btn" onClick={() => run("best")}>Güçlü modelle yeniden özetle</button>
+        </div>
+      )}
     </div>
   );
 }

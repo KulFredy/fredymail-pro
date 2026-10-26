@@ -190,6 +190,9 @@ export interface AiResult {
     latency_ms?: number;
     cached?: boolean;
     pii_redacted?: boolean;
+    tier?: "light" | "heavy";
+    escalated?: boolean;
+    heavy_available?: boolean;
   };
 }
 
@@ -198,6 +201,8 @@ export interface AiStatus {
   enabled: boolean;
   provider: string;
   model: string;
+  model_heavy?: string | null;
+  heavy_kinds?: string[];
   endpoint_host: string | null;
   usage_today: { calls: number; cost_usd: number };
   limits: { daily_budget_usd: number; max_calls_per_day: number; max_messages: number; max_total_chars: number };

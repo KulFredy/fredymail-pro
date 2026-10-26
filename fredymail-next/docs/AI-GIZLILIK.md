@@ -42,4 +42,9 @@ AI tamamen kapatılabilir (`FM_AI_PROVIDER=none` ya da Ayarlar'daki anahtar). Ar
 - `FM_AI_DAILY_BUDGET_USD` (varsayılan 1 $) ve `FM_AI_MAX_CALLS_PER_DAY` (varsayılan 100). Sınır aşılınca istek reddedilir.
 - Maliyet tahmini `FM_AI_PRICE_*_PER_MTOK` ile hesaplanır. Gerçek fatura OpenRouter panelinde; oraya da aylık limit koyman önerilir.
 - Aynı mail(ler) için aynı istek önbellekten döner ve yeni çağrı yapılmaz.
+- **İki kademe:** `FM_AI_MODEL` ucuz/hızlı model (tekli özet, aksiyon, takip önerisi, soru planı);
+  `FM_AI_MODEL_HEAVY` güçlü model. Güçlü model şu durumlarda kullanılır: `FM_AI_HEAVY_KINDS` (varsayılan: taslak),
+  bağlam `FM_AI_HEAVY_MIN_CHARS`'tan uzunsa, kullanıcı "güçlü modelle yeniden" derse, veya hafif modelin yanıtı
+  geçerli JSON değilse — bu sonuncusu **yalnızca bir kez** denenir, iki çağrının maliyeti de bütçeye yazılır.
+  Hangi modelin kullanıldığı ve maliyet her sonucun altında görünür. Güçlü modele de aynı veri sınırları ve maskeleme uygulanır.
 - Sağlayıcı hatasında en fazla 1 yeniden deneme yapılır (sadece 408/429/5xx).

@@ -25,6 +25,10 @@ class AIError(Exception):
     pass
 
 
+class AIOutputError(AIError):
+    """Model yanıt verdi ama çıktı kullanılamaz (geçersiz JSON) → güçlü modelle bir kez denenebilir."""
+
+
 @dataclass
 class AIResult:
     text: str
@@ -36,9 +40,11 @@ class AIResult:
 class OpenAICompatibleProvider:
     name = "openai_compatible"
 
-    def __init__(self, settings: Settings, client: httpx.Client | None = None):
+    def __init__(self, settings: Settings, client: httpx.Client | None = None, model: str | None = None,
+                 tier: str = "light"):
         self.s = settings
-        self.model = settings.ai_model
+        self.model = model or settings.ai_model
+        self.tier = tier
         headers = {"Content-Type": "application/json"}
         if settings.ai_api_key:
             headers["Authorization"] = f"Bearer {settings.ai_api_key}"
@@ -84,9 +90,11 @@ class FakeProvider:
 
     name = "fake"
 
-    def __init__(self, settings: Settings, compromised: bool = False):
-        self.model = settings.ai_model or "fake-model"
+    def __init__(self, settings: Settings, compromised: bool = False, model: str | None = None,
+                 tier: str = "light"):
+        self.model = model or settings.ai_model or "fake-model"
         self.compromised = compromised
+        self.tier = tier
 
     def complete(self, system: str, user: str, max_tokens: int) -> AIResult:
         labels = re.findall(r'<email id="(M\d+)"', user)
@@ -120,9 +128,12 @@ class FakeProvider:
                         model=self.model)
 
 
-def get_provider(settings: Settings):
+def get_provider(settings: Settings, tier: str = "light"):
+    heavy = tier == "heavy" and bool(settings.ai_model_heavy)
+    model = settings.ai_model_heavy if heavy else settings.ai_model
+    t = "heavy" if heavy else "light"
     if settings.ai_provider == "fake":
-        return FakeProvider(settings)
+        return FakeProvider(settings, model=model or None, tier=t)
     if settings.ai_provider == "openai_compatible" and settings.ai_base_url and settings.ai_model:
-        return OpenAICompatibleProvider(settings)
+        return OpenAICompatibleProvider(settings, model=model, tier=t)
     return None

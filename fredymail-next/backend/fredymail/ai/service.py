@@ -27,7 +27,7 @@ from ..config import Settings
 from ..mail.classify import detect_injection
 from ..mail.parse import strip_quoted
 from ..models import AiRun, KeyValue, Message
-from .provider import AIError, get_provider
+from .provider import AIError, AIOutputError, get_provider
 
 KINDS = ("summary", "thread_summary", "search_summary", "actions", "draft", "followup")
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -170,8 +170,20 @@ def _check_budget(db: Session, settings: Settings) -> None:
         raise AIBlocked(f"Günlük AI bütçesi doldu (${settings.ai_daily_budget_usd:.2f}).")
 
 
-def _cost(settings: Settings, pt: int, ct: int) -> float:
+def _cost(settings: Settings, pt: int, ct: int, tier: str = "light") -> float:
+    if tier == "heavy":
+        return (pt * settings.ai_price_input_per_mtok_heavy + ct * settings.ai_price_output_per_mtok_heavy) / 1_000_000
     return (pt * settings.ai_price_input_per_mtok + ct * settings.ai_price_output_per_mtok) / 1_000_000
+
+
+def choose_tier(settings: Settings, kind: str, chars: int, quality: str) -> str:
+    """auto: taslaklar ve uzun bağlam güçlü modelle; fast: daima hafif; best: daima güçlü (tanımlıysa)."""
+    if not settings.ai_model_heavy or quality == "fast":
+        return "light"
+    if quality == "best":
+        return "heavy"
+    heavy_kinds = {k.strip() for k in settings.ai_heavy_kinds.split(",") if k.strip()}
+    return "heavy" if kind in heavy_kinds or chars >= settings.ai_heavy_min_chars else "light"
 
 
 # ------------------------------------------------------------------ çıktı doğrulama
@@ -190,7 +202,7 @@ def _parse_json(text: str) -> dict:
                 return json.loads(m.group(0))
             except json.JSONDecodeError:
                 pass
-    raise AIError("AI yanıtı geçerli JSON değildi")
+    raise AIOutputError("AI yanıtı geçerli JSON değildi")
 
 
 def _ref(m: Message, label: str) -> dict:
@@ -265,19 +277,19 @@ def validate_output(raw: dict, ctx: Context, allowed_emails: set[str]) -> dict:
 
 
 def run(db: Session, settings: Settings, kind: str, msgs: list[Message], *, query: str = "",
-        instruction: str = "", provider=None, allowed_emails: set[str] | None = None) -> dict:
+        instruction: str = "", provider=None, allowed_emails: set[str] | None = None, quality: str = "auto") -> dict:
     if kind not in KINDS:
         raise ValueError("bilinmeyen AI işlemi")
     if not msgs:
         raise AIBlocked("Özetlenecek e-posta yok.")
-    if provider is None:
+    ctx = build_context(msgs, settings)
+    auto_provider = provider is None
+    if auto_provider:
         if not ai_enabled(db, settings):
             raise AIBlocked("AI kapalı veya yapılandırılmamış. Arama ve görüntüleme normal çalışır.")
-        provider = get_provider(settings)
+        provider = get_provider(settings, choose_tier(settings, kind, ctx.chars, quality))
     if provider is None:
         raise AIBlocked("AI sağlayıcısı yapılandırılmamış.")
-
-    ctx = build_context(msgs, settings)
     task = TASKS[kind].replace("{query}", query.replace('"', "'")[:200]).replace(
         "{instruction}", (instruction or "nazik ve profesyonel, kısa").replace('"', "'")[:500])
     user_prompt = f"{task}\n\nE-POSTALAR:\n{ctx.text}"
@@ -297,16 +309,32 @@ def run(db: Session, settings: Settings, kind: str, msgs: list[Message], *, quer
     started = time.monotonic()
     run_row = AiRun(kind=kind, cache_key=key, provider=provider.name, model=provider.model, message_ids=ids,
                     chars_sent=len(system) + len(user_prompt), status="error")
+    escalated, spent = False, (0, 0, 0.0)  # yükseltmede ilk denemenin harcaması da sayılır
     try:
         res = provider.complete(system, user_prompt, settings.ai_max_output_tokens)
-        raw = _parse_json(res.text)
+        try:
+            raw = _parse_json(res.text)
+        except AIOutputError:
+            # Hafif modelin çıktısı kullanılamadı → güçlü modelle YALNIZCA bir kez dene (sınırsız tekrar yok)
+            if not (auto_provider and getattr(provider, "tier", "light") == "light" and settings.ai_model_heavy):
+                raise
+            spent = (res.prompt_tokens, res.completion_tokens,
+                     _cost(settings, res.prompt_tokens, res.completion_tokens, "light"))
+            run_row.cost_usd = spent[2]
+            _check_budget(db, settings)
+            provider = get_provider(settings, "heavy")
+            run_row.provider, escalated = provider.name, True
+            res = provider.complete(system, user_prompt, settings.ai_max_output_tokens)
+            raw = _parse_json(res.text)
         allowed = allowed_emails if allowed_emails is not None else set()
         for m in ctx.labels.values():
             allowed |= {m.from_email} | {a["email"] for a in (m.to_addrs or []) + (m.cc_addrs or [])}
         out = validate_output(raw, ctx, allowed | settings.my_addresses)
         run_row.status = "ok"
-        run_row.prompt_tokens, run_row.completion_tokens = res.prompt_tokens, res.completion_tokens
-        run_row.cost_usd = _cost(settings, res.prompt_tokens, res.completion_tokens)
+        run_row.prompt_tokens = res.prompt_tokens + spent[0]
+        run_row.completion_tokens = res.completion_tokens + spent[1]
+        run_row.cost_usd = spent[2] + _cost(settings, res.prompt_tokens, res.completion_tokens,
+                                            getattr(provider, "tier", "light"))
         run_row.model = res.model
     except AIError as e:
         run_row.error = str(e)[:500]
@@ -320,7 +348,8 @@ def run(db: Session, settings: Settings, kind: str, msgs: list[Message], *, quer
                            "messages_sent": len(ids), "prompt_tokens": run_row.prompt_tokens,
                            "completion_tokens": run_row.completion_tokens, "cost_usd": round(run_row.cost_usd, 5),
                            "latency_ms": run_row.latency_ms, "cached": False, "run_id": run_row.id,
-                           "pii_redacted": settings.ai_redact_pii}
+                           "pii_redacted": settings.ai_redact_pii, "tier": getattr(provider, "tier", "light"),
+                           "escalated": escalated, "heavy_available": bool(settings.ai_model_heavy)}
             run_row.output = out
         db.commit()
     return out

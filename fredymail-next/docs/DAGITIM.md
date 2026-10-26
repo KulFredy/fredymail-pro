@@ -90,7 +90,10 @@ Outlook kuralları istemci tarafında çalışıyorsa, Outlook'taki klasör düz
    `read -rsp "LiteLLM anahtarı: " K; echo; printf '%s' "$K" > secrets/ai_api_key; unset K; chown 10001:10001 secrets/ai_api_key; chmod 400 secrets/ai_api_key`
 3. `.env`: `FM_AI_PROVIDER=openai_compatible`, `FM_AI_BASE_URL=http://litellm-litellm-1:4000/v1`, `FM_AI_MODEL=flash-lite`
    (litellm `config.yaml`'daki model adlarından biri), `FM_AI_API_KEY=` boş kalır.
-4. `docker compose up -d api` → Ayarlar sayfasında "AI: açık" ve model görünür; bir mailde "Analiz et".
+4. (İsteğe bağlı, önerilir) güçlü ikinci model: `FM_AI_MODEL_HEAVY=gemini-visual` ve fiyatları
+   `FM_AI_PRICE_INPUT_PER_MTOK_HEAVY` / `FM_AI_PRICE_OUTPUT_PER_MTOK_HEAVY`. Taslaklar, uzun yazışmalar ve hafif modelin
+   kullanılamaz yanıt verdiği durumlar bu modele gider; her sonucun altında "güçlü modelle yeniden" düğmesi çıkar.
+5. `docker compose up -d api worker` → Ayarlar sayfasında "AI: açık" ve model görünür; bir mailde "Analiz et".
 
 LiteLLM yapılandırmasına dokunulmaz. **Geri dönüş:** `FM_AI_PROVIDER=none` + `docker compose up -d api`.
 

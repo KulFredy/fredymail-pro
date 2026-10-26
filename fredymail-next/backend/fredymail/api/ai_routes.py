@@ -24,6 +24,7 @@ class AIRequest(BaseModel):
     query: str = Field(default="", max_length=500)
     filters: dict = Field(default_factory=dict)
     instruction: str = Field(default="", max_length=1000)
+    quality: str = Field(default="auto", pattern="^(auto|fast|best)$")
 
 
 def _thread_msgs(db: Session, tid: int) -> list[Message]:
@@ -39,6 +40,8 @@ def ai_status(db: Session = Depends(get_db), settings: Settings = Depends(get_se
         "enabled": service.ai_enabled(db, settings),
         "provider": settings.ai_provider,
         "model": settings.ai_model,
+        "model_heavy": settings.ai_model_heavy or None,
+        "heavy_kinds": [k.strip() for k in settings.ai_heavy_kinds.split(",") if k.strip()],
         "endpoint_host": settings.ai_base_url.split("//")[-1].split("/")[0] if settings.ai_base_url else None,
         "usage_today": service.usage_today(db),
         "limits": {"daily_budget_usd": settings.ai_daily_budget_usd, "max_calls_per_day": settings.ai_max_calls_per_day,
@@ -110,7 +113,8 @@ def ai_run(kind: str, body: AIRequest, db: Session = Depends(get_db), meili: Mei
         raise HTTPException(400, "İşlem için mail seçilmedi")
 
     try:
-        out = service.run(db, settings, kind, msgs, query=body.query, instruction=body.instruction)
+        out = service.run(db, settings, kind, msgs, query=body.query, instruction=body.instruction,
+                          quality=body.quality)
     except service.AIBlocked as e:
         raise HTTPException(409, str(e)) from e
     except AIError as e:

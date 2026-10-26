@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "./api";
-import { aiError, Cited } from "./Intel";
+import { aiError, canUpgrade, Cited } from "./Intel";
 import { Reader, replySubject, replyTarget } from "./Reader";
 import { EMPTY_SEARCH, navigate, type FollowKind } from "./route";
 import { useStore } from "./store";
@@ -127,11 +127,11 @@ function FollowCard({ f, kind, open, onToggle, onDismissed }: { f: FollowupItem;
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<Set<number>>(new Set());
 
-  async function suggest() {
+  async function suggest(quality: "auto" | "best" = "auto") {
     setBusy("sug");
     setError(null);
     try {
-      setSug(await api.post<AiResult>("/api/ai/followup", { message_id: m.id, thread_id: f.thread_id }));
+      setSug(await api.post<AiResult>("/api/ai/followup", { message_id: m.id, thread_id: f.thread_id, quality }));
     } catch (e) {
       setError(aiError(e));
     } finally {
@@ -209,7 +209,7 @@ function FollowCard({ f, kind, open, onToggle, onDismissed }: { f: FollowupItem;
               <>
                 <p className="muted">{kind === "awaiting" ? "Karşı taraf yanıt vermedi." : "Bu yazışma yanıtınızı bekliyor."} {f.message_count} mesaj · son mail {other.name || other.email}.</p>
                 {ai?.enabled ? (
-                  <button className="btn primary" onClick={suggest} data-testid="get-suggestion"><Icon name="sparkle" size={15} /> Takip önerisi al</button>
+                  <button className="btn primary" onClick={() => suggest()} data-testid="get-suggestion"><Icon name="sparkle" size={15} /> Takip önerisi al</button>
                 ) : <p className="muted small">AI kapalı — önerileri Ayarlar'dan açabilirsiniz.</p>}
               </>
             )}
@@ -227,6 +227,9 @@ function FollowCard({ f, kind, open, onToggle, onDismissed }: { f: FollowupItem;
                       </button>
                     ))}
                   </div>
+                )}
+                {canUpgrade([sug]) && (
+                  <button className="link-btn" onClick={() => suggest("best")} disabled={busy !== ""}>Güçlü modelle yeniden dene</button>
                 )}
               </>
             )}

@@ -114,7 +114,7 @@ export function SettingsPage() {
             <>
               <div className="row between">
                 <div>
-                  <div><strong>{ai.enabled ? "Açık" : "Kapalı"}</strong> {ai.configured ? `· ${ai.provider} / ${ai.model}` : "· yapılandırılmamış"}</div>
+                  <div><strong>{ai.enabled ? "Açık" : "Kapalı"}</strong> {ai.configured ? `· ${ai.provider} / ${ai.model}${ai.model_heavy ? ` · güçlü: ${ai.model_heavy}` : ""}` : "· yapılandırılmamış"}</div>
                   {ai.endpoint_host && <div className="muted small">Uç nokta: {ai.endpoint_host}</div>}
                 </div>
                 {ai.configured && (

@@ -241,7 +241,7 @@ def test_ai_provider_failure_degrades_gracefully(client, db, monkeypatch):
         def complete(self, *a, **k):
             raise AIError("AI sağlayıcısına ulaşılamadı (ConnectTimeout)")
 
-    monkeypatch.setattr(service, "get_provider", lambda s: Down())
+    monkeypatch.setattr(service, "get_provider", lambda s, tier="light": Down())
     login(client)
     mid = msg_id(db, "SJ-500 aksiyon kamera%")
     r = client.post("/api/ai/summary", json={"message_id": mid}, headers=H)
