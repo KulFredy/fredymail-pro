@@ -188,3 +188,14 @@ def test_sync_lock_is_released_and_exclusive(db, settings, demo_dir):
     for _ in range(3):  # kilit her seferinde serbest bırakılır
         res = run_sync(db, lambda: EmlDirSource(demo_dir, kind="demo"), settings, origin="demo", sleep=lambda s: None)
         assert not res.skipped_locked
+
+
+def test_extra_excludes_keep_defaults(settings):
+    from fredymail.mail.source import FolderInfo
+    from fredymail.mail.sync import folder_is_default_enabled
+
+    s = settings.model_copy(update={"sync_exclude_folders": "CV ler"})
+    assert not folder_is_default_enabled(FolderInfo("CV ler", "/", []), s)
+    assert not folder_is_default_enabled(FolderInfo("Karantina", "/", []), s)  # varsayılan hâlâ geçerli
+    assert not folder_is_default_enabled(FolderInfo("Trash/Adsız Klasör", "/", []), s)
+    assert folder_is_default_enabled(FolderInfo("Müşteriler/Kamera Dünyası", "/", []), s)

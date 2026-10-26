@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     sync_enabled: bool = False  # canlı hesap için açık onaydan sonra true yapılır
     sync_interval_seconds: int = 180
     sync_folders: str = "auto"  # auto | "INBOX,Sent,Faturalar"
-    sync_exclude_folders: str = ",".join(DEFAULT_EXCLUDED_FOLDERS)
+    sync_exclude_folders: str = ""  # varsayılan listeye EK olarak hariç tutulacak klasörler
     sync_since: str = "365d"  # "365d" veya "2025-01-01"
     sync_max_messages_per_folder: int = 5000
     sync_max_messages_per_cycle: int = 1000
@@ -141,7 +141,9 @@ class Settings(BaseSettings):
 
     @property
     def excluded_folders(self) -> set[str]:
-        return {f.strip().lower() for f in self.sync_exclude_folders.split(",") if f.strip()}
+        """Varsayılan hariç klasörler (Çöp/Spam/Taslak/Karantina...) her zaman geçerlidir; ayar yalnızca ekler."""
+        extra = {f.strip().lower() for f in self.sync_exclude_folders.split(",") if f.strip()}
+        return {f.lower() for f in DEFAULT_EXCLUDED_FOLDERS} | extra
 
     @property
     def origins(self) -> list[str]:

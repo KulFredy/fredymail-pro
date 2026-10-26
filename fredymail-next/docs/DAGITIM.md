@@ -58,14 +58,14 @@ Sunucu adresi bu çıktıya göre seçilir, tahmin edilmez. Çıktıyı paylaş.
    ```
    Çıktıda her klasör için ✔/✘, toplam ve kapsamdaki mail sayısı görünür. Varsayılan kapsam: son 365 gün, klasör başına en fazla
    5.000 mail. Hariç tutulanlar: Trash, Spam, Junk, Deleted Messages, Karantina, Drafts.
-3. **Onayın** gelince (gerekirse `FM_SYNC_SINCE` ve klasör listesi ayarlanır):
+3. **Onayın** gelince önce gerçek giriş parolanı belirle, sonra geçişi başlat:
    ```bash
-   docker compose down -v                    # 🔒 yalnızca DEMO verisini siler (fredymail_* volume'ları)
-   sed -i 's/^FM_SYNC_ENABLED=.*/FM_SYNC_ENABLED=true/' .env
-   docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d
-   docker compose logs -f worker             # ilerleme: klasör, adet; mail içeriği loglanmaz
+   ./scripts/set-password.sh                              # en az 12 karakter; demo parolası geçersiz olur
+   ./scripts/go-live.sh --since all --exclude "CV ler"    # veya --since 365d / 2022-01-01
    ```
-   Senkron sunucuda hiçbir değişiklik yapmaz (EXAMINE + BODY.PEEK). Kesilirse kaldığı yerden devam eder.
+   `go-live.sh` özet gösterir ve `EVET` yazılmadan hiçbir şey yapmaz. Sonra demo verisini (yalnızca `fredymail_*` volume'ları)
+   siler, `.env`'i canlıya çevirir (`COMPOSE_FILE` ile VPS eklentisi otomatik kullanılır; AI kapalı) ve sistemi başlatır.
+   İlerleme: `docker compose logs -f worker`. Senkron sunucuda hiçbir değişiklik yapmaz (EXAMINE + BODY.PEEK) ve kesilirse kaldığı yerden devam eder.
 
 **Geri dönüş:** `FM_SYNC_ENABLED=false` + `docker compose up -d worker`. Veriyi tamamen silmek için `down -v`.
 
