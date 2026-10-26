@@ -30,7 +30,15 @@ from ..models import (
     Thread,
 )
 from ..search.meili import Meili, reindex_one
-from ..search.query import SearchParams, followup_total, followups, search, serialize_list
+from ..search.query import (
+    SearchParams,
+    followup_total,
+    followups,
+    muted_senders,
+    search,
+    serialize_list,
+    set_sender_muted,
+)
 from .deps import get_db, get_meili, require_user, source_for_folder
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
@@ -93,6 +101,21 @@ def api_followups(kind: str = Query("needs_reply", pattern="^(needs_reply|awaiti
     days = settings.needs_reply_days if kind == "needs_reply" else settings.awaiting_reply_days
     items = followups(db, kind, days, settings.my_addresses, limit=None)
     return {"kind": kind, "days": days, "total": len(items), "items": items[:200]}
+
+
+class MuteIn(BaseModel):
+    email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+$")
+    muted: bool = True
+
+
+@router.get("/followups/muted")
+def api_muted(db: Session = Depends(get_db)):
+    return {"emails": muted_senders(db)}
+
+
+@router.post("/followups/muted")
+def api_set_muted(body: MuteIn, db: Session = Depends(get_db)):
+    return {"emails": set_sender_muted(db, body.email, body.muted)}
 
 
 @router.post("/threads/{tid}/dismiss-followup")

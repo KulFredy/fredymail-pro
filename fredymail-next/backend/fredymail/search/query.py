@@ -18,7 +18,7 @@ from sqlalchemy import and_, exists, false, func, or_, select, text, true
 from sqlalchemy.orm import Session
 
 from ..mail.classify import fold
-from ..models import Attachment, Folder, Message, MessageLocation, MessageTag, Note, Tag, Thread
+from ..models import Attachment, Folder, KeyValue, Message, MessageLocation, MessageTag, Note, Tag, Thread
 from .meili import HL_POST, HL_PRE, Meili, MeiliError
 
 VIEWS = ("all", "inbox", "sent", "important", "snoozed", "unread", "folder")
@@ -390,6 +390,28 @@ def _known_contacts(db: Session, my_addresses: set[str]) -> set[str]:
     return out - my_addresses
 
 
+_MUTED_KEY = "followup_muted_senders"
+
+
+def muted_senders(db: Session) -> list[str]:
+    """Kullanıcının 'takip listelerinde gösterme' dediği adresler."""
+    kv = db.get(KeyValue, _MUTED_KEY)
+    return sorted((kv.value or {}).get("emails", [])) if kv else []
+
+
+def set_sender_muted(db: Session, email: str, muted: bool) -> list[str]:
+    email = email.strip().lower()
+    cur = set(muted_senders(db))
+    cur = cur | {email} if muted else cur - {email}
+    kv = db.get(KeyValue, _MUTED_KEY)
+    if kv is None:
+        kv = KeyValue(key=_MUTED_KEY, value={})
+        db.add(kv)
+    kv.value = {"emails": sorted(cur)}
+    db.commit()
+    return sorted(cur)
+
+
 def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: int | None = 100) -> list[dict]:
     """kind='needs_reply': bir insan BANA yazdı, ben yanıt vermedim (\\Answered da yok, otomatik/toplu değil).
     kind='awaiting': ben bir şey istedim/sordum/belge gönderdim, karşı taraf N gündür dönmedi.
@@ -409,6 +431,7 @@ def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: 
                     Thread.followup_dismissed_at < func.coalesce(Thread.last_date, Thread.first_date)))
     threads = db.execute(q.order_by(Thread.last_date.desc()).limit(3000)).scalars().all()
     known = _known_contacts(db, my_addresses)
+    muted = set(muted_senders(db))
     picked: list[tuple[bool, Thread, Message]] = []
     for t in threads:
         last = db.execute(
@@ -423,10 +446,12 @@ def followups(db: Session, kind: str, days: int, my_addresses: set[str], limit: 
                 continue
             if my_addresses and not rcpts & my_addresses:
                 continue  # bana doğrudan yazılmamış (Bcc / dağıtım listesi)
+            if (last.from_email or "").lower() in muted:
+                continue
             prio = last.from_email in known
         else:
             externals = rcpts - my_addresses
-            if not externals:
+            if not externals or {e.lower() for e in externals} <= muted:
                 continue
             body = fold(strip_quoted(last.body_text or "")[:3000] + " " + (last.subject or ""))
             has_doc = any(not a.is_inline for a in last.attachments)

@@ -1,5 +1,5 @@
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
-import { splitHighlight } from "./util";
+import { readPref, splitHighlight, writePref } from "./util";
 
 const PATHS: Record<string, string> = {
   inbox: "M3 13h5l1.5 3h5L16 13h5M3 13l2.5-7h13L21 13v6H3z",
@@ -345,5 +345,66 @@ export function ScrollRow({ className, label, children }: { className: string; l
       </div>
       {edge.r && <button className="sr-btn right" onClick={() => by(1)} aria-label="Sağa kaydır" tabIndex={-1}><Icon name="chevron" size={14} /></button>}
     </div>
+  );
+}
+
+const PANE_PREFS: Record<string, string> = { "--side-w": "fm.pane.side", "--list-w": "fm.pane.list" };
+
+/** Kaydedilmiş panel genişliklerini uygular (uygulama açılırken bir kez). */
+export function applyPaneWidths() {
+  for (const [v, key] of Object.entries(PANE_PREFS)) {
+    const w = readPref(key);
+    if (w && /^\d+$/.test(w)) document.documentElement.style.setProperty(v, `${w}px`);
+  }
+}
+
+/** İki panel arasındaki sürüklenebilir ayraç. Izgarada solundaki panelin genişliğini (CSS değişkeni) değiştirir;
+ *  çift tık varsayılana döndürür, ok tuşlarıyla da ayarlanır. Genişlik bu tarayıcıda hatırlanır. */
+export function Splitter({ target, cssVar, min, max, label }: { target: string; cssVar: "--side-w" | "--list-w"; min: number; max: number; label: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState(false);
+  const pane = () => ref.current?.parentElement?.querySelector<HTMLElement>(`:scope > ${target}`) ?? null;
+  const set = (w: number) => {
+    const c = Math.round(Math.min(max, Math.max(min, w)));
+    document.documentElement.style.setProperty(cssVar, `${c}px`);
+    return c;
+  };
+  const save = () => {
+    const el = pane();
+    if (el) writePref(PANE_PREFS[cssVar], String(Math.round(el.getBoundingClientRect().width)));
+  };
+  function onPointerDown(e: React.PointerEvent) {
+    const el = pane();
+    if (!el || e.button !== 0) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = el.getBoundingClientRect().width;
+    setDrag(true);
+    document.body.classList.add("resizing");
+    const move = (ev: PointerEvent) => set(startW + ev.clientX - startX);
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.classList.remove("resizing");
+      setDrag(false);
+      save();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+  function onKey(e: React.KeyboardEvent) {
+    const el = pane();
+    if (!el || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+    e.preventDefault();
+    set(el.getBoundingClientRect().width + (e.key === "ArrowRight" ? 24 : -24));
+    save();
+  }
+  function reset() {
+    document.documentElement.style.removeProperty(cssVar);
+    writePref(PANE_PREFS[cssVar], "");
+  }
+  return (
+    <div ref={ref} className={`splitter ${drag ? "active" : ""}`} role="separator" aria-orientation="vertical" aria-label={label}
+      tabIndex={0} title={`${label} — sürükleyin; çift tık: varsayılan`} onPointerDown={onPointerDown} onKeyDown={onKey} onDoubleClick={reset} />
   );
 }

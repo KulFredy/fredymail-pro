@@ -16,7 +16,7 @@ import { TasksPage } from "./Tasks";
 import { Topbar } from "./Topbar";
 import type { Facets, MessageItem, SearchResult } from "./types";
 import { folderLabel, isTypingTarget } from "./util";
-import { Banner, Icon, Modal, Spinner, Toasts } from "./ui";
+import { Banner, Icon, Modal, Spinner, Splitter, Toasts } from "./ui";
 
 type Auth = { state: "checking" } | { state: "out"; totp: boolean } | { state: "in" };
 
@@ -108,6 +108,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       <a className="skip" href="#main">İçeriğe geç</a>
       <div className="drawer-backdrop" onClick={() => setDrawer(false)} aria-hidden="true" />
       <Sidebar route={route} onNavigated={() => setDrawer(false)} onLogout={onLogout} />
+      <Splitter target=".sidebar" cssVar="--side-w" min={200} max={380} label="Menü genişliği" />
       <div className="content">
         <Topbar route={route} onMenu={() => setDrawer(true)} />
         {workerDown && (
@@ -237,6 +238,7 @@ function MailPage({ route }: { route: Extract<Route, { page: "mail" }> }) {
 
   return (
     <div className={`mail-page ${route.msg ? "has-detail" : ""}`}>
+      <Splitter target=".list-pane" cssVar="--list-w" min={300} max={900} label="Liste genişliği" />
       <MessageList
         title={title}
         subtitle={subtitle}

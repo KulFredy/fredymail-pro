@@ -309,7 +309,13 @@ input[type="color"] { width: 34px; height: 30px; padding: 0; border: 1px solid v
 .sk-block { border-radius: var(--radius); }
 
 /* ------------------------------------------------------------------ uygulama iskeleti */
-.app { display: grid; grid-template-columns: 264px minmax(0, 1fr); height: 100%; }
+.app { display: grid; grid-template-columns: clamp(200px, var(--side-w, 264px), 380px) minmax(0, 1fr); height: 100%; position: relative; }
+/* sürüklenebilir panel ayraçları: ızgarada 2. sütunun sol kenarına oturur */
+.splitter { position: absolute; grid-column: 2; grid-row: 1; top: 0; bottom: 0; left: -4px; width: 8px; z-index: 30; cursor: col-resize; touch-action: none; outline: none; }
+.splitter::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background .15s var(--ease); }
+.splitter:hover::after, .splitter:focus-visible::after, .splitter.active::after { background: var(--brand); }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing iframe { pointer-events: none; }
 .content { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
 .main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
@@ -373,7 +379,7 @@ input[type="color"] { width: 34px; height: 30px; padding: 0; border: 1px solid v
 .filters-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 
 /* ------------------------------------------------------------------ posta sayfası */
-.mail-page { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(340px, 470px) minmax(0, 1fr); background: var(--bg); }
+.mail-page { flex: 1; min-height: 0; display: grid; grid-template-columns: clamp(300px, var(--list-w, 430px), 65%) minmax(0, 1fr); background: var(--bg); position: relative; }
 .list-pane { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border-right: 1px solid var(--border); }
 .list-head { padding: 16px 18px 10px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--border); }
 .list-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
@@ -675,7 +681,7 @@ input[type="color"] { width: 34px; height: 30px; padding: 0; border: 1px solid v
 .search-inline input { border: 0; background: transparent; box-shadow: none !important; font-size: 15px; min-height: 0; padding: 0; }
 
 /* ------------------------------------------------------------------ taslaklar / ayarlar / modal / toast */
-.two-pane { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); }
+.two-pane { flex: 1; min-height: 0; display: grid; grid-template-columns: clamp(300px, var(--list-w, 420px), 65%) minmax(0, 1fr); position: relative; }
 .settings { flex: 1; overflow-y: auto; }
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .settings-grid .wide { grid-column: 1 / -1; }
@@ -742,7 +748,6 @@ input[type="color"] { width: 34px; height: 30px; padding: 0; border: 1px solid v
   .sync-ind .txt { display: none; }
 }
 @media (max-width: 1100px) {
-  .mail-page { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .reader-toolbar .tb-btn .lbl { display: none; }
 }
@@ -773,6 +778,7 @@ input[type="color"] { width: 34px; height: 30px; padding: 0; border: 1px solid v
   .bottom-tabs button.on .icon-wrap::before { content: ""; position: absolute; inset: -6px -14px; background: var(--brand-soft); border-radius: 999px; z-index: -1; }
   .bottom-tabs .dotn { position: absolute; top: -2px; right: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); border: 2px solid var(--surface); }
   .mail-page, .two-pane { grid-template-columns: minmax(0, 1fr); }
+  .splitter { display: none; }
   .mail-page .reader, .two-pane .reader { display: none; }
   .mail-page.has-detail .reader, .two-pane.has-detail .reader { display: flex; }
   .mail-page.has-detail .list-pane, .two-pane.has-detail .list-pane { display: none; }

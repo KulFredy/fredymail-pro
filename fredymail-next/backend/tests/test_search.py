@@ -117,3 +117,24 @@ def test_index_version_migration_rebuilds_cleanly(db, synced, meili):
     index_dirty(db, meili)
     assert meili.stats()["numberOfDocuments"] == live_count(db)
     assert migrate_index_version(db, meili) is False  # ikinci kez çalışmaz
+
+
+def test_reports_are_automated_and_senders_can_be_muted(db, synced, settings):
+    from fredymail.mail.classify import looks_bulk
+    from fredymail.search.query import muted_senders, set_sender_muted
+
+    for s in ("SJCAM Günlük Kampanya Raporu | 22.10.2026", "Zoom İthalat | Haftalık Ads & Analytics Raporu",
+              "Zoom İthalat | Günlük Ads Sağlık Raporu | 2 Ekim", "[Spam] SJCAM Günlük Kampanya Raporu",
+              "Weekly performance report", "[SPAM] Fırsat"):
+        assert looks_bulk("rapor.hesabi@gmail.com", s, "Merhaba"), s
+    for s in ("SJ-500 stok durumu", "Haftalık toplantı", "Rapor hakkında bir sorum var", "Satış raporu ektedir"):
+        assert not looks_bulk("ali@firma.test", s, "Merhaba Fatih Bey, bilginize."), s
+
+    def needs():
+        return [x["subject"] for x in followups(db, "needs_reply", settings.needs_reply_days, settings.my_addresses)]
+
+    assert "SJ-500 aksiyon kamera stok durumu" in needs()
+    assert set_sender_muted(db, "Merve@KameraDunyasi.test", True) == ["merve@kameradunyasi.test"]
+    assert "SJ-500 aksiyon kamera stok durumu" not in needs()
+    set_sender_muted(db, "merve@kameradunyasi.test", False)
+    assert muted_senders(db) == [] and "SJ-500 aksiyon kamera stok durumu" in needs()

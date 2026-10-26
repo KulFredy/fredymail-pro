@@ -5,15 +5,18 @@ import { folderLabel, fmtRelative } from "./util";
 import { Banner, Icon, Spinner } from "./ui";
 
 export function SettingsPage() {
-  const { sync, ai, folders, tags, refreshSync, refreshAi, refreshFolders, refreshTags, toast, meta } = useStore();
+  const { sync, ai, folders, tags, refreshSync, refreshAi, refreshFolders, refreshTags, refreshCounts, toast, meta } = useStore();
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
   const [newTag, setNewTag] = useState({ name: "", color: "#0f7a4f" });
+  const [muted, setMuted] = useState<string[] | null>(null);
+  const loadMuted = () => api.get<{ emails: string[] }>("/api/followups/muted").then((r) => setMuted(r.emails)).catch(() => setMuted([]));
 
   useEffect(() => {
     refreshSync();
     refreshAi();
     refreshFolders();
     api.get<Record<string, unknown>>("/api/settings").then(setSettings).catch(() => setSettings({}));
+    loadMuted();
   }, [refreshSync, refreshAi, refreshFolders]);
 
   async function act<T>(p: Promise<T>, ok: string, after?: () => void) {
@@ -165,6 +168,22 @@ export function SettingsPage() {
             <input type="color" value={newTag.color} onChange={(e) => setNewTag({ ...newTag, color: e.target.value })} aria-label="Etiket rengi" />
             <button className="btn" disabled={!newTag.name.trim()}>Ekle</button>
           </form>
+        </section>
+
+        <section className="card">
+          <h2>Takipte gösterilmeyenler</h2>
+          <p className="muted small">Bu adreslerden gelen mailler Yanıt Bekleyenler listesine girmez. Mailler silinmez, aramada görünür.</p>
+          <ul className="tag-settings" data-testid="muted-senders">
+            {(muted ?? []).map((e) => (
+              <li key={e}>
+                <span className="grow">{e}</span>
+                <button className="btn sm ghost" onClick={() => act(api.post("/api/followups/muted", { email: e, muted: false }), "Yeniden takipte", () => { loadMuted(); refreshCounts(); })}>
+                  Geri al
+                </button>
+              </li>
+            ))}
+            {muted && !muted.length && <li className="muted small">Liste boş. Yanıt Bekleyenler'de bir kartta “Bu göndereni gösterme” ile eklenir.</li>}
+          </ul>
         </section>
 
         <section className="card wide">

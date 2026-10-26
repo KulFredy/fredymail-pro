@@ -172,9 +172,18 @@ _BULK_BODY = re.compile("|".join([
 ]))
 
 
+# Düzenli otomatik raporlar (Ads/Analytics, günlük/haftalık rapor, sunucu etiketli spam): yanıt beklemez.
+_REPORT_SUBJECT = re.compile(
+    r"\b(gunluk|haftalik|aylik|daily|weekly|monthly)\b.{0,60}\b(rapor|raporu|report|digest)\b"
+    r"|\b(kampanya|performans|performance|analytics|ads|reklam)\b.{0,30}\b(rapor|raporu|report)\b"
+    r"|^\s*\[(\*+\s*)?spam(\s*\*+)?\]")
+
+
 def looks_bulk(from_email: str, subject: str, body: str) -> bool:
-    """Başlık bilgisi olmasa da toplu/otomatik maili gövde ve gönderen kalıplarından tanır."""
+    """Başlık bilgisi olmasa da toplu/otomatik maili gövde, konu ve gönderen kalıplarından tanır."""
     if _NOREPLY.search(from_email or ""):
+        return True
+    if _REPORT_SUBJECT.search(fold(subject or "")):
         return True
     b = fold(body or "")
     return bool(_BULK_BODY.search(b[:2500] + " " + b[-2500:] + " " + fold(subject or "")))

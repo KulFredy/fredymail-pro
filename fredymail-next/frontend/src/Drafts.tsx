@@ -4,7 +4,7 @@ import { navigate, EMPTY_SEARCH } from "./route";
 import { useStore } from "./store";
 import type { Draft } from "./types";
 import { avatarColor, fmtListDate, initials, mailtoHref } from "./util";
-import { Banner, Empty, Icon, Skeleton } from "./ui";
+import { Banner, Empty, Icon, Skeleton, Splitter } from "./ui";
 
 export function DraftsPage({ draftId }: { draftId: number | null }) {
   const [list, setList] = useState<Draft[] | null>(null);
@@ -18,6 +18,7 @@ export function DraftsPage({ draftId }: { draftId: number | null }) {
 
   return (
     <div className={`two-pane ${draftId ? "has-detail" : ""}`}>
+      <Splitter target=".list-pane" cssVar="--list-w" min={300} max={900} label="Liste genişliği" />
       <section className="list-pane" aria-label="Taslaklar">
         <header className="list-head">
           <div className="list-title">

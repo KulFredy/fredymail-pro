@@ -109,7 +109,7 @@ export function FollowupsPage({ kind, msg }: { kind: FollowKind; msg: number | n
           {shown.map((f) => (
             <FollowCard key={f.thread_id} f={f} kind={kind} open={open === f.thread_id}
               onToggle={() => setOpen(open === f.thread_id ? null : f.thread_id)}
-              onDismissed={() => remove(f.thread_id)} />
+              onDismissed={() => remove(f.thread_id)} onMuted={() => { load(); refreshCounts(); }} />
           ))}
         </div>
       </div>
@@ -117,7 +117,7 @@ export function FollowupsPage({ kind, msg }: { kind: FollowKind; msg: number | n
   );
 }
 
-function FollowCard({ f, kind, open, onToggle, onDismissed }: { f: FollowupItem; kind: FollowKind; open: boolean; onToggle: () => void; onDismissed: () => void }) {
+function FollowCard({ f, kind, open, onToggle, onDismissed, onMuted }: { f: FollowupItem; kind: FollowKind; open: boolean; onToggle: () => void; onDismissed: () => void; onMuted: () => void }) {
   const m = f.last_message;
   const other = m.is_from_me ? m.to[0] ?? { email: m.from_email, name: m.from_name } : { email: m.from_email, name: m.from_name };
   const company = [other.name, domainOf(other.email)].filter(Boolean).join(" · ");
@@ -174,6 +174,18 @@ function FollowCard({ f, kind, open, onToggle, onDismissed }: { f: FollowupItem;
       await api.post(`/api/threads/${f.thread_id}/dismiss-followup`);
       toast("Takip kapatıldı", "ok");
       onDismissed();
+    } catch (e) {
+      toast((e as ApiError).message, "error");
+    }
+  }
+
+  async function mute() {
+    const email = m.from_email;
+    if (!window.confirm(`${email} adresinden gelen mailler takip listelerinde artık gösterilmesin mi?\n(Mailler silinmez; Ayarlar'dan geri alabilirsiniz.)`)) return;
+    try {
+      await api.post("/api/followups/muted", { email, muted: true });
+      toast(`${email} takip listelerinden çıkarıldı`, "ok");
+      onMuted();
     } catch (e) {
       toast((e as ApiError).message, "error");
     }
@@ -243,6 +255,11 @@ function FollowCard({ f, kind, open, onToggle, onDismissed }: { f: FollowupItem;
               {!ai?.enabled && <button className="btn" onClick={blank}><Icon name="edit" size={15} /> Yanıt yaz</button>}
               <button className="btn" onClick={() => navigate({ page: "followups", kind, msg: m.id })}><Icon name="unread" size={15} /> Maili aç</button>
               <button className="btn ghost" onClick={dismiss}><Icon name="check" size={15} /> Takibi kapat</button>
+              {kind === "needs_reply" && (
+                <button className="btn ghost" onClick={mute} title="Bu adresten gelenleri takip listelerinde gösterme (ör. otomatik raporlar)" data-testid="mute-sender">
+                  <Icon name="close" size={15} /> Bu göndereni gösterme
+                </button>
+              )}
             </div>
           </div>
         </div>
