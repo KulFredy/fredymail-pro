@@ -77,3 +77,36 @@ fredymail-next/
 ./scripts/test.sh          # ruff + migration tutarlılığı + pytest (Docker ile Postgres/Meilisearch başlatır)
 ```
 IMAP protokol testleri için yerel bir test sunucusu (Dovecot/GreenMail) `FM_TEST_IMAP_HOST/PORT` ile verilir; yoksa bu testler atlanır.
+
+## Test raporu (26 Ekim 2026, bu oturumda gerçekten çalıştırılanlar)
+
+| Kontrol | Sonuç |
+|---|---|
+| `ruff` lint, `alembic check` (model ↔ migration) | temiz |
+| Backend `pytest`: gerçek Postgres 16 + Meilisearch 1.15 + Dovecot IMAP | **51/51 geçti** |
+| Salt okunur kanıtı: Dovecot'ta senkron öncesi/sonrası tüm klasörler ve bayraklar | birebir aynı |
+| Tekilleştirme, kesilen senkronun devamı, UIDVALIDITY değişimi, bağlantı kopması, bozuk mail | testli |
+| Arama: TR/EN eş anlamlı, İ/ı, PDF/XLSX ek içeriği, filtreler, vurgulama, sayfalama | testli |
+| Meilisearch kapalıyken arama (Postgres yedek araması) | testli + Docker yığınında elle doğrulandı |
+| İndeksin Postgres'ten yeniden üretilmesi | testli + geri yükleme provasında doğrulandı |
+| Güvenlik: anonim erişim, CSRF, kaba kuvvet kilidi, çerez bayrakları, CSP, HTML temizliği, ek indirme | testli |
+| AI: kaynak doğrulama, "ele geçirilmiş model" senaryosu, bütçe sınırı, sağlayıcı hatası, AI kapalıyken arama | testli (sahte sağlayıcı; gerçek modelle **test edilmedi**) |
+| `./scripts/demo-up.sh` ile tek komutla kurulum | 25 sn'de 4 servis healthy, 156 demo mail indekslendi |
+| Playwright e2e (Docker yığını): masaüstü açık/koyu + mobil | **23/23 adım**, konsol/CSP hatası yok |
+| Yedek → veri değişikliği + indeks silme → geri yükleme | tüm veriler geri geldi, indeks yeniden üretildi (9 sn) |
+| Outlook `.eml` içe aktarma | var olan mail tekrar oluşturulmadı, yalnızca Outlook'ta olan mail Türkçe klasör adıyla eklendi |
+| Konteyner sertleştirme | uid 10001, salt okunur kök FS, yalnızca api `127.0.0.1`'de, DB/arama portu yayında değil |
+| Loglarda sır/mail içeriği taraması | yok |
+
+**Test edilmeyenler:** gerçek Doruk.net/IceWarp sunucusu, gerçek LiteLLM modeli ve Cloudflare Tunnel. Bunlar VPS erişimi ve
+onay gerektiriyor ([DAGITIM.md](docs/DAGITIM.md) adım 2–6).
+
+## Öneriler
+
+- **Kuralları sunucuya taşı:** Outlook kuralları yalnızca Outlook açıkken çalışıyor. IceWarp'taki "Süzgeçler" (sunucu
+  tarafı kurallar) kullanılırsa Outlook, telefon ve FredyMail aynı klasör yapısını görür. FredyMail'in akıllı klasörleri bu geçişi beklemeden çalışır.
+- **Uygulama parolası + 2FA:** IceWarp'ta 2 adımlı doğrulama kapalı görünüyor. Webmail için 2FA aç, FredyMail için ayrı bir uygulama parolası kullan.
+- **Kota:** 10 GB'ın 9 GB'ı dolu. "PDF ekleri / Excel ekleri" akıllı klasörleri ve boyuta göre sıralama ile büyük ekler bulunup arşivlenebilir
+  (silme işlemi FredyMail'den değil, senin onayınla Outlook/webmail'den yapılır).
+- **Tek istemci stratejisi:** Gönderim için Outlook kalsın. FredyMail arama, özet ve takip masası olarak tarayıcıdan her cihazda çalışır.
+  Sunucuya yazmadığı için başka bir mail programıyla (telefon, webmail) çakışmaz.
