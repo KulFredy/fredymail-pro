@@ -19,6 +19,7 @@ dependencies = [
   "dnspython>=2.6,<3",
   "pypdf>=4.2,<7",
   "openpyxl>=3.1,<4",
+  "cryptography>=43,<47",  # Web Push (VAPID imzası + RFC 8291 şifreleme)
 ]
 
 [project.optional-dependencies]

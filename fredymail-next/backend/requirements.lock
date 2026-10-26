@@ -20,9 +20,13 @@ certifi==2026.10.23
     #   httpcore
     #   httpx
 cffi==2.1.1
-    # via argon2-cffi-bindings
+    # via
+    #   argon2-cffi-bindings
+    #   cryptography
 click==8.5.0
     # via uvicorn
+cryptography==46.0.7
+    # via fredymail (pyproject.toml)
 dnspython==2.9.0
     # via fredymail (pyproject.toml)
 et-xmlfile==2.0.0

@@ -296,6 +296,20 @@ class LoginAttempt(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
+class PushSubscription(Base):
+    """Bu cihaza/tarayıcıya yeni mail bildirimi (Web Push). Uç nokta yalnızca bilinen push servisleridir."""
+
+    __tablename__ = "push_subscriptions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(64))
+    label: Mapped[str] = mapped_column(String(120), default="")
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class KeyValue(Base):
     """Küçük uygulama durumları: worker kalp atışı, AI açık/kapalı anahtarı vb."""
 

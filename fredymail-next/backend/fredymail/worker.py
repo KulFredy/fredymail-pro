@@ -21,6 +21,7 @@ from .logging_setup import setup_logging
 from .mail.source import EmlDirSource, ImapSource, SourceAuthError, SourceError
 from .mail.sync import run_sync
 from .models import Folder, KeyValue
+from .notify.webpush import notify_new_mail
 from .search.meili import Meili, MeiliError, index_dirty, migrate_index_version
 
 log = logging.getLogger("fredymail.worker")
@@ -119,6 +120,13 @@ def run_forever(settings: Settings | None = None) -> None:
                 except SourceError as e:
                     hb["last_error"] = str(e)
                     log.warning("senkron başarısız: %s", e)
+            try:  # yeni mail bildirimi (Web Push); hata senkronu etkilemez
+                sent = notify_new_mail(db, settings)
+                if sent:
+                    log.info("yeni mail bildirimi adet=%s", sent)
+            except Exception as e:  # noqa: BLE001
+                db.rollback()
+                log.warning("bildirim gönderilemedi: %s", type(e).__name__)
             if index_ready:
                 try:
                     n = index_dirty(db, meili)

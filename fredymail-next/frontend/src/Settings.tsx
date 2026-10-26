@@ -3,6 +3,7 @@ import { api, ApiError } from "./api";
 import { useStore } from "./store";
 import { folderLabel, fmtRelative } from "./util";
 import { Banner, Icon, Spinner } from "./ui";
+import { currentSubscription, disablePush, enablePush, isIos, isStandalone, pushSupported } from "./push";
 
 export function SettingsPage() {
   const { sync, ai, folders, tags, refreshSync, refreshAi, refreshFolders, refreshTags, refreshCounts, toast, meta } = useStore();
@@ -170,6 +171,8 @@ export function SettingsPage() {
           </form>
         </section>
 
+        <PushCard />
+
         <section className="card">
           <h2>Takipte gösterilmeyenler</h2>
           <p className="muted small">Bu adreslerden gelen mailler Yanıt Bekleyenler listesine girmez. Mailler silinmez, aramada görünür.</p>
@@ -204,5 +207,69 @@ export function SettingsPage() {
       </div>
       </div>
     </main>
+  );
+}
+
+/** Yeni mail bildirimleri: bu cihazda aç/kapat, test et. */
+function PushCard() {
+  const { toast } = useStore();
+  const [on, setOn] = useState<boolean | null>(null);
+  const [devices, setDevices] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const supported = pushSupported();
+  const refresh = () => {
+    api.get<{ subscriptions: number }>("/api/push/config").then((r) => setDevices(r.subscriptions)).catch(() => undefined);
+    currentSubscription().then((s) => setOn(!!s && Notification.permission === "granted")).catch(() => setOn(false));
+  };
+  useEffect(refresh, []);
+
+  async function run(fn: () => Promise<unknown>, ok: string) {
+    setBusy(true);
+    try {
+      await fn();
+      toast(ok, "ok");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  }
+
+  return (
+    <section className="card" data-testid="push-card">
+      <h2>Bildirimler</h2>
+      <p className="muted small">Yeni mail gelince bu cihaza bildirim gelir; tıklayınca mail açılır. İçerik uçtan uca şifreli gönderilir.
+        {devices > 0 && ` Bildirim alan cihaz: ${devices}.`}</p>
+      {!supported && isIos() && !isStandalone() && (
+        <Banner kind="info">iPhone/iPad'de: Safari'de <strong>Paylaş → Ana Ekrana Ekle</strong> ile FredyMail'i ekleyin, ana ekrandaki simgeden açıp buraya dönün.</Banner>
+      )}
+      {!supported && !(isIos() && !isStandalone()) && <Banner kind="warn">Bu tarayıcı bildirimleri desteklemiyor.</Banner>}
+      {supported && typeof Notification !== "undefined" && Notification.permission === "denied" && (
+        <Banner kind="warn">Bu site için bildirimler engellenmiş. Adres çubuğundaki kilit simgesinden bildirimlere izin verip sayfayı yenileyin.</Banner>
+      )}
+      {supported && (
+        <div className="row gap-sm wrap mt">
+          {on ? (
+            <button className="btn" disabled={busy} onClick={() => run(disablePush, "Bu cihazda bildirimler kapatıldı")} data-testid="push-off">
+              <Icon name="bell" size={15} /> Bu cihazda kapat
+            </button>
+          ) : (
+            <button className="btn primary" disabled={busy || on === null} onClick={() => run(enablePush, "Bildirimler açıldı")} data-testid="push-on">
+              <Icon name="bell" size={15} /> Bu cihazda bildirimleri aç
+            </button>
+          )}
+          {on && (
+            <button className="btn ghost" disabled={busy} data-testid="push-test"
+              onClick={() => run(async () => {
+                const r = await api.post<{ sent: number; failed: number }>("/api/push/test");
+                if (!r.sent) throw new Error("Bildirim gönderilemedi; cihazda bildirimleri kapatıp yeniden açmayı deneyin.");
+              }, "Test bildirimi gönderildi")}>
+              Test bildirimi gönder
+            </button>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

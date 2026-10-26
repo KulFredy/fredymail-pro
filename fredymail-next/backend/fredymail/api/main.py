@@ -27,7 +27,7 @@ from ..security.auth import (
     record_attempt,
     validate_session,
 )
-from . import ai_routes, routes
+from . import ai_routes, push_routes, routes
 from .deps import get_db, get_meili
 
 log = logging.getLogger("fredymail.api")
@@ -159,6 +159,7 @@ def create_app() -> FastAPI:
 
     app.include_router(routes.router)
     app.include_router(ai_routes.router)
+    app.include_router(push_routes.router)
 
     @app.get("/api/{rest:path}")
     def api_404(rest: str):
@@ -175,7 +176,10 @@ def create_app() -> FastAPI:
             f = (static / path).resolve()
             if path and f.is_file() and static.resolve() in f.parents:
                 headers = {"Cache-Control": "public, max-age=31536000, immutable"} if "/assets/" in f"/{path}" else {}
-                return FileResponse(f, headers=headers)
+                if path in ("sw.js", "manifest.webmanifest"):
+                    headers = {"Cache-Control": "no-cache"}  # bildirim çalışanı güncellemeleri hemen alınsın
+                media = "application/manifest+json" if path.endswith(".webmanifest") else None
+                return FileResponse(f, headers=headers, media_type=media)
             return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
     return app
