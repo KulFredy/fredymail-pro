@@ -5,7 +5,7 @@ import { hasFilters, navigate, type SearchState } from "./route";
 import { useStore } from "./store";
 import type { Facets, MessageItem } from "./types";
 import { avatarColor, fmtListDate, fmtSize, folderLabel, initials } from "./util";
-import { Banner, Empty, Highlight, Icon, Modal, Skeleton } from "./ui";
+import { Banner, Empty, Highlight, Icon, Modal, ScrollRow, Skeleton } from "./ui";
 
 export const SORTS: [string, string][] = [
   ["relevance", "Alaka"],
@@ -172,7 +172,7 @@ export function MessageList(p: Props) {
         </div>
 
         {years.length > 0 && (
-          <div className="facet-row" role="group" aria-label="Yıllar">
+          <ScrollRow className="facet-row" label="Yıllar">
             <span className="facet-label">Yıl</span>
             <button className={`chip sm ${!s.year ? "on" : ""}`} onClick={() => set({ year: "" })}>Tüm zamanlar</button>
             {years.map(([y, c]) => (
@@ -180,10 +180,10 @@ export function MessageList(p: Props) {
                 {y} {c > 0 && <span className="count">{c}</span>}
               </button>
             ))}
-          </div>
+          </ScrollRow>
         )}
         {(fileKinds.length > 0 || docKinds.length > 0) && (
-          <div className="facet-row" role="group" aria-label="Dosya ve belge türleri">
+          <ScrollRow className="facet-row" label="Dosya ve belge türleri">
             <span className="facet-label">Tür</span>
             {fileKinds.map(([k, c]) => (
               <button key={`f-${k}`} className={`chip sm ${s.file_kind === k ? "on" : ""}`} onClick={() => toggle("file_kind", k)} aria-pressed={s.file_kind === k}>
@@ -196,7 +196,7 @@ export function MessageList(p: Props) {
                 {meta?.doc_kinds[k] ?? k} {c > 0 && <span className="count">{c}</span>}
               </button>
             ))}
-          </div>
+          </ScrollRow>
         )}
 
         {active.length > 0 && (

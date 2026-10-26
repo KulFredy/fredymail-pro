@@ -164,6 +164,7 @@ export interface AiRef {
   subject: string;
   from: string;
   date: string | null;
+  snippet?: string;
 }
 
 export interface AiResult {

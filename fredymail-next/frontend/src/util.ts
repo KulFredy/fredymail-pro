@@ -208,6 +208,11 @@ export function fmtDay(key: string): string {
 }
 
 /** AI'nin önerdiği tarihi (varsa) ISO güne çevirir. */
+/** Modelin "belirtilmemiş" gibi tarih olmayan değerleri (eski önbellekteki sonuçlar için). */
+export function isNoDue(s: string | null | undefined): boolean {
+  return !s || /^(belirtilme(miş|di)|yok|bilinmiyor|tarih yok|none|null|n\/?a|unspecified|unknown|tbd|-+|—)$/i.test(s.trim());
+}
+
 export function parseDue(s: string | null | undefined): string | null {
   if (!s) return null;
   const t = s.trim().toLocaleLowerCase("tr-TR");
@@ -242,4 +247,21 @@ export function greeting(): string {
 
 export function fmtNum(n: number | null | undefined): string {
   return (n ?? 0).toLocaleString("tr-TR");
+}
+
+/** Tarayıcıya kişisel küçük tercih (panel açık/kapalı vb.); depolama kapalıysa sessizce varsayılan. */
+export function readPref(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+export function writePref(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* özel pencere vb. — tercih hatırlanmaz */
+  }
 }

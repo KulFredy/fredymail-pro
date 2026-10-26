@@ -1,4 +1,4 @@
-import { Component, useEffect, useRef, type ReactNode } from "react";
+import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import { splitHighlight } from "./util";
 
 const PATHS: Record<string, string> = {
@@ -309,6 +309,41 @@ export function Toasts({ items }: { items: { id: number; text: string; kind: str
           {t.text}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Yatay kayan çip satırı: taşan kısım varsa kenarda solma + ok düğmesi; fare tekerleği de yatay kaydırır. */
+export function ScrollRow({ className, label, children }: { className: string; label: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState({ l: false, r: false });
+  const update = () => {
+    const el = ref.current;
+    if (!el) return;
+    const l = el.scrollLeft > 2;
+    const r = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setEdge((p) => (p.l === l && p.r === r ? p : { l, r }));
+  };
+  useEffect(update);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const by = (dir: number) => {
+    const el = ref.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: "smooth" });
+  };
+  return (
+    <div className={`scroll-row ${edge.l ? "fade-l" : ""} ${edge.r ? "fade-r" : ""}`}>
+      {edge.l && <button className="sr-btn left" onClick={() => by(-1)} aria-label="Sola kaydır" tabIndex={-1}><Icon name="back" size={14} /></button>}
+      <div ref={ref} className={className} role="group" aria-label={label} onScroll={update}
+        onWheel={(e) => { const el = ref.current; if (el && Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY; }}>
+        {children}
+      </div>
+      {edge.r && <button className="sr-btn right" onClick={() => by(1)} aria-label="Sağa kaydır" tabIndex={-1}><Icon name="chevron" size={14} /></button>}
     </div>
   );
 }

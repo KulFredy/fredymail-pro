@@ -147,3 +147,9 @@ def test_heavy_request_limits_reasoning_and_falls_back(settings):
     light = OpenAICompatibleProvider(s, client=client, model="hafif", tier="light")
     light.complete("sys", "user", service._max_tokens(s, light))
     assert "reasoning_effort" not in seen[-1] and seen[-1]["max_tokens"] == s.ai_max_output_tokens
+
+
+def test_placeholder_due_values_are_dropped():
+    assert service._clean_due("belirtilmemiş") is None and service._clean_due("Yok") is None
+    assert service._clean_due(None) is None and service._clean_due("  ") is None
+    assert service._clean_due("2026-10-28") == "2026-10-28" and service._clean_due("Cuma") == "Cuma"

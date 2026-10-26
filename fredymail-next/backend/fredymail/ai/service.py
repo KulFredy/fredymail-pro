@@ -212,7 +212,19 @@ def _parse_json(text: str) -> dict:
 
 def _ref(m: Message, label: str) -> dict:
     return {"label": label, "message_id": m.id, "thread_id": m.thread_id, "subject": m.subject,
-            "from": m.from_name or m.from_email, "date": m.date.isoformat() if m.date else None}
+            "from": m.from_name or m.from_email, "date": m.date.isoformat() if m.date else None,
+            "snippet": (m.snippet or "")[:160]}
+
+
+_NO_DUE = re.compile(r"^(belirtilme(miş|di)|yok|bilinmiyor|tarih yok|none|null|n/?a|unspecified|unknown|tbd|-+|—)$", re.I)
+
+
+def _clean_due(v) -> str | None:
+    """Modeller tarihsiz işlere 'belirtilmemiş' gibi yazılar koyabiliyor; bunlar tarih değildir."""
+    if not isinstance(v, str):
+        return None
+    v = v.strip()[:60]
+    return None if not v or _NO_DUE.match(v) else v
 
 
 def validate_output(raw: dict, ctx: Context, allowed_emails: set[str]) -> dict:
@@ -253,7 +265,7 @@ def validate_output(raw: dict, ctx: Context, allowed_emails: set[str]) -> dict:
                              for k in (raw.get("key_points") or [])[:12] if isinstance(k, dict)]
     if "actions" in raw:
         out["actions"] = [{"task": strip_inline(str(a.get("task", "")))[:400], "owner": a.get("owner"),
-                           "due": a.get("due"), "sources": clean_sources(a.get("sources"))}
+                           "due": _clean_due(a.get("due")), "sources": clean_sources(a.get("sources"))}
                           for a in (raw.get("actions") or [])[:15] if isinstance(a, dict)]
     if "body" in raw:
         out["subject"] = str(raw.get("subject") or "")[:300]

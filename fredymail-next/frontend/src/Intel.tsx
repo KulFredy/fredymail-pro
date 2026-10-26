@@ -3,7 +3,7 @@ import { api, ApiError } from "./api";
 import { navigate, type SearchState } from "./route";
 import { useStore } from "./store";
 import type { AiRef, AiResult, MessageDetail, Task } from "./types";
-import { dueInfo, fmtListDate, fmtSize, mailtoHref, parseDue } from "./util";
+import { dueInfo, fmtListDate, fmtSize, isNoDue, mailtoHref, parseDue, readPref, writePref } from "./util";
 import { Banner, FileIcon, Icon, Spinner } from "./ui";
 
 /** Yapay zeka çıktısındaki [M1] gibi kaynak işaretlerini tıklanabilir çiplere çevirir. */
@@ -106,6 +106,11 @@ export function IntelCard(p: Props) {
   const [instruction, setInstruction] = useState("");
   const [newTask, setNewTask] = useState("");
   const [showSources, setShowSources] = useState(true);
+  const [collapsed, setCollapsed] = useState(() => readPref("fm.intel.collapsed") === "1");
+  const toggleCollapsed = () => {
+    writePref("fm.intel.collapsed", collapsed ? "0" : "1");
+    setCollapsed(!collapsed);
+  };
   const multi = p.messages.length > 1;
 
   const loadTasks = useCallback(() => {
@@ -191,19 +196,28 @@ export function IntelCard(p: Props) {
   const pending = (actions?.actions ?? []).map((a, i) => ({ ...a, key: `${i}:${a.task}` }))
     .filter((a) => !saved.has(a.key) && !textTasks.has(a.task.trim().toLocaleLowerCase("tr-TR")));
 
+  const firstSentence = (t?: string) => (t ?? "").replace(/\s*\[M\d+\]/g, "").split(/(?<=[.!?])\s/)[0];
+  const preview = firstSentence(summary?.summary) || (tasks.filter((t) => !t.done).length ? `${tasks.filter((t) => !t.done).length} açık görev` : "");
   const head = (
-    <div className="intel-head">
+    <div className={`intel-head ${collapsed ? "collapsed" : ""}`} onClick={collapsed ? toggleCollapsed : undefined}>
       <Icon name="sparkle" size={22} className="intel-spark" />
       <h2>FredyMail Intelligence</h2>
       <span className="ai-badge">AI</span>
-      {allRefs.length > 0 && (
-        <button className="intel-src" onClick={() => setShowSources((v) => !v)} aria-expanded={showSources}>
-          <Icon name="layers" size={16} />
-          <span className="lbl">{allRefs.length} kaynağa göre analiz edildi</span>
-          <span className="only-mobile">{allRefs.length}</span>
-          <Icon name={showSources ? "up" : "down"} size={15} />
+      {collapsed && preview && <span className="intel-preview" title={preview}>{preview}</span>}
+      <span className="intel-head-tools">
+        {!collapsed && allRefs.length > 0 && (
+          <button className="intel-src" onClick={() => setShowSources((v) => !v)} aria-expanded={showSources} title="Kaynakları göster/gizle">
+            <Icon name="layers" size={16} />
+            <span className="lbl">{allRefs.length} kaynak</span>
+            <span className="only-mobile">{allRefs.length}</span>
+          </button>
+        )}
+        <button className="intel-src" onClick={(e) => { e.stopPropagation(); toggleCollapsed(); }} aria-expanded={!collapsed} data-testid="intel-toggle"
+          title={collapsed ? "Paneli aç" : "Paneli daralt — mail yukarı gelir"}>
+          <span className="lbl">{collapsed ? "Aç" : "Daralt"}</span>
+          <Icon name={collapsed ? "down" : "up"} size={15} />
         </button>
-      )}
+      </span>
     </div>
   );
 
@@ -224,6 +238,10 @@ export function IntelCard(p: Props) {
   }
 
   const meta = results.map((r) => r.meta).filter(Boolean);
+
+  if (collapsed) {
+    return <section className="intel collapsed" id="intel" aria-label="FredyMail Intelligence">{head}</section>;
+  }
 
   return (
     <section className="intel" id="intel" aria-label="FredyMail Intelligence" aria-busy={busy || busyDraft}>
@@ -249,7 +267,7 @@ export function IntelCard(p: Props) {
       )}
 
       {(analyzed || busy || tasks.length > 0 || draft || busyDraft) && (
-        <div className="intel-cols">
+        <div className={`intel-cols ${draft || busyDraft ? "has-draft" : ""}`}>
           <Col icon="note" title="Özet">
             {busy && !summary ? <Lines /> : summary ? (
               <>
@@ -287,7 +305,7 @@ export function IntelCard(p: Props) {
                       <Icon name="plus" size={15} />
                     </button>
                     <span className="todo-text"><Cited text={a.task} refs={refMap(actions)} onOpen={p.onOpenMessage} /> <Sources ids={a.sources} refs={refMap(actions)} onOpen={p.onOpenMessage} /></span>
-                    {d ? <span className={`due ${d.tone}`}>{d.label}</span> : a.due ? <span className="due grey">{a.due}</span> : null}
+                    {d ? <span className={`due ${d.tone}`}>{d.label}</span> : !isNoDue(a.due) ? <span className="due grey">{a.due}</span> : null}
                   </div>
                 );
               })}
@@ -307,12 +325,14 @@ export function IntelCard(p: Props) {
                 <DraftActions to={draft.to ?? []} subject={draft.subject ?? ""} body={draft.body ?? ""} draftId={draft.draft_id} replyTo={p.message.id} compact />
               </>
             ) : (
-              <div className="draft-box empty">Taslak yalnızca kaydedilir; FredyMail hiçbir maili göndermez.</div>
+              <p className="muted small">Ne yazılmasını istediğinizi kısaca belirtin. Taslak yalnızca kaydedilir; FredyMail hiçbir maili göndermez.</p>
             )}
-            <input value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="İsteğiniz (ör. teşekkür et, teslim tarihini sor)" aria-label="Taslak isteği" />
-            <button className="btn dark" onClick={() => makeDraft()} disabled={busyDraft} data-testid="make-draft">
-              <Icon name="sparkle" size={15} /> {draft ? "Yeniden oluştur" : "Taslak oluştur"}
-            </button>
+            <form className="draft-ask" onSubmit={(e) => { e.preventDefault(); makeDraft(); }}>
+              <input value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="İsteğiniz (ör. teşekkür et, teslim tarihini sor)" aria-label="Taslak isteği" />
+              <button className="btn dark" disabled={busyDraft} data-testid="make-draft">
+                <Icon name="sparkle" size={15} /> {draft ? "Yeniden oluştur" : "Taslak oluştur"}
+              </button>
+            </form>
           </Col>
         </div>
       )}
@@ -322,11 +342,11 @@ export function IntelCard(p: Props) {
           <div className="sources-head"><Icon name="layers" size={16} /> Kaynaklar</div>
           <div className="src-cards">
             {allRefs.map((r) => (
-              <button key={r.message_id} className="src-card" onClick={() => p.onOpenMessage(r.message_id)}>
-                <span className="avatar sm" style={{ background: "var(--brand-soft)", color: "var(--brand-ink)" }}><Icon name="unread" size={15} /></span>
+              <button key={r.message_id} className="src-card" onClick={() => p.onOpenMessage(r.message_id)} title={r.subject || "(konu yok)"}>
+                <span className="src-label">{r.label}</span>
                 <span className="grow">
-                  <span className="t" style={{ display: "block" }}>{r.subject || "(konu yok)"}</span>
-                  <span className="s" style={{ display: "block" }}>{r.from} · {fmtListDate(r.date)}</span>
+                  <span className="t" style={{ display: "block" }}>{r.from} <span className="d">· {fmtListDate(r.date)}</span></span>
+                  <span className="s" style={{ display: "block" }}>{(multi ? r.snippet : r.subject) || r.subject || "(konu yok)"}</span>
                 </span>
               </button>
             ))}
@@ -345,23 +365,31 @@ export function IntelCard(p: Props) {
 
       {meta.length > 0 && (
         <div className="intel-meta" aria-label="AI çağrı ayrıntıları">
-          {meta.some((m) => m?.cached) ? "Kısmen önbellekten · " : ""}
-          {[...new Set(meta.map((m) => `${m?.model}${m?.tier === "heavy" ? " (güçlü)" : ""}`))].join(" + ")}
-          {meta.some((m) => m?.escalated) && " · hafif modelin yanıtı kullanılamadı, güçlü modele geçildi"}
-          {` · ${Math.max(...meta.map((m) => m?.messages_sent ?? 0))} mail, ${Math.max(...meta.map((m) => m?.chars_sent ?? 0)).toLocaleString("tr-TR")} karakter gönderildi`}
-          {` · ~$${meta.reduce((s, m) => s + (m?.cost_usd ?? 0), 0).toFixed(4)}`}
-          {meta.some((m) => m?.pii_redacted) && " · IBAN/kart/TCKN maskelendi"}
-          {` · bugün ${ai.usage_today.calls}/${ai.limits.max_calls_per_day} çağrı`}
-          {canUpgrade([summary, actions]) && (
-            <button className="link-btn" onClick={() => analyze("best")} disabled={busy} data-testid="analyze-best">
-              Güçlü modelle yeniden analiz et
-            </button>
-          )}
-          {canUpgrade([draft]) && (
-            <button className="link-btn" onClick={() => makeDraft("best")} disabled={busyDraft}>
-              Taslağı güçlü modelle yeniden yaz
-            </button>
-          )}
+          {[...new Map(meta.map((m) => [m?.model, m])).values()].map((m) => (
+            <span key={m?.model} className={`model-badge ${m?.tier === "heavy" ? "heavy" : ""}`} title={m?.tier === "heavy" ? "Güçlü model" : "Hızlı model"}>
+              <Icon name="sparkle" size={12} /> {m?.model}{m?.tier === "heavy" ? " · güçlü" : ""}
+            </span>
+          ))}
+          <span className="meta-text">
+            {meta.some((m) => m?.escalated) && "Hızlı modelin yanıtı kullanılamadı, güçlü modele geçildi · "}
+            {meta.some((m) => m?.cached) ? "önbellekten · " : ""}
+            {`${Math.max(...meta.map((m) => m?.messages_sent ?? 0))} mail · ${Math.max(...meta.map((m) => m?.chars_sent ?? 0)).toLocaleString("tr-TR")} karakter`}
+            {` · ~$${meta.reduce((s, m) => s + (m?.cost_usd ?? 0), 0).toFixed(4)}`}
+            {meta.some((m) => m?.pii_redacted) && " · IBAN/kart/TCKN maskelendi"}
+            {` · bugün ${ai.usage_today.calls}/${ai.limits.max_calls_per_day} çağrı`}
+          </span>
+          <span className="meta-actions">
+            {canUpgrade([summary, actions]) && (
+              <button className="btn sm" onClick={() => analyze("best")} disabled={busy} data-testid="analyze-best">
+                <Icon name="sparkle" size={14} /> Güçlü modelle yeniden analiz et
+              </button>
+            )}
+            {canUpgrade([draft]) && (
+              <button className="btn sm" onClick={() => makeDraft("best")} disabled={busyDraft}>
+                <Icon name="sparkle" size={14} /> Taslağı güçlü modelle yaz
+              </button>
+            )}
+          </span>
         </div>
       )}
     </section>
