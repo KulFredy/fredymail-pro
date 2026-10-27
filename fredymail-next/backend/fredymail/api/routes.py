@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.orm import Session
 
 from ..config import Settings, get_settings
@@ -32,6 +32,7 @@ from ..models import (
 from ..search.meili import Meili, reindex_one
 from ..search.query import (
     SearchParams,
+    _view_filters_pg,
     followup_args,
     followup_total,
     followups,
@@ -254,7 +255,7 @@ def patch_message(mid: int, body: MessagePatch, db: Session = Depends(get_db), m
         m.snoozed_until = su
     m.index_dirty = True
     db.flush()
-    reindex_one(db, meili, m.id)
+    reindex_one(db, meili, m.id, wait=False)
     db.commit()
     return serialize_list(db, [m])[0]
 
@@ -273,6 +274,24 @@ def bulk_read(body: BulkPatch, db: Session = Depends(get_db)):
         m.index_dirty = True
     db.commit()
     return {"ok": True}
+
+
+class MarkAllIn(BaseModel):
+    view: str = Field(default="inbox", pattern="^(all|inbox|important|snoozed|folder|unread)$")
+    folder_id: int | None = None
+    tag_id: int | None = None
+
+
+@router.post("/messages/mark-all-read")
+def mark_all_read(body: MarkAllIn, db: Session = Depends(get_db)):
+    """Bir görünümdeki/klasördeki tüm okunmamışları okundu yapar (yalnız FredyMail'de; sunucuya yazılmaz)."""
+    if body.view == "folder" and not body.folder_id:
+        raise HTTPException(400, "Klasör belirtilmedi")
+    p = SearchParams(view=body.view, folder_id=body.folder_id, tag_id=body.tag_id)
+    res = db.execute(update(Message).where(and_(*_view_filters_pg(p, db)), Message.is_read.is_(False))
+                     .values(is_read=True, index_dirty=True).execution_options(synchronize_session=False))
+    db.commit()
+    return {"updated": res.rowcount}
 
 
 # ------------------------------------------------------------------ etiketler

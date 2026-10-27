@@ -874,3 +874,17 @@ a.btn, a.btn:hover { text-decoration: none; }
   .intel-cols, .intel-cols.has-draft { grid-template-columns: 1fr; }
   .intel-cols .intel-col:last-child { grid-column: auto; }
 }
+
+/* ------------------------------------------------------------------ sağ tık menüsü */
+.ctx-menu { position: fixed; z-index: 300; min-width: 230px; max-width: 320px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 6px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: var(--shadow-lg); animation: fadeUp .12s var(--ease); }
+.ctx-row { position: relative; }
+.ctx-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; outline: none; }
+.ctx-item:hover, .ctx-item:focus-visible, .ctx-item.open { background: var(--hover); }
+.ctx-item:focus-visible { box-shadow: inset 0 0 0 2px var(--brand); }
+.ctx-item:disabled { opacity: .45; cursor: default; }
+.ctx-item.danger { color: var(--danger); }
+.ctx-ico { width: 16px; display: inline-flex; justify-content: center; color: var(--muted); flex: none; }
+.ctx-item.danger .ctx-ico { color: var(--danger); }
+.ctx-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-chev { color: var(--faint); flex: none; }
+.ctx-sep { height: 1px; margin: 5px 6px; background: var(--border); }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError } from "./api";
+import { takeIntel } from "./contextmenu";
 import { IntelCard, type IntelTrigger } from "./Intel";
 import { useStore } from "./store";
 import type { Addr, MessageDetail, MessageItem, NoteT, ThreadT } from "./types";
@@ -57,6 +58,8 @@ export function Reader(p: Props) {
         setThread(null);
       }
       setExpanded(new Set([m.id]));
+      const want = takeIntel(m.id);  // sağ tık menüsünden "AI ile analiz et / taslak" istendiyse
+      if (want) setTrigger((t) => ({ kind: want, n: (t?.n ?? 0) + 1 }));
       if (!m.is_read) {
         api.patch<MessageItem>(`/api/messages/${m.id}`, { is_read: true }).then((u) => {
           p.onChanged(u);
@@ -102,6 +105,15 @@ export function Reader(p: Props) {
     const me = meta?.account ? [meta.account] : [];
     openComposer({ to: replyTarget(current, me), subject: replySubject(current.subject || ""), body: "", replyToMessageId: current.id, source: "user" });
   }
+  useEffect(() => {
+    const h = (e: Event) => {
+      if ((e as CustomEvent<{ id: number }>).detail.id !== p.msgId) return;
+      const want = takeIntel(p.msgId);
+      if (want) setTrigger((t) => ({ kind: want, n: (t?.n ?? 0) + 1 }));
+    };
+    window.addEventListener("fm-intel", h);
+    return () => window.removeEventListener("fm-intel", h);
+  }, [p.msgId]);
   const aiDraft = () => setTrigger((t) => ({ kind: "draft", n: (t?.n ?? 0) + 1 }));
   const analyze = () => setTrigger((t) => ({ kind: "analyze", n: (t?.n ?? 0) + 1 }));
 

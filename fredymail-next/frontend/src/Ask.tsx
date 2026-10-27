@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, qs } from "./api";
 import { BarList, Legend, VolumeChart } from "./Charts";
+import { openContextMenu, type MenuEvent } from "./contextmenu";
+import { mailMenu } from "./mailmenu";
 import { fromParams, goMail, navigate } from "./route";
 import { useStore } from "./store";
 import type { AskResult, MessageItem, SearchResult } from "./types";
@@ -25,7 +27,12 @@ export function AskPage({ q }: { q: string }) {
   const [extra, setExtra] = useState<MessageItem[]>([]);
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
-  const { ai, toast } = useStore();
+  const { ai, toast, tags, meta, openComposer, refreshFolders, refreshTags, refreshCounts } = useStore();
+  const rowMenu = (e: MenuEvent, m: MessageItem) => openContextMenu(e, mailMenu(m, {
+    open: () => goMail({ view: "all", ...fromParams(params) }, m.id), toast, tags, me: meta?.account ? [meta.account] : [],
+    aiEnabled: !!ai?.enabled, openComposer, refreshFolders, refreshTags, refreshCounts,
+    onUpdated: (u) => setExtra((l) => l.map((x) => (x.id === u.id ? { ...x, ...u } : x))),
+  }));
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -139,6 +146,7 @@ export function AskPage({ q }: { q: string }) {
                 <div className="compact-list">
                   {results.map((m) => (
                     <div key={m.id} className={`mrow ${m.is_read ? "" : "unread"}`} role="button" tabIndex={0}
+                      onContextMenu={(e) => rowMenu(e, m)}
                       onClick={() => goMail({ view: "all", ...fromParams(params) }, m.id)}
                       onKeyDown={(e) => e.key === "Enter" && goMail({ view: "all", ...fromParams(params) }, m.id)}>
                       <span className="avatar" style={{ background: avatarColor(m.from_email) }}>{initials(m.from_name, m.from_email)}</span>

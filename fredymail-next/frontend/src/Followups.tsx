@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "./api";
+import { keyMenuEvent, openContextMenu, type MenuEvent } from "./contextmenu";
 import { aiError, canUpgrade, Cited } from "./Intel";
+import { mailMenu } from "./mailmenu";
 import { Reader, replySubject, replyTarget } from "./Reader";
 import { EMPTY_SEARCH, navigate, type FollowKind } from "./route";
 import { useStore } from "./store";
@@ -140,7 +142,15 @@ function FollowCard({ f, kind, open, onToggle, onDismissed, onMuted }: { f: Foll
   const m = f.last_message;
   const other = m.is_from_me ? m.to[0] ?? { email: m.from_email, name: m.from_name } : { email: m.from_email, name: m.from_name };
   const company = [other.name, domainOf(other.email)].filter(Boolean).join(" · ");
-  const { ai, toast, refreshCounts, refreshAi, openComposer, meta } = useStore();
+  const { ai, toast, refreshCounts, refreshAi, openComposer, meta, tags, refreshFolders, refreshTags } = useStore();
+  const menu = (e: MenuEvent) => openContextMenu(e, mailMenu(m, {
+    open: () => navigate({ page: "followups", kind, msg: m.id }), toast, tags, me: meta?.account ? [meta.account] : [],
+    aiEnabled: !!ai?.enabled, openComposer, refreshFolders, refreshTags, refreshCounts,
+    extra: [
+      ...(ai?.enabled ? [{ label: "Takip önerisi al", icon: "bulb", onClick: () => { if (!open) onToggle(); suggest(); } }] : []),
+      { label: "Takibi kapat", icon: "check", onClick: dismiss },
+    ],
+  }));
   const [sug, setSug] = useState<AiResult | null>(null);
   const [busy, setBusy] = useState<"" | "sug" | "draft">("");
   const [error, setError] = useState<string | null>(null);
@@ -219,7 +229,8 @@ function FollowCard({ f, kind, open, onToggle, onDismissed, onMuted }: { f: Foll
   const tone = daysTone(f.days_waiting);
 
   return (
-    <article className={`fu-card ${open ? "open" : ""}`}>
+    <article className={`fu-card ${open ? "open" : ""}`} onContextMenu={menu}
+      onKeyDown={(e) => { const k = keyMenuEvent(e); if (k) menu(k); }}>
       <button className="fu-main" onClick={onToggle} aria-expanded={open}>
         <span className="avatar" style={{ background: avatarColor(other.email) }} aria-hidden="true">{initials(other.name ?? "", other.email)}</span>
         <span style={{ minWidth: 0 }}>

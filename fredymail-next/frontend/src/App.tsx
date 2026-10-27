@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, onUnauthorized, qs } from "./api";
 import { AskPage } from "./Ask";
 import { Composer } from "./Composer";
+import { ContextMenuHost } from "./contextmenu";
 import { Dashboard } from "./Dashboard";
 import { DraftsPage } from "./Drafts";
 import { FollowupsPage } from "./Followups";
@@ -143,6 +144,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       {help && <ShortcutHelp onClose={() => setHelp(false)} />}
       {composer && <Composer init={composer} onClose={closeComposer} />}
       <Toasts items={toasts} />
+      <ContextMenuHost />
     </div>
   );
 }
@@ -206,6 +208,9 @@ function MailPage({ route }: { route: Extract<Route, { page: "mail" }> }) {
 
   useEffect(() => {
     load(1);
+    const again = () => load(1);  // sağ tık menüsünden "tümünü okundu işaretle" sonrası liste tazelenir
+    window.addEventListener("fm-refresh-list", again);
+    return () => window.removeEventListener("fm-refresh-list", again);
   }, [load]);
 
   const open = (id: number | null) => navigate({ ...route, msg: id }, true);

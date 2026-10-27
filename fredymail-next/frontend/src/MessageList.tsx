@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
+import { keyMenuEvent, openContextMenu, type MenuEvent } from "./contextmenu";
 import { SearchSummary } from "./Intel";
+import { mailMenu } from "./mailmenu";
 import { hasFilters, navigate, type SearchState } from "./route";
 import { useStore } from "./store";
 import type { Facets, MessageItem } from "./types";
@@ -37,7 +39,11 @@ interface Props {
 }
 
 export function MessageList(p: Props) {
-  const { meta, folders, tags, toast, refreshSaved, ai } = useStore();
+  const { meta, folders, tags, toast, refreshSaved, ai, openComposer, refreshFolders, refreshTags, refreshCounts } = useStore();
+  const menuFor = (m: MessageItem) => mailMenu(m, {
+    open: () => p.onSelect(m.id), onUpdated: p.onUpdated, toast, tags, me: meta?.account ? [meta.account] : [],
+    aiEnabled: !!ai?.enabled, openComposer, refreshFolders, refreshTags, refreshCounts,
+  });
   const [sortOpen, setSortOpen] = useState(false);
   const [summary, setSummary] = useState(false);
   const roleOf = new Map(folders.map((f) => [f.id, f]));
@@ -69,9 +75,11 @@ export function MessageList(p: Props) {
   }, [sortOpen]);
 
   async function star(m: MessageItem) {
+    p.onUpdated({ ...m, is_important: !m.is_important });  // anında göster
     try {
       p.onUpdated(await api.patch<MessageItem>(`/api/messages/${m.id}`, { is_important: !m.is_important }));
     } catch (e) {
+      p.onUpdated(m);
       toast((e as ApiError).message, "error");
     }
   }
@@ -224,6 +232,7 @@ export function MessageList(p: Props) {
         )}
         {p.items.map((m) => (
           <Row key={m.id} m={m} selected={m.id === p.selectedId} onSelect={p.onSelect} onStar={star}
+            onMenu={(e) => openContextMenu(e, menuFor(m))}
             showFolders={s.view !== "folder"} pillName={pillName} docLabel={(k) => meta?.doc_kinds[k] ?? k} />
         ))}
         {p.onLoadMore && p.items.length > 0 && p.items.length < p.total && (
@@ -243,8 +252,9 @@ export function MessageList(p: Props) {
   );
 }
 
-function Row({ m, selected, onSelect, onStar, showFolders, pillName, docLabel }: {
+function Row({ m, selected, onSelect, onStar, onMenu, showFolders, pillName, docLabel }: {
   m: MessageItem;
+  onMenu: (e: MenuEvent) => void;
   selected: boolean;
   onSelect: (id: number) => void;
   onStar: (m: MessageItem) => void;
@@ -263,7 +273,12 @@ function Row({ m, selected, onSelect, onStar, showFolders, pillName, docLabel }:
       tabIndex={0}
       className={`mrow ${selected ? "selected" : ""} ${m.is_read ? "" : "unread"}`}
       onClick={() => onSelect(m.id)}
-      onKeyDown={(e) => e.key === "Enter" && onSelect(m.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onSelect(m.id);
+        const k = keyMenuEvent(e);
+        if (k) onMenu(k);
+      }}
+      onContextMenu={onMenu}
     >
       <span className="avatar" style={{ background: avatarColor(seed) }} aria-hidden="true">
         {initials(m.is_from_me ? m.to[0]?.name ?? "" : m.from_name, seed)}

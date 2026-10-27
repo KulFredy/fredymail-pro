@@ -217,14 +217,17 @@ def index_dirty(db: Session, meili: Meili, batch: int = 200, max_batches: int = 
     return total
 
 
-def reindex_one(db: Session, meili: Meili, message_id: int) -> None:
-    """Kullanıcı durumu değişince (etiket/okundu...) tek belgeyi hemen günceller; olmazsa kirli bırakır."""
+def reindex_one(db: Session, meili: Meili, message_id: int, wait: bool = True) -> None:
+    """Kullanıcı durumu değişince (etiket/okundu...) tek belgeyi hemen günceller; olmazsa kirli bırakır.
+    wait=False: okundu/önemli gibi anlık işaretlerde yanıtı bekletmez (indeks arka planda güncellenir)."""
     m = db.get(Message, message_id)
     if m is None:
         return
     try:
         # kısa bekleme: kullanıcı not/etiket ekleyip hemen aradığında sonuç güncel olsun
-        meili.wait(meili._req("PUT", f"/indexes/{meili.index}/documents", json=_docs_for(db, [m])), timeout=3)
+        task = meili._req("PUT", f"/indexes/{meili.index}/documents", json=_docs_for(db, [m]))
+        if wait:
+            meili.wait(task, timeout=3)
         m.index_dirty = False
     except MeiliError:
         m.index_dirty = True

@@ -268,3 +268,21 @@ def test_password_unicode_normalization():
     h = hash_password(pw_nfd)  # parola bir cihazda NFD girildi
     assert verify_password(h, pw_nfc) and verify_password(h, pw_nfd)  # her iki biçim de kabul
     assert not verify_password(h, "Sisli-Gunes-Cicegi-2026")
+
+
+def test_mark_all_read_in_folder(db, synced, client):
+    from sqlalchemy import func, select
+
+    from fredymail.models import Folder, Message, MessageLocation
+
+    login(client)
+    inbox = db.execute(select(Folder).where(Folder.role == "inbox")).scalar_one()
+    unread = lambda: db.execute(select(func.count()).select_from(Message).join(MessageLocation)  # noqa: E731
+                                .where(MessageLocation.folder_id == inbox.id, Message.is_read.is_(False))).scalar_one()
+    db.expire_all()
+    before = unread()
+    assert before > 0
+    r = client.post("/api/messages/mark-all-read", json={"view": "folder", "folder_id": inbox.id}, headers=H).json()
+    db.expire_all()
+    assert r["updated"] >= before and unread() == 0
+    assert client.post("/api/messages/mark-all-read", json={"view": "folder"}, headers=H).status_code == 400

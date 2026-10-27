@@ -4,6 +4,7 @@ import { goMail, navigate, type Route, type SearchState } from "./route";
 import { useStore } from "./store";
 import type { Folder } from "./types";
 import { folderLabel } from "./util";
+import { openContextMenu, SEP, type MenuItem } from "./contextmenu";
 import { Icon, Logo } from "./ui";
 
 interface Props {
@@ -30,7 +31,24 @@ function remember(key: string, fallback: boolean): [boolean, (v: boolean) => voi
 }
 
 export function Sidebar({ route, onNavigated, onLogout }: Props) {
-  const { folders, tags, saved, counts, meta, refreshTags, toast, openComposer } = useStore();
+  const { folders, tags, saved, counts, meta, refreshTags, refreshFolders, refreshSaved, toast, openComposer } = useStore();
+
+  async function act<T>(p: Promise<T>, ok: (r: T) => string, after?: () => void) {
+    try {
+      const r = await p;
+      toast(ok(r), "ok");
+      after?.();
+    } catch (e) {
+      toast((e as ApiError).message, "error");
+    }
+  }
+  const markAll = (body: { view: string; folder_id?: number; tag_id?: number }): MenuItem => ({
+    label: "Tümünü okundu olarak işaretle", icon: "check",
+    onClick: () => act(api.post<{ updated: number }>("/api/messages/mark-all-read", body),
+      (r) => (r.updated ? `${r.updated.toLocaleString("tr-TR")} mail okundu olarak işaretlendi` : "Okunmamış mail yok"),
+      () => { refreshFolders(); window.dispatchEvent(new Event("fm-refresh-list")); }),
+  });
+  const openItem = (fn: () => void): MenuItem => ({ label: "Aç", icon: "chevron", onClick: go(fn) });
   const s = route.page === "mail" ? route.search : null;
   const isView = (v: string) => s !== null && s.view === v && !s.folder_id && !s.tag_id && !s.smart && !s.q && !s.doc_kind
     && !s.file_kind && !s.sender && !s.year && !s.participant && !s.direction;
@@ -44,9 +62,10 @@ export function Sidebar({ route, onNavigated, onLogout }: Props) {
     onNavigated();
   };
 
-  const nav = (label: string, icon: string, active: boolean, onClick: () => void, count?: number, hot = false) => (
+  const nav = (label: string, icon: string, active: boolean, onClick: () => void, count?: number, hot = false, menu?: MenuItem[]) => (
     <li key={label}>
-      <button className={`nav-item ${active ? "active" : ""}`} onClick={go(onClick)} aria-current={active ? "page" : undefined}>
+      <button className={`nav-item ${active ? "active" : ""}`} onClick={go(onClick)} aria-current={active ? "page" : undefined}
+        onContextMenu={(e) => openContextMenu(e, menu ?? [openItem(onClick)])}>
         <Icon name={icon} size={19} />
         <span className="nav-label">{label}</span>
         {count ? <span className={`nav-count ${hot ? "hot" : ""}`}>{count.toLocaleString("tr-TR")}</span> : null}
@@ -85,17 +104,28 @@ export function Sidebar({ route, onNavigated, onLogout }: Props) {
       <div className="sidebar-scroll">
         <ul className="nav-list">
           {nav("Pano", "grid", route.page === "dashboard", () => navigate({ page: "dashboard", period: "this_month" }))}
-          {nav("Gelen Kutusu", "inbox", isView("inbox"), () => goMail({ view: "inbox" }), inbox?.unread, true)}
+          {nav("Gelen Kutusu", "inbox", isView("inbox"), () => goMail({ view: "inbox" }), inbox?.unread, true, [
+            openItem(() => goMail({ view: "inbox" })), markAll({ view: "inbox" }), SEP,
+            { label: "Şimdi senkronize et", icon: "refresh", onClick: () => act(api.post("/api/sync/request"), () => "Senkron isteği alındı; birkaç dakika içinde yeni mailler gelir") },
+          ])}
           {nav("Yanıt Bekleyenler", "reply", route.page === "followups",
-            () => navigate({ page: "followups", kind: "needs_reply", msg: null }), waiting)}
+            () => navigate({ page: "followups", kind: "needs_reply", msg: null }), waiting, false, [
+              { label: "Yanıtlamam gereken", icon: "reply", onClick: go(() => navigate({ page: "followups", kind: "needs_reply", msg: null })) },
+              { label: "Yanıt beklediğim", icon: "hourglass", onClick: go(() => navigate({ page: "followups", kind: "awaiting", msg: null })) },
+            ])}
           {nav("Yapılacaklar", "tasks", route.page === "tasks", () => navigate({ page: "tasks" }), counts.tasks)}
           {nav("Asistana sor", "sparkle", route.page === "ask", () => navigate({ page: "ask", q: "" }))}
-          {nav("Taslaklar", "draft", route.page === "drafts", () => navigate({ page: "drafts", draft: null }), counts.drafts)}
+          {nav("Taslaklar", "draft", route.page === "drafts", () => navigate({ page: "drafts", draft: null }), counts.drafts, false, [
+            openItem(() => navigate({ page: "drafts", draft: null })),
+            { label: "Yeni taslak", icon: "plus", onClick: go(() => openComposer({ to: [], subject: "", body: "" })) },
+          ])}
         </ul>
         <div className="nav-sep" />
         <ul className="nav-list">
-          {nav("Tüm mailler", "all", isView("all"), () => goMail({ view: "all" }))}
-          {nav("Önemli", "star", isView("important"), () => goMail({ view: "important" }))}
+          {nav("Tüm mailler", "all", isView("all"), () => goMail({ view: "all" }), undefined, false,
+            [openItem(() => goMail({ view: "all" })), markAll({ view: "all" })])}
+          {nav("Önemli", "star", isView("important"), () => goMail({ view: "important" }), undefined, false,
+            [openItem(() => goMail({ view: "important" })), markAll({ view: "important" })])}
           {nav("Gönderilen", "sent", isView("sent"), () => goMail({ view: "sent" }))}
           {nav("Ertelenenler", "clock", isView("snoozed"), () => goMail({ view: "snoozed" }))}
         </ul>
@@ -107,8 +137,14 @@ export function Sidebar({ route, onNavigated, onLogout }: Props) {
             <ul className="nav-list">
               {saved.map((sv) =>
                 nav(sv.name, "smart", s?.smart === String(sv.id), () =>
-                  goMail({ view: "all", q: sv.query, ...stringify(sv.filters), smart: String(sv.id) }),
-                ),
+                  goMail({ view: "all", q: sv.query, ...stringify(sv.filters), smart: String(sv.id) }), undefined, false, [
+                  openItem(() => goMail({ view: "all", q: sv.query, ...stringify(sv.filters), smart: String(sv.id) })), SEP,
+                  {
+                    label: "Akıllı klasörü sil", icon: "trash", danger: true,
+                    onClick: () => window.confirm(`“${sv.name}” akıllı klasörü silinsin mi? (Mailler etkilenmez.)`)
+                      && act(api.del(`/api/saved-searches/${sv.id}`), () => "Akıllı klasör silindi", refreshSaved),
+                  },
+                ]),
               )}
             </ul>
           </>
@@ -123,7 +159,22 @@ export function Sidebar({ route, onNavigated, onLogout }: Props) {
           {tags.map((t) => (
             <li key={t.id}>
               <button className={`nav-item ${s?.tag_id === String(t.id) ? "active" : ""}`}
-                onClick={go(() => goMail({ view: "all", tag_id: String(t.id) }))}>
+                onClick={go(() => goMail({ view: "all", tag_id: String(t.id) }))}
+                onContextMenu={(e) => openContextMenu(e, [
+                  openItem(() => goMail({ view: "all", tag_id: String(t.id) })),
+                  markAll({ view: "all", tag_id: t.id }), SEP,
+                  {
+                    label: "Yeniden adlandır…", icon: "edit", onClick: () => {
+                      const name = window.prompt("Etiketin yeni adı:", t.name)?.trim();
+                      if (name && name !== t.name) act(api.patch(`/api/tags/${t.id}`, { name, color: t.color }), () => "Etiket güncellendi", refreshTags);
+                    },
+                  },
+                  {
+                    label: "Etiketi sil", icon: "trash", danger: true,
+                    onClick: () => window.confirm(`“${t.name}” etiketi silinsin mi? Maillerden kaldırılır, mailler silinmez.`)
+                      && act(api.del(`/api/tags/${t.id}`), () => "Etiket silindi", refreshTags),
+                  },
+                ])}>
                 <span className="tag-dot" style={{ background: t.color }} />
                 <span className="nav-label">{t.name}</span>
                 {t.count ? <span className="nav-count">{t.count}</span> : null}
@@ -187,6 +238,13 @@ export function Sidebar({ route, onNavigated, onLogout }: Props) {
           className={`nav-item ${active ? "active" : ""} ${!f.sync_enabled && !f.count ? "dim" : ""}`}
           style={{ paddingLeft: 12 + n.depth * 14, minHeight: 36, fontSize: 13.5 }}
           onClick={go(() => goMail({ view: "folder", folder_id: String(f.id) }))}
+          onContextMenu={(e) => openContextMenu(e, [
+            openItem(() => goMail({ view: "folder", folder_id: String(f.id) })),
+            markAll({ view: "folder", folder_id: f.id }),
+            ...(f.origin !== "server" || ["trash", "junk", "drafts"].includes(f.role ?? "") ? [] : [SEP, f.sync_enabled
+              ? { label: "Bu klasörü senkronlama", icon: "close", onClick: () => act(api.patch(`/api/folders/${f.id}`, { sync_enabled: false }), () => "Klasör senkrondan çıkarıldı; mevcut mailler kalır", refreshFolders) }
+              : { label: "Senkronlamaya başla", icon: "refresh", onClick: () => act(api.patch(`/api/folders/${f.id}`, { sync_enabled: true }), () => "Klasör senkrona eklendi", refreshFolders) }]),
+          ])}
           title={f.name}
         >
           <Icon name={f.role === "archive" ? "archive" : f.role === "sent" ? "sent" : f.role === "inbox" ? "inbox" : "folder"} size={16} />
