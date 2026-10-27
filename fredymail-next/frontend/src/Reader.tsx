@@ -272,7 +272,8 @@ export function Reader(p: Props) {
               }
             }} />
 
-          {msgs.map((m) => (
+          {/* yazışmada en yeni mesaj en üstte */}
+          {[...msgs].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "")).map((m) => (
             <MessageCard
               key={m.id}
               m={m}
