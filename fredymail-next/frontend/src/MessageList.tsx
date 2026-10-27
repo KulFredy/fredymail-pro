@@ -222,6 +222,7 @@ export function MessageList(p: Props) {
             <button className={`chip sm ${!s.year ? "on" : ""}`} onClick={() => set({ year: "" })}>Tüm zamanlar</button>
             {years.map(([y, c]) => (
               <button key={y} className={`chip sm ${s.year === y ? "on" : ""}`} onClick={() => toggle("year", y)} aria-pressed={s.year === y}
+                title={`${y}: ${c.toLocaleString("tr-TR")} ${s.unread ? "okunmamış " : ""}mail${s.unread ? "" : " (toplam; okunmamışlar için “Okunmamış”a basın)"}`}
                 onContextMenu={(e) => openContextMenu(e, chipMenu({ year: y }, y))}>
                 {y} {c > 0 && <span className="count">{c}</span>}
               </button>
@@ -233,6 +234,7 @@ export function MessageList(p: Props) {
             <span className="facet-label">Tür</span>
             {fileKinds.map(([k, c]) => (
               <button key={`f-${k}`} className={`chip sm ${s.file_kind === k ? "on" : ""}`} onClick={() => toggle("file_kind", k)} aria-pressed={s.file_kind === k}
+                title={`${c.toLocaleString("tr-TR")} ${s.unread ? "okunmamış " : ""}mail bu türde ek içeriyor`}
                 onContextMenu={(e) => openContextMenu(e, chipMenu({ file_kind: k }, k.split(",").map((x) => meta?.file_kinds[x] ?? x).join(" veya ")))}>
                 <Icon name="clip" size={13} /> {k.split(",").map((x) => meta?.file_kinds[x] ?? x).join(" veya ")} {c > 0 && <span className="count">{c}</span>}
               </button>
@@ -240,6 +242,7 @@ export function MessageList(p: Props) {
             {fileKinds.length > 0 && docKinds.length > 0 && <span className="chip-sep" />}
             {docKinds.map(([k, c]) => (
               <button key={`d-${k}`} className={`chip sm ${s.doc_kind === k ? "on" : ""}`} onClick={() => toggle("doc_kind", k)} aria-pressed={s.doc_kind === k}
+                title={`${c.toLocaleString("tr-TR")} ${s.unread ? "okunmamış " : ""}mail`}
                 onContextMenu={(e) => openContextMenu(e, chipMenu({ doc_kind: k }, meta?.doc_kinds[k] ?? k))}>
                 {meta?.doc_kinds[k] ?? k} {c > 0 && <span className="count">{c}</span>}
               </button>
