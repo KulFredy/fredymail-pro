@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import replace
 from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -32,6 +33,7 @@ from ..models import (
 from ..search.meili import Meili, reindex_one
 from ..search.query import (
     SearchParams,
+    _text_conds,
     _view_filters_pg,
     followup_args,
     followup_total,
@@ -56,20 +58,42 @@ def _get_msg(db: Session, mid: int) -> Message:
 # ------------------------------------------------------------------ arama ve listeler
 
 
-@router.get("/search")
-def api_search(
+def search_params(
     q: str = "", view: str = "all", folder_id: int | None = None, sender: str = "", recipient: str = "",
     date_from: date | None = None, date_to: date | None = None, has_attachment: bool | None = None,
     file_kind: str = "", doc_kind: str = "", tag_id: int | None = None, unread: bool | None = None,
-    important: bool | None = None, sort: str = "", page: int = 1, per_page: int = 50,
-    year: int | None = None, participant: str = "", direction: str = "", facets: bool = False,
-    db: Session = Depends(get_db), meili: Meili = Depends(get_meili),
-):
-    p = SearchParams(q=q, view=view, folder_id=folder_id, sender=sender, recipient=recipient, date_from=date_from,
-                     date_to=date_to, has_attachment=has_attachment, file_kind=file_kind, doc_kind=doc_kind,
-                     tag_id=tag_id, unread=unread, important=important, sort=sort, page=page, per_page=per_page,
-                     year=year, participant=participant, direction=direction)
+    important: bool | None = None, sort: str = "", page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=200),
+    year: int | None = None, participant: str = "", direction: str = "",
+) -> SearchParams:
+    """Liste filtreleri (arama, dosya listesi ve toplu işlemler aynı filtreyi kullanır)."""
+    return SearchParams(q=q, view=view, folder_id=folder_id, sender=sender, recipient=recipient, date_from=date_from,
+                        date_to=date_to, has_attachment=has_attachment, file_kind=file_kind, doc_kind=doc_kind,
+                        tag_id=tag_id, unread=unread, important=important, sort=sort, page=page, per_page=per_page,
+                        year=year, participant=participant, direction=direction)
+
+
+@router.get("/search")
+def api_search(p: SearchParams = Depends(search_params), facets: bool = False,
+               db: Session = Depends(get_db), meili: Meili = Depends(get_meili)):
     return search(db, meili, p, with_facets=facets)
+
+
+@router.get("/attachments")
+def list_attachments(p: SearchParams = Depends(search_params), db: Session = Depends(get_db)):
+    """Listedeki maillerin ekleri (imza görselleri hariç), yeniden eskiye. Dosya türü filtresi eke uygulanır."""
+    conds = _view_filters_pg(replace(p, file_kind=""), db) + _text_conds(p.q.strip()[:500])
+    base = [Attachment.is_inline.is_(False), *conds]
+    where = base + ([Attachment.file_kind.in_([k for k in p.file_kind.split(",") if k][:6])] if p.file_kind else [])
+    total = db.execute(select(func.count()).select_from(Attachment).join(Message).where(*where)).scalar_one()
+    kinds = dict(db.execute(select(Attachment.file_kind, func.count()).join(Message).where(*base)  # tür çipleri için
+                            .group_by(Attachment.file_kind)).all())
+    rows = db.execute(select(Attachment, Message).join(Message).where(*where)
+                      .order_by(Message.date.desc().nulls_last(), Attachment.id)
+                      .offset((p.page - 1) * p.per_page).limit(p.per_page)).all()
+    return {"total": total, "kinds": kinds, "page": p.page, "per_page": p.per_page, "items": [
+        {"id": a.id, "message_id": m.id, "filename": a.filename, "file_kind": a.file_kind, "size": a.size,
+         "date": m.date.isoformat() if m.date else None, "subject": m.subject,
+         "from": m.from_name or m.from_email, "is_from_me": m.is_from_me} for a, m in rows]}
 
 
 @router.get("/insights")
@@ -276,19 +300,13 @@ def bulk_read(body: BulkPatch, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-class MarkAllIn(BaseModel):
-    view: str = Field(default="inbox", pattern="^(all|inbox|important|snoozed|folder|unread)$")
-    folder_id: int | None = None
-    tag_id: int | None = None
-
-
 @router.post("/messages/mark-all-read")
-def mark_all_read(body: MarkAllIn, db: Session = Depends(get_db)):
-    """Bir görünümdeki/klasördeki tüm okunmamışları okundu yapar (yalnız FredyMail'de; sunucuya yazılmaz)."""
-    if body.view == "folder" and not body.folder_id:
+def mark_all_read(p: SearchParams = Depends(search_params), db: Session = Depends(get_db)):
+    """Listedeki (görünüm + filtreler + arama) tüm okunmamışları okundu yapar. Yalnız FredyMail'de; sunucuya yazılmaz."""
+    if p.view == "folder" and not p.folder_id:
         raise HTTPException(400, "Klasör belirtilmedi")
-    p = SearchParams(view=body.view, folder_id=body.folder_id, tag_id=body.tag_id)
-    res = db.execute(update(Message).where(and_(*_view_filters_pg(p, db)), Message.is_read.is_(False))
+    conds = _view_filters_pg(p, db) + _text_conds(p.q.strip()[:500])
+    res = db.execute(update(Message).where(and_(*conds), Message.is_read.is_(False))
                      .values(is_read=True, index_dirty=True).execution_options(synchronize_session=False))
     db.commit()
     return {"updated": res.rowcount}

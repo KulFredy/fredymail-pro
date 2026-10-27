@@ -282,7 +282,28 @@ def test_mark_all_read_in_folder(db, synced, client):
     db.expire_all()
     before = unread()
     assert before > 0
-    r = client.post("/api/messages/mark-all-read", json={"view": "folder", "folder_id": inbox.id}, headers=H).json()
+    r = client.post(f"/api/messages/mark-all-read?view=folder&folder_id={inbox.id}", headers=H).json()
     db.expire_all()
     assert r["updated"] >= before and unread() == 0
-    assert client.post("/api/messages/mark-all-read", json={"view": "folder"}, headers=H).status_code == 400
+    assert client.post("/api/messages/mark-all-read?view=folder", headers=H).status_code == 400
+
+
+def test_mark_all_read_respects_filters_and_list_attachments(db, synced, client):
+    from sqlalchemy import func, select
+
+    from fredymail.models import Message
+
+    login(client)
+    db.execute(Message.__table__.update().values(is_read=False))
+    db.commit()
+    r = client.post("/api/messages/mark-all-read?view=all&doc_kind=invoice", headers=H).json()
+    db.expire_all()
+    assert r["updated"] == 3  # yalnız filtredeki 3 fatura
+    assert db.execute(select(func.count()).select_from(Message).where(Message.is_read.is_(False))).scalar_one() > 0
+    a = client.get("/api/attachments", params={"view": "all", "file_kind": "pdf,spreadsheet"}).json()
+    assert a["total"] >= 2 and {i["file_kind"] for i in a["items"]} <= {"pdf", "spreadsheet"}
+    assert a["kinds"].get("pdf") and all(not i["filename"].startswith("image00") for i in a["items"])
+    dates = [i["date"] for i in a["items"]]
+    assert dates == sorted(dates, reverse=True)
+    q = client.get("/api/attachments", params={"q": "Nordlicht"}).json()
+    assert q["items"] and all(i["message_id"] for i in q["items"])

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { api, ApiError } from "./api";
+import { api, ApiError, qs } from "./api";
 import { goMail, navigate, type Route, type SearchState } from "./route";
 import { useStore } from "./store";
 import type { Folder } from "./types";
@@ -44,7 +44,7 @@ export function Sidebar({ route, onNavigated, onLogout }: Props) {
   }
   const markAll = (body: { view: string; folder_id?: number; tag_id?: number }): MenuItem => ({
     label: "Tümünü okundu olarak işaretle", icon: "check",
-    onClick: () => act(api.post<{ updated: number }>("/api/messages/mark-all-read", body),
+    onClick: () => act(api.post<{ updated: number }>(`/api/messages/mark-all-read${qs(body)}`),
       (r) => (r.updated ? `${r.updated.toLocaleString("tr-TR")} mail okundu olarak işaretlendi` : "Okunmamış mail yok"),
       () => { refreshFolders(); window.dispatchEvent(new Event("fm-refresh-list")); }),
   });

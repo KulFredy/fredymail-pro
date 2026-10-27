@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { api, ApiError } from "./api";
-import { keyMenuEvent, openContextMenu, type MenuEvent } from "./contextmenu";
+import { api, ApiError, qs } from "./api";
+import { keyMenuEvent, openContextMenu, SEP, type MenuEvent, type MenuItem } from "./contextmenu";
+import { FilesModal } from "./Files";
 import { SearchSummary } from "./Intel";
 import { mailMenu } from "./mailmenu";
-import { hasFilters, navigate, type SearchState } from "./route";
+import { EMPTY_SEARCH, hasFilters, navigate, searchParams, type SearchState } from "./route";
 import { useStore } from "./store";
 import type { Facets, MessageItem } from "./types";
 import { avatarColor, fmtListDate, fmtSize, folderLabel, initials } from "./util";
@@ -46,6 +47,7 @@ export function MessageList(p: Props) {
   });
   const [sortOpen, setSortOpen] = useState(false);
   const [summary, setSummary] = useState(false);
+  const [files, setFiles] = useState<{ search: SearchState; title: string } | null>(null);
   const roleOf = new Map(folders.map((f) => [f.id, f]));
   const pillName = (id: number, name: string) => {
     const f = roleOf.get(id);
@@ -55,12 +57,48 @@ export function MessageList(p: Props) {
   };
   const listRef = useRef<HTMLDivElement>(null);
   const s = p.search;
+  const sortLabel = SORTS.find(([k]) => k === s.sort)?.[1] ?? (s.q ? "Alaka" : "En yeni");
   const set = (patch: Partial<SearchState>) => {
     const next = { ...s, ...patch, smart: "" };
     if (next.view === "inbox" && (next.q || hasFilters(next))) next.view = "all";
     navigate({ page: "mail", search: next, msg: null });
   };
   const toggle = (k: keyof SearchState, v: string) => set({ [k]: s[k] === v ? "" : v });
+
+  // ---- liste başlığı ve çiplerde sağ tık
+  const markAll = (patch: Partial<SearchState>, label: string): MenuItem => ({
+    label, icon: "check", onClick: async () => {
+      const { facets: _f, page: _p, per_page: _pp, ...params } = searchParams({ ...s, ...patch }, 1);
+      void _f; void _p; void _pp;
+      try {
+        const r = await api.post<{ updated: number }>(`/api/messages/mark-all-read${qs(params)}`);
+        toast(r.updated ? `${r.updated.toLocaleString("tr-TR")} mail okundu olarak işaretlendi` : "Okunmamış mail yok", "ok");
+        refreshFolders();
+        window.dispatchEvent(new Event("fm-refresh-list"));
+      } catch (e) {
+        toast((e as ApiError).message, "error");
+      }
+    },
+  });
+  const showFiles = (patch: Partial<SearchState>, title: string): MenuItem =>
+    ({ label: "Dosyaları göster", icon: "clip", onClick: () => setFiles({ search: { ...s, ...patch }, title }) });
+  const listMenu = (): MenuItem[] => [
+    markAll({}, "Bu listedekilerin tümünü okundu işaretle"),
+    showFiles({}, p.title),
+    ...(ai?.enabled ? [{ label: "Listeyi yapay zekâ ile özetle", icon: "sparkle", onClick: () => setSummary(true) }] : []),
+    SEP,
+    { label: "Sırala", icon: "sort", sub: SORTS.map(([k, label]) => ({ label, checked: sortLabel === label, onClick: () => set({ sort: k === (s.q ? "relevance" : "date_desc") ? "" : k }) })) },
+    ...((s.q || hasFilters(s)) && !s.smart ? [{ label: "Akıllı klasör olarak kaydet", icon: "smart", onClick: saveSmart }] : []),
+    ...(hasFilters(s) ? [{ label: "Filtreleri temizle", icon: "close", onClick: () => navigate({ page: "mail", search: { ...EMPTY_SEARCH, view: s.view, folder_id: s.folder_id, q: s.q }, msg: null }) }] : []),
+    { label: "Listeyi yenile", icon: "refresh", onClick: () => window.dispatchEvent(new Event("fm-refresh-list")) },
+  ];
+  const chipMenu = (patch: Partial<SearchState>, name: string, files = true): MenuItem[] => [
+    { label: `Yalnız “${name}” göster`, icon: "filter", onClick: () => set(patch) },
+    markAll(patch, `“${name}” maillerini okundu işaretle`),
+    ...(files ? [{ ...showFiles(patch, name), label: `“${name}” dosyalarını göster` }] : []),
+    SEP,
+    ...listMenu(),
+  ];
 
   useEffect(() => {
     if (!p.selectedId) return;
@@ -101,7 +139,6 @@ export function MessageList(p: Props) {
     }
   }
 
-  const sortLabel = SORTS.find(([k]) => k === s.sort)?.[1] ?? (s.q ? "Alaka" : "En yeni");
   const quickAll = !s.unread && !s.important && !s.has_attachment;
 
   // yıl ve tür çipleri: sunucudan gelen sayımlar + seçili olan (sonuçta görünmese bile)
@@ -130,7 +167,7 @@ export function MessageList(p: Props) {
 
   return (
     <section className="list-pane" aria-label="Mail listesi">
-      <header className="list-head">
+      <header className="list-head" onContextMenu={(e) => openContextMenu(e, listMenu())}>
         <div className="list-title">
           <div className="grow">
             <h1 className="ellipsis">{p.title}</h1>
@@ -184,7 +221,8 @@ export function MessageList(p: Props) {
             <span className="facet-label">Yıl</span>
             <button className={`chip sm ${!s.year ? "on" : ""}`} onClick={() => set({ year: "" })}>Tüm zamanlar</button>
             {years.map(([y, c]) => (
-              <button key={y} className={`chip sm ${s.year === y ? "on" : ""}`} onClick={() => toggle("year", y)} aria-pressed={s.year === y}>
+              <button key={y} className={`chip sm ${s.year === y ? "on" : ""}`} onClick={() => toggle("year", y)} aria-pressed={s.year === y}
+                onContextMenu={(e) => openContextMenu(e, chipMenu({ year: y }, y))}>
                 {y} {c > 0 && <span className="count">{c}</span>}
               </button>
             ))}
@@ -194,13 +232,15 @@ export function MessageList(p: Props) {
           <ScrollRow className="facet-row" label="Dosya ve belge türleri">
             <span className="facet-label">Tür</span>
             {fileKinds.map(([k, c]) => (
-              <button key={`f-${k}`} className={`chip sm ${s.file_kind === k ? "on" : ""}`} onClick={() => toggle("file_kind", k)} aria-pressed={s.file_kind === k}>
+              <button key={`f-${k}`} className={`chip sm ${s.file_kind === k ? "on" : ""}`} onClick={() => toggle("file_kind", k)} aria-pressed={s.file_kind === k}
+                onContextMenu={(e) => openContextMenu(e, chipMenu({ file_kind: k }, k.split(",").map((x) => meta?.file_kinds[x] ?? x).join(" veya ")))}>
                 <Icon name="clip" size={13} /> {k.split(",").map((x) => meta?.file_kinds[x] ?? x).join(" veya ")} {c > 0 && <span className="count">{c}</span>}
               </button>
             ))}
             {fileKinds.length > 0 && docKinds.length > 0 && <span className="chip-sep" />}
             {docKinds.map(([k, c]) => (
-              <button key={`d-${k}`} className={`chip sm ${s.doc_kind === k ? "on" : ""}`} onClick={() => toggle("doc_kind", k)} aria-pressed={s.doc_kind === k}>
+              <button key={`d-${k}`} className={`chip sm ${s.doc_kind === k ? "on" : ""}`} onClick={() => toggle("doc_kind", k)} aria-pressed={s.doc_kind === k}
+                onContextMenu={(e) => openContextMenu(e, chipMenu({ doc_kind: k }, meta?.doc_kinds[k] ?? k))}>
                 {meta?.doc_kinds[k] ?? k} {c > 0 && <span className="count">{c}</span>}
               </button>
             ))}
@@ -243,6 +283,7 @@ export function MessageList(p: Props) {
           </div>
         )}
       </div>
+      {files && <FilesModal search={files.search} title={files.title} onClose={() => setFiles(null)} onOpen={(id) => { setFiles(null); p.onSelect(id); }} />}
       {summary && (
         <Modal title="✦ Sonuçların özeti" onClose={() => setSummary(false)} wide>
           <SearchSummary search={s} onOpen={(id) => { setSummary(false); p.onSelect(id); }} />

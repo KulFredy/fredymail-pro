@@ -888,3 +888,11 @@ a.btn, a.btn:hover { text-decoration: none; }
 .ctx-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctx-chev { color: var(--faint); flex: none; }
 .ctx-sep { height: 1px; margin: 5px 6px; background: var(--border); }
+
+/* ------------------------------------------------------------------ dosyalar penceresi */
+.file-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.file-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.file-row:last-child { border-bottom: 0; }
+.file-row:hover { background: var(--hover); }
+.file-row .ficon { width: 28px; height: 32px; }
+.file-name { font-weight: 600; font-size: 13.5px; color: var(--text); }
