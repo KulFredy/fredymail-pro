@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "./api";
+import { BrandMark, brandTagline } from "./brand";
 import { Icon, Logo } from "./ui";
 
 export function Login({ totpRequired, onDone }: { totpRequired: boolean; onDone: () => void }) {
@@ -29,7 +30,7 @@ export function Login({ totpRequired, onDone }: { totpRequired: boolean; onDone:
       <section className="login-art" aria-hidden="true">
         <div className="brand">
           <Logo size={42} />
-          <span className="brand-name"><b>FredyMail</b><small>Intelligence</small></span>
+          <span className="brand-name"><b><BrandMark /></b><small>{brandTagline()}</small></span>
         </div>
         <div style={{ position: "relative", zIndex: 1 }}>
           <h2>Yıllarca biriken postanız, tek bir sakin çalışma masasında.</h2>
@@ -46,7 +47,7 @@ export function Login({ totpRequired, onDone }: { totpRequired: boolean; onDone:
       <form className="login-card" onSubmit={submit} aria-labelledby="login-title">
         <div className="brand">
           <Logo />
-          <span className="brand-name"><b>FredyMail</b><small>Intelligence</small></span>
+          <span className="brand-name"><b><BrandMark /></b><small>{brandTagline()}</small></span>
         </div>
         <h1 id="login-title">Tekrar hoş geldiniz</h1>
         <p className="muted">Akıllı posta çalışma masanıza giriş yapın.</p>

@@ -18,6 +18,7 @@ import { Topbar } from "./Topbar";
 import type { Facets, MessageItem, SearchResult } from "./types";
 import { folderLabel, isTypingTarget } from "./util";
 import { Banner, Icon, Modal, Spinner, Splitter, Toasts } from "./ui";
+import { brandName } from "./brand";
 
 type Auth = { state: "checking" } | { state: "out"; totp: boolean } | { state: "in" };
 
@@ -38,7 +39,7 @@ export function App() {
     onUnauthorized(() => setAuth((a) => (a.state === "in" ? { state: "out", totp: false } : a)));
   }, [check]);
 
-  if (auth.state === "checking") return <div className="center-screen"><Spinner label="FredyMail açılıyor…" /></div>;
+  if (auth.state === "checking") return <div className="center-screen"><Spinner label={`${brandName()} açılıyor…`} /></div>;
   if (auth.state === "out") return <Login totpRequired={auth.totp} onDone={check} />;
   return (
     <StoreProvider>
@@ -286,7 +287,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
     ["Enter / o", "Seçili maili aç"],
     ["Esc", "Menüyü kapat / listeye dön"],
     ["r", "Yanıt taslağı (AI kapalıysa boş yanıt)"],
-    ["a", "FredyMail Intelligence ile analiz et"],
+    ["a", "Yapay zekâ ile analiz et"],
     ["u", "Okundu ↔ okunmadı"],
     ["s", "Önemli olarak işaretle"],
     ["z", "Ertele menüsü"],

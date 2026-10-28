@@ -129,14 +129,15 @@ export function Logo({ size = 38 }: { size?: number }) {
   return (
     <svg className="brand-logo" width={size} height={size} viewBox="0 0 40 40" aria-hidden="true">
       <defs>
-        <linearGradient id="fm-leaf" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id="fm-g" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#3ddc97" />
           <stop offset="1" stopColor="#0f7a4f" />
         </linearGradient>
       </defs>
-      <path d="M6 30C6 15 16 6 33 6c0 17-9 27-24 27-1.2 0-2.2-.1-3-.3z" fill="url(#fm-leaf)" />
-      <path d="M9.5 30.5C15 23 20 18 27 12.5" stroke="#eafff4" strokeWidth="2" strokeLinecap="round" fill="none" opacity=".9" />
-      <path d="M31 22l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1z" fill="#c8f7de" />
+      <rect width="40" height="40" rx="10" fill="#13283a" />
+      <rect x="6.5" y="13" width="24" height="17.5" rx="4" fill="none" stroke="url(#fm-g)" strokeWidth="2.6" />
+      <path d="M8 15.2 18.5 23 29 15.2" fill="none" stroke="url(#fm-g)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M31 3.5c.45 3.1 2.9 5.55 6 6-3.1.45-5.55 2.9-6 6-.45-3.1-2.9-5.55-6-6 3.1-.45 5.55-2.9 6-6z" fill="url(#fm-g)" />
     </svg>
   );
 }

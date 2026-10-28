@@ -5,6 +5,7 @@ import { useStore } from "./store";
 import type { Draft } from "./types";
 import { avatarColor, fmtListDate, initials, mailtoHref } from "./util";
 import { Banner, Empty, Icon, Skeleton, Splitter } from "./ui";
+import { brandName } from "./brand";
 
 export function DraftsPage({ draftId }: { draftId: number | null }) {
   const [list, setList] = useState<Draft[] | null>(null);
@@ -27,7 +28,7 @@ export function DraftsPage({ draftId }: { draftId: number | null }) {
               <div className="sub">{list ? `${list.length} taslak` : "Yükleniyor…"}</div>
             </div>
           </div>
-          <Banner kind="info">FredyMail mail göndermez. Taslağı gözden geçirip mail programınızda açın veya kopyalayın.</Banner>
+          <Banner kind="info">{brandName()} mail göndermez. Taslağı gözden geçirip mail programınızda açın veya kopyalayın.</Banner>
         </header>
         {error && <Banner kind="error">{error} <button className="link" onClick={load}>Tekrar dene</button></Banner>}
         <div className="list-scroll" role="listbox" aria-label="Taslak listesi">

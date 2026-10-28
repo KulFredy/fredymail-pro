@@ -4,6 +4,7 @@ import { EMPTY_SEARCH, hasFilters, navigate, type Route, type SearchState } from
 import { useStore } from "./store";
 import { folderLabel, fmtRelative, initials, isQuestion } from "./util";
 import { Icon, Logo } from "./ui";
+import { BrandMark } from "./brand";
 
 function useContacts(q: string) {
   const [list, setList] = useState<{ email: string; name: string }[]>([]);
@@ -83,7 +84,7 @@ export function Topbar({ route, onMenu }: { route: Route; onMenu: () => void }) 
       <button type="button" className="icon-btn only-mobile" onClick={onMenu} aria-label="Menüyü aç">
         <Icon name="menu" />
       </button>
-      <a className="mobile-brand" href="#/pano"><Logo size={30} /> FredyMail</a>
+      <a className="mobile-brand" href="#/pano"><Logo size={30} /> <BrandMark /></a>
       <form className="omni" role="search" onSubmit={submit}>
         <Icon name={looksAsk ? "sparkle" : "search"} size={19} />
         <input

@@ -5,6 +5,7 @@ import { useStore } from "./store";
 import type { AiRef, AiResult, MessageDetail, Task } from "./types";
 import { dueInfo, fmtListDate, fmtSize, isNoDue, mailtoHref, parseDue, readPref, writePref } from "./util";
 import { Banner, FileIcon, Icon, Spinner } from "./ui";
+import { brandName } from "./brand";
 
 /** Yapay zeka çıktısındaki [M1] gibi kaynak işaretlerini tıklanabilir çiplere çevirir. */
 export function Cited({ text, refs, onOpen }: { text: string; refs: Map<string, AiRef>; onOpen: (id: number) => void }) {
@@ -142,7 +143,7 @@ export function IntelCard(p: Props) {
       const out = await api.post<AiResult>("/api/ai/draft", { message_id: p.message.id, thread_id: p.threadId, instruction, quality });
       setDraft(out);
       refreshCounts();
-      toast("Taslak hazır. Gözden geçirmeden kullanmayın; FredyMail göndermez.", "ok");
+      toast(`Taslak hazır. Gözden geçirmeden kullanmayın; ${brandName()} göndermez.`, "ok");
     } catch (e) {
       setError(aiError(e));
     } finally {
@@ -201,7 +202,7 @@ export function IntelCard(p: Props) {
   const head = (
     <div className={`intel-head ${collapsed ? "collapsed" : ""}`} onClick={collapsed ? toggleCollapsed : undefined}>
       <Icon name="sparkle" size={22} className="intel-spark" />
-      <h2>FredyMail Intelligence</h2>
+      <h2>Yapay zekâ asistanı</h2>
       <span className="ai-badge">AI</span>
       {collapsed && preview && <span className="intel-preview" title={preview}>{preview}</span>}
       <span className="intel-head-tools">
@@ -224,7 +225,7 @@ export function IntelCard(p: Props) {
   if (!ai) return null;
   if (!ai.enabled) {
     return (
-      <section className="intel" id="intel" aria-label="FredyMail Intelligence">
+      <section className="intel" id="intel" aria-label="Yapay zekâ asistanı">
         {head}
         <div className="intel-intro">
           <p>
@@ -240,11 +241,11 @@ export function IntelCard(p: Props) {
   const meta = results.map((r) => r.meta).filter(Boolean);
 
   if (collapsed) {
-    return <section className="intel collapsed" id="intel" aria-label="FredyMail Intelligence">{head}</section>;
+    return <section className="intel collapsed" id="intel" aria-label="Yapay zekâ asistanı">{head}</section>;
   }
 
   return (
-    <section className="intel" id="intel" aria-label="FredyMail Intelligence" aria-busy={busy || busyDraft}>
+    <section className="intel" id="intel" aria-label="Yapay zekâ asistanı" aria-busy={busy || busyDraft}>
       {head}
       {!analyzed && (
         <div className="intel-intro">
@@ -325,7 +326,7 @@ export function IntelCard(p: Props) {
                 <DraftActions to={draft.to ?? []} subject={draft.subject ?? ""} body={draft.body ?? ""} draftId={draft.draft_id} replyTo={p.message.id} compact />
               </>
             ) : (
-              <p className="muted small">Ne yazılmasını istediğinizi kısaca belirtin. Taslak yalnızca kaydedilir; FredyMail hiçbir maili göndermez.</p>
+              <p className="muted small">Ne yazılmasını istediğinizi kısaca belirtin. Taslak yalnızca kaydedilir; {brandName()} hiçbir maili göndermez.</p>
             )}
             <form className="draft-ask" onSubmit={(e) => { e.preventDefault(); makeDraft(); }}>
               <input value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="İsteğiniz (ör. teşekkür et, teslim tarihini sor)" aria-label="Taslak isteği" />

@@ -87,6 +87,21 @@ def create_app() -> FastAPI:
 
     # ---------------------------------------------------------------- sağlık (anonim, ayrıntısız)
 
+    @app.get("/api/brand")
+    def brand():
+        """Giriş ekranından önce de gereken marka adı (gizli bilgi içermez)."""
+        return {"name": settings.brand_name, "tagline": settings.brand_tagline}
+
+    @app.get("/manifest.webmanifest")
+    def manifest():
+        """Ana ekrana ekleme bilgisi: ad sunucu ayarından gelir."""
+        icons = [{"src": f"/icon-{s}.png", "sizes": f"{s}x{s}", "type": "image/png", "purpose": "any maskable"}
+                 for s in (192, 512)]
+        body = {"name": settings.brand_name, "short_name": settings.brand_name, "description": settings.brand_tagline,
+                "lang": "tr", "start_url": "/#/mail?view=inbox", "scope": "/", "display": "standalone",
+                "background_color": "#0f1f2b", "theme_color": "#0f1f2b", "icons": icons}
+        return JSONResponse(body, media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})
+
     @app.get("/api/health")
     def health():
         return {"status": "ok"}

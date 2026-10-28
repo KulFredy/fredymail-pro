@@ -1,3 +1,5 @@
+import { brandName } from "./brand";
+
 const HL_PRE = "";
 const HL_POST = "";
 
@@ -173,7 +175,7 @@ export function mailtoHref(to: string[] | string, subject: string, body: string)
   let b = body;
   let truncated = false;
   if (b.length > MAILTO_MAX) {
-    b = `${b.slice(0, MAILTO_MAX).trimEnd()}…\n\n[Metnin devamı kısaltıldı — tamamını FredyMail'de "Panoya kopyala" ile alın.]`;
+    b = `${b.slice(0, MAILTO_MAX).trimEnd()}…\n\n[Metnin devamı kısaltıldı — tamamını ${brandName()} içinde "Panoya kopyala" ile alın.]`;
     truncated = true;
   }
   const q = `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(b)}`;

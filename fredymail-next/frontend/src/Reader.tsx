@@ -6,6 +6,7 @@ import { useStore } from "./store";
 import type { Addr, MessageDetail, MessageItem, NoteT, ThreadT } from "./types";
 import { avatarColor, fmtLongDate, fmtSize, folderLabel, initials, snoozePresets, toLocalInput } from "./util";
 import { Banner, Empty, FileIcon, Icon } from "./ui";
+import { brandName } from "./brand";
 
 interface Props {
   msgId: number;
@@ -196,7 +197,7 @@ export function Reader(p: Props) {
               <button role="menuitem" className="menu-item" onClick={() => { setMenu(null); blankReply(); }}>
                 <span className="row gap-sm"><Icon name="edit" size={16} /> Boş yanıt yaz</span>
               </button>
-              <div className="menu-title" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>FredyMail göndermez; taslağı mail programınızda açarsınız.</div>
+              <div className="menu-title" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>{brandName()} göndermez; taslağı mail programınızda açarsınız.</div>
             </Popup>
           )}
         </div>
@@ -341,7 +342,7 @@ function MessageCard({ m, open, focused, toggle, noteFocus, onNotes }: {
       <div className="msg-body">
       {m.injection_suspected && (
         <Banner kind="error">
-          Bu mail yapay zekaya talimat vermeye çalışıyor olabilir. FredyMail'in AI asistanı bu talimatları uygulamaz; yine de içeriğe dikkat edin.
+          Bu mail yapay zekaya talimat vermeye çalışıyor olabilir. {brandName()} yapay zekâ asistanı bu talimatları uygulamaz; yine de içeriğe dikkat edin.
         </Banner>
       )}
       {m.body_truncated && <Banner kind="info">Büyük mail: yalnızca metin kısmı alındı. Ekler aşağıdan tek tek indirilebilir.</Banner>}
@@ -423,7 +424,7 @@ function Notes({ msg, focusTick, onNotes }: { msg: MessageDetail; focusTick: num
 
   return (
     <section className="notes" aria-label="Kişisel notlar">
-      <div className="notes-title"><Icon name="note" size={15} /> Kişisel notlar <span className="muted small">(yalnızca FredyMail'de)</span></div>
+      <div className="notes-title"><Icon name="note" size={15} /> Kişisel notlar <span className="muted small">(yalnızca {brandName()} içinde)</span></div>
       {msg.notes.map((n) =>
         editing === n.id ? (
           <div key={n.id} className="note editing">

@@ -896,3 +896,10 @@ a.btn, a.btn:hover { text-decoration: none; }
 .file-row:hover { background: var(--hover); }
 .file-row .ficon { width: 28px; height: 32px; }
 .file-name { font-weight: 600; font-size: 13.5px; color: var(--text); }
+
+/* ------------------------------------------------------------------ yazı logosu: addaki "a" ve "i" = AI */
+.bm { white-space: nowrap; }
+.bm-ai { background: linear-gradient(135deg, #3ddc97, #0f7a4f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.bm-i { position: relative; display: inline-block; }
+.bm .bm-spark { position: absolute; left: 50%; top: -.1em; width: .5em !important; height: .5em !important; transform: translateX(-50%); fill: #2fc585; flex: none; }
+.login-card .bm-ai, .login-card .bm-spark { filter: saturate(1.1); }

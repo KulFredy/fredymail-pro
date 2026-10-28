@@ -307,3 +307,14 @@ def test_mark_all_read_respects_filters_and_list_attachments(db, synced, client)
     assert dates == sorted(dates, reverse=True)
     q = client.get("/api/attachments", params={"q": "Nordlicht"}).json()
     assert q["items"] and all(i["message_id"] for i in q["items"])
+
+
+def test_brand_and_manifest_are_public_and_configurable(client, monkeypatch):
+    from fredymail.config import get_settings
+
+    s = get_settings()
+    monkeypatch.setattr(s, "brand_name", "OrnekMail")
+    assert client.get("/api/brand").json()["name"] == "OrnekMail"  # giriş yapmadan
+    m = client.get("/manifest.webmanifest")
+    assert m.headers["content-type"].startswith("application/manifest+json")
+    assert m.json()["short_name"] == "OrnekMail" and m.json()["icons"]

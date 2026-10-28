@@ -4,6 +4,7 @@ import { useStore } from "./store";
 import { folderLabel, fmtRelative } from "./util";
 import { Banner, Icon, Spinner } from "./ui";
 import { currentSubscription, disablePush, enablePush, isIos, isStandalone, pushSupported } from "./push";
+import { brandName } from "./brand";
 
 export function SettingsPage() {
   const { sync, ai, folders, tags, refreshSync, refreshAi, refreshFolders, refreshTags, refreshCounts, toast, meta } = useStore();
@@ -242,7 +243,7 @@ function PushCard() {
       <p className="muted small">Yeni mail gelince bu cihaza bildirim gelir; tıklayınca mail açılır. İçerik uçtan uca şifreli gönderilir.
         {devices > 0 && ` Bildirim alan cihaz: ${devices}.`}</p>
       {!supported && isIos() && !isStandalone() && (
-        <Banner kind="info">iPhone/iPad'de: Safari'de <strong>Paylaş → Ana Ekrana Ekle</strong> ile FredyMail'i ekleyin, ana ekrandaki simgeden açıp buraya dönün.</Banner>
+        <Banner kind="info">iPhone/iPad'de: Safari'de <strong>Paylaş → Ana Ekrana Ekle</strong> ile {brandName()} uygulamasını ekleyin, ana ekrandaki simgeden açıp buraya dönün.</Banner>
       )}
       {!supported && !(isIos() && !isStandalone()) && <Banner kind="warn">Bu tarayıcı bildirimleri desteklemiyor.</Banner>}
       {supported && typeof Notification !== "undefined" && Notification.permission === "denied" && (

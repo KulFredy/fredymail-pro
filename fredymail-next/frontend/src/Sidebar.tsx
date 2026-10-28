@@ -5,6 +5,7 @@ import { useStore } from "./store";
 import type { Folder } from "./types";
 import { folderLabel } from "./util";
 import { openContextMenu, SEP, type MenuItem } from "./contextmenu";
+import { BrandMark, brandTagline } from "./brand";
 import { Icon, Logo } from "./ui";
 
 interface Props {
@@ -94,8 +95,8 @@ export function Sidebar({ route, onNavigated, onLogout }: Props) {
       <a className="brand" href="#/pano" onClick={onNavigated}>
         <Logo />
         <span className="brand-name">
-          <b>FredyMail</b>
-          <small>Intelligence</small>
+          <b><BrandMark /></b>
+          <small>{brandTagline()}</small>
         </span>
       </a>
       <button className="btn new-btn" onClick={go(() => openComposer({ to: [], subject: "", body: "" }))}>

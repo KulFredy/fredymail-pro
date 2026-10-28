@@ -3,6 +3,7 @@ import { api, ApiError } from "./api";
 import { useStore, type ComposeInit } from "./store";
 import { mailtoHref } from "./util";
 import { Banner, Icon, Modal } from "./ui";
+import { brandName } from "./brand";
 
 /** Yazma penceresi. FredyMail göndermez: metin mail programında açılır veya panoya kopyalanır. */
 export function Composer({ init, onClose }: { init: ComposeInit; onClose: () => void }) {
@@ -67,8 +68,8 @@ export function Composer({ init, onClose }: { init: ComposeInit; onClose: () => 
         <button className="btn ghost" onClick={save} disabled={saving}>{saving ? "Kaydediliyor…" : "Taslağı kaydet"}</button>
       </div>
       <p className="muted xs mt">
-        FredyMail mail göndermez. {m.truncated ? "Metin uzun olduğu için mail programında kısaltılır; tamamı için kopyalayın. " : ""}
-        Taslaklar yalnızca FredyMail'de saklanır.
+        {brandName()} mail göndermez. {m.truncated ? "Metin uzun olduğu için mail programında kısaltılır; tamamı için kopyalayın. " : ""}
+        Taslaklar yalnızca {brandName()} içinde saklanır.
       </p>
     </Modal>
   );

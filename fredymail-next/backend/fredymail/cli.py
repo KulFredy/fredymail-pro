@@ -286,7 +286,7 @@ def cmd_totp_setup(a) -> int:
     import pyotp
 
     secret = pyotp.random_base32()
-    uri = pyotp.TOTP(secret).provisioning_uri(name=a.user, issuer_name="FredyMail")
+    uri = pyotp.TOTP(secret).provisioning_uri(name=a.user, issuer_name=get_settings().brand_name)
     print("FM_TOTP_SECRET =", secret)
     print("Kimlik doğrulayıcı uygulamasına eklemek için URI:", uri)
     return 0

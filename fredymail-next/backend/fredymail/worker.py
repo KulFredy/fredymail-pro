@@ -65,7 +65,7 @@ def send_alert(db, settings: Settings, text: str) -> None:
         return
     try:
         httpx.post(f"https://api.telegram.org/bot{settings.alert_telegram_bot_token}/sendMessage",
-                   json={"chat_id": settings.alert_telegram_chat_id, "text": f"FredyMail ⚠️ {text}"}, timeout=10)
+                   json={"chat_id": settings.alert_telegram_chat_id, "text": f"{settings.brand_name} ⚠️ {text}"}, timeout=10)
     except httpx.HTTPError:
         log.warning("uyarı gönderilemedi")
     _set_kv(db, "last_alert", {"at": datetime.now(UTC).isoformat(), "text": text})

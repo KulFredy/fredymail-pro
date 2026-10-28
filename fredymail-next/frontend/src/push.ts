@@ -1,5 +1,6 @@
 /** Yeni mail bildirimleri (Web Push): izin, servis çalışanı ve abonelik. */
 import { api } from "./api";
+import { brandName } from "./brand";
 
 export const pushSupported = () =>
   typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -58,7 +59,7 @@ export async function enablePush(): Promise<void> {
       ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(public_key) as BufferSource }));
   } catch (e) {
     throw new Error(`Tarayıcı bildirim kaydını tamamlayamadı (${(e as Error).message}). Gizli pencerede olmadığınızdan emin olun; `
-      + "iPhone'da FredyMail'i ana ekrandan açın.");
+      + `iPhone'da ${brandName()} uygulamasını ana ekrandan açın.`);
   }
   await api.post("/api/push/subscribe", { ...sub.toJSON(), label: deviceLabel() });
 }

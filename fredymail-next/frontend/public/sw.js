@@ -20,7 +20,7 @@ self.addEventListener("push", (event) => {
     d = { body: event.data ? event.data.text() : "" };
   }
   event.waitUntil(
-    self.registration.showNotification(d.title || "FredyMail", {
+    self.registration.showNotification(d.title || "Yeni mail", {
       body: d.body || "",
       tag: d.tag || undefined,
       renotify: !!d.tag,

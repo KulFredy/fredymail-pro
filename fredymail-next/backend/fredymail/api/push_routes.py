@@ -67,6 +67,6 @@ def unsubscribe(body: EndpointIn, db: Session = Depends(get_db)):
 
 @router.post("/test")
 def test_push(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
-    ok, fail = send_all(db, settings, {"title": "FredyMail", "body": "Bildirimler bu cihazda çalışıyor.",
+    ok, fail = send_all(db, settings, {"title": settings.brand_name, "body": "Bildirimler bu cihazda çalışıyor.",
                                        "url": "/#/mail?view=inbox", "tag": "test"})
     return {"sent": ok, "failed": fail}

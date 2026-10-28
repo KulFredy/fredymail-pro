@@ -146,6 +146,10 @@ class Settings(BaseSettings):
 
     static_dir: str = "/app/static"
 
+    # --- Marka (arayüzde ve bildirimlerde görünen ad; kod genel kalır) ---
+    brand_name: str = "FredyMail"
+    brand_tagline: str = "Intelligence"
+
     @field_validator("imap_security")
     @classmethod
     def _security(cls, v: str) -> str:
