@@ -16,3 +16,11 @@ Web'den veri toplama gerektiren işlerde (işletme/lead bulma, iletişim bilgisi
   - `vdrmota/contact-info-scraper`: sitelerden e-posta/telefon
   - `apify/website-content-crawler`: site içeriği (ücretsiz Actor, platform kullanımı ücretli)
 - Toplanan kişisel verilerle (e-posta, telefon) toplu gönderim önerirken KVKK/GDPR ve spam kurallarını hatırlat.
+
+## scroll-craft (web sitesi tasarımı)
+
+Scroll odaklı landing page / web sitesi tasarım işlerinde `.claude/skills/scroll-craft` skill'ini kullan.
+
+- Kaynak: https://github.com/nateherkai/scroll-craft, commit `75d81f7` (v0.3.1, MIT). Güncellemek için yeni sürümü inceleyip klasörü elle değiştir.
+- Görseller kullanıcıdan gelir; kie.ai ile görsel/video üretme (ücretli, anahtar tanımlı değil).
+- Cloud oturumlarında Chrome yolu: `SCROLLCRAFT_CHROME=/opt/pw-browsers/chromium`. ffmpeg `/usr/bin/ffmpeg`'de.
