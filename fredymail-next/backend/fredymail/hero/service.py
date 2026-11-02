@@ -368,6 +368,9 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
             entry = new_brands.setdefault(it.brand, {"brand": it.brand, "products": [], "new_brand": True})
         if any(same_product(p["text"], it.name) for p in entry["products"]):
             continue  # zaten listede (devreden ürün stoğa giriyorsa kahverengi olarak işaretlendi)
+        if len(entry["products"]) >= MAX_PRODUCTS:  # sığmayan: tabloda bilgi notu olarak listelenir
+            overflow.append({"brand": it.brand, **prod})
+            continue
         if same_month:
             not_added.append({"brand": it.brand, **prod})
             continue

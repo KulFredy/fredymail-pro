@@ -420,3 +420,35 @@ def test_live_tab_is_renamed_each_month_and_archived_under_old_name():
     # yeni ayın adında başka bir sekme varsa net hata
     with pytest.raises(ValueError, match="Aralık 2026"):
         build_write_requests(hs, plan, ["Kasım 2026", "Aralık 2026"])
+
+
+def test_overflow_products_written_as_note_below_legend():
+    hs = parse_grid(grid(), "Sayfa1")
+    plan = {"period": "1.11.2026-30.11.2026", "brands": [{"brand": "SJCam", "products": []}],
+            "overflow": [{"brand": "Patona", "text": "Patona 4141 Powerbank"},
+                         {"brand": "Patona", "text": "Patona 4212 Autarc 1800"},
+                         {"brand": "Kodak", "text": "Kodak 240GB CFexpress Type A"}]}
+    reqs = build_write_requests(hs, plan, ["Sayfa1"])
+    c = _cells(reqs)
+    texts = {k: v[0]["userEnteredValue"]["stringValue"] for k, v in c.items()
+             if "userEnteredValue" in v[0] and "stringValue" in v[0]["userEnteredValue"]}
+    tr = 5  # 3 marka satırı silindi → TOPLAM 5. satıra çıktı
+    assert texts[(tr + 8, 1)].startswith("Listeye sığmayan yeni ürünler")
+    assert texts[(tr + 9, 1)] == "Patona" and texts[(tr + 9, 2)] == "Patona 4141 Powerbank · Patona 4212 Autarc 1800"
+    assert texts[(tr + 10, 1)] == "Kodak"
+    assert c[(tr + 9, 2)][0]["userEnteredFormat"]["textFormat"]["italic"] is True
+    clear = next(r["repeatCell"] for r in reqs if "repeatCell" in r)["range"]
+    assert clear["endRowIndex"] - clear["startRowIndex"] == 30
+
+
+def test_same_month_full_brand_goes_to_overflow_note():
+    from fredymail.hero.sheet import BrandRow, HeroSheet, Product
+
+    items = parse_workbook(_yoldaki(), TODAY)
+    keys = {i.key for i in items}
+    full = HeroSheet(0, "x", 0, "1.11.2026-30.11.2026", None, 3, 0, 1, list(range(2, 10)), 10,
+                     [BrandRow(4, "Zhiyun", [Product(f"Zhiyun Ürün {i}", "l") for i in range(8)]),
+                      BrandRow(5, "OM System", [Product("OM SYSTEM TG-7", "l")])], 6)
+    plan = service.build_plan(full, items, keys, 2026, 11, TODAY, history=[full])
+    assert [o["text"] for o in plan["overflow"]] == ["Zhiyun Yeni Işık"]  # Zhiyun dolu → not
+    assert "OM Yeni Kamera Kit" in [o["text"] for o in plan["not_added"]]  # yer var ama aynı ay → eklenmez

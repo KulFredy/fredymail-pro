@@ -179,7 +179,8 @@ BASIC_FIELDS = "userEnteredValue,textFormatRuns,note"
 PRODUCT_FIELDS = (BASIC_FIELDS + ",userEnteredFormat.textFormat.foregroundColorStyle,userEnteredFormat.textFormat.fontSize,"
                   "userEnteredFormat.textFormat.bold,userEnteredFormat.wrapStrategy,"
                   "userEnteredFormat.horizontalAlignment,userEnteredFormat.verticalAlignment")
-LEGEND_ROWS = 7  # TOPLAM satırının altında açıklama için ayrılan satır sayısı
+LEGEND_ROWS = 30  # TOPLAM satırının altında açıklama/bilgi notu için her ay temizlenen satır sayısı
+NOTE_GREY = (110, 110, 110)
 
 
 def _rgb(c: tuple[int, int, int]) -> dict:
@@ -206,10 +207,13 @@ def _product_cell(p: dict | None) -> dict:
     return cell
 
 
-def legend_rows(start_col: int, text_col: int) -> list[dict[int, dict]]:
-    """Sayfanın altındaki renk açıklaması (satır satır, sütun → hücre)."""
-    def txt(v: str, color=None, bold=False) -> dict:
-        tf = {"bold": bold, "fontSize": FONT_SIZE}
+def legend_rows(start_col: int, text_col: int, overflow: list[dict] | None = None) -> list[dict[int, dict]]:
+    """Sayfanın altındaki renk açıklaması ve bilgi notları (satır satır, sütun → hücre).
+
+    `overflow`: marka başına 8 sınırına sığmadığı için tabloya girmeyen yeni ürünler; marka bazında listelenir.
+    """
+    def txt(v: str, color=None, bold=False, italic=False) -> dict:
+        tf = {"bold": bold, "italic": italic, "fontSize": FONT_SIZE}
         if color:
             tf["foregroundColorStyle"] = _rgb(color)
         return {**_str(v), "userEnteredFormat": {"textFormat": tf, "wrapStrategy": "OVERFLOW_CELL",
@@ -221,7 +225,16 @@ def legend_rows(start_col: int, text_col: int) -> list[dict[int, dict]]:
     rows.append({start_col: txt("Notlar", bold=True), text_col: txt(
         "Bir ürün en fazla 3 ay üst üste listede kalır (bu ay yeni olarak gelmiyorsa). Linki olmayan ürünün mağaza "
         "sayfası henüz açılmamıştır. Liste her ay otomatik hazırlanır, onaylandıktan sonra yazılır.")})
-    return rows
+    if overflow:
+        by_brand: dict[str, list[str]] = {}
+        for o in overflow:
+            by_brand.setdefault(o["brand"], []).append(o["text"])
+        rows.append({})
+        rows.append({start_col: txt("Listeye sığmayan yeni ürünler (marka başına 8 sınırı)", bold=True)})
+        for brand, names in by_brand.items():
+            rows.append({start_col: txt(brand, NOTE_GREY, italic=True),
+                         text_col: txt(" · ".join(names), NOTE_GREY, italic=True)})
+    return rows[:LEGEND_ROWS]
 
 
 def build_write_requests(hs: HeroSheet, plan: dict, existing_titles: list[str]) -> list[dict]:
@@ -285,7 +298,7 @@ def build_write_requests(hs: HeroSheet, plan: dict, existing_titles: list[str]) 
             "range": {"sheetId": hs.sheet_id, "startRowIndex": tr + 1, "endRowIndex": tr + 1 + LEGEND_ROWS,
                       "startColumnIndex": start_col, "endColumnIndex": hs.product_cols[-1] + 1},
             "cell": {}, "fields": "userEnteredValue,textFormatRuns,note,userEnteredFormat.textFormat"}})
-        for k, cells in enumerate(legend_rows(start_col, text_col)):
+        for k, cells in enumerate(legend_rows(start_col, text_col, plan.get("overflow"))):
             if cells:
                 reqs.extend(_row_updates(hs.sheet_id, tr + 1 + k, cells, PRODUCT_FIELDS))
     return reqs
