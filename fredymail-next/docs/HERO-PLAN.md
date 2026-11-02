@@ -15,6 +15,19 @@ Her ayın başında sosyal medya tasarımcısına gönderilen "Zoom Aylık Hero 
 
 AI kuralı (`AI-GIZLILIK.md`) değişmez: worker'da ve zamanlayıcıda AI çağrısı yoktur.
 
+## Renkler ve 3 ay kuralı
+
+| Renk (yazı) | Anlamı |
+|---|---|
+| 🔴 Kırmızı `#C62828` | Bu ay listeye ilk kez giren ürün (geçen ayın listesinde yoktu) |
+| 🟤 Kahverengi `#8D5524` | Listede devam eden, bu ay stoğa girecek ürün (Yoldaki Mallar'da bu ay geliyor) |
+| 🔵 Mavi `#1E5AA8` | Önceki aydan devreden ürün |
+
+Açıklama TOPLAM satırının altına yazılır. Ürün hücreleri ortalı, metin kaydırmalı, 10 punto; zemin, kenarlık ve
+başlık biçimine dokunulmaz. Bir ürün **en fazla 3 ay üst üste** listede kalır (geçmiş, "Ekim 2026" gibi arşiv
+sekmelerinden okunur); bu ay yeniden "yeni ürün" olarak geliyorsa kalır. Aynı ay yeniden yazılırsa (ör. renk
+güncellemesi) karşılaştırma bir önceki aya göre yapılır ve yeni ürün eklenmez; tabloda elle yapılan silmeler korunur.
+
 ## Seçim kuralları
 
 - **Yeni ürün:** Ay içinde stoğa girecek **ve** şunlardan biri doğru: tabloda `YENİ ÜRÜN` notu var,

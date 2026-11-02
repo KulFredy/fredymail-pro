@@ -141,29 +141,63 @@ def test_helpers():
     assert [col_letter(i) for i in (0, 10, 25, 26)] == ["A", "K", "Z", "AA"]
 
 
+def _cells(reqs) -> dict:
+    """updateCells isteklerinden {(satır, sütun): (hücre, fields)}; sonraki istek öncekini ezer."""
+    out = {}
+    for r in reqs:
+        u = r.get("updateCells")
+        if not u:
+            continue
+        r0, c0 = u["start"]["rowIndex"], u["start"]["columnIndex"]
+        for dr, row in enumerate(u["rows"]):
+            for dc, cell in enumerate(row["values"]):
+                out[(r0 + dr, c0 + dc)] = (cell, u["fields"])
+    return out
+
+
 def test_build_write_requests_adds_rows_archives_and_keeps_formats():
+    from fredymail.hero.sheet import BASIC_FIELDS, CATEGORIES, PRODUCT_FIELDS
+
     hs = parse_grid(grid(), "Sayfa1")
     plan = {"period": "1.11.2026-30.11.2026", "brands": [
-        {"brand": "SJCam", "products": [{"text": "Sjcam SJ30", "link": "https://z.test/sj30"}]},
+        {"brand": "SJCam", "products": [{"text": "Sjcam SJ30", "link": "https://z.test/sj30", "category": "carried"},
+                                        {"text": "ZV200", "link": "https://z.test/zv", "category": "arriving"}]},
         {"brand": "OM System", "products": []},
         {"brand": "Zhiyun", "products": [{"text": f"Z{i}", "link": None} for i in range(10)]},  # 8'e kırpılır
-        {"brand": "Yaber", "products": [{"text": "Yaber L2 Plus", "link": None}]},
+        {"brand": "Yaber", "products": [{"text": "Yaber L2 Plus", "link": None, "source": "yeni"}]},
     ]}
     reqs = build_write_requests(hs, plan, ["Sayfa1"])
     assert reqs[0] == {"duplicateSheet": {"sourceSheetId": 7, "insertSheetIndex": 1, "newSheetName": "Ekim 2026"}}
     assert reqs[1]["updateCells"]["rows"][0]["values"][0]["userEnteredValue"]["stringValue"] == "1.11.2026-30.11.2026"
     assert reqs[2]["insertDimension"]["range"] == {"sheetId": 7, "dimension": "ROWS", "startIndex": 7, "endIndex": 8}
-    rows = [r["updateCells"] for r in reqs if "updateCells" in r][1:]
-    assert all(r["fields"] == "userEnteredValue,textFormatRuns,note" for r in rows)  # biçim alanlarına dokunulmaz
-    sj = rows[0]["rows"][0]["values"]
-    assert sj[2]["textFormatRuns"][0]["format"]["link"]["uri"] == "https://z.test/sj30"
-    assert sj[3] == {} and sj[10]["userEnteredValue"]["formulaValue"] == "=COUNTA(C5:J5)"
-    yaber = rows[3]["rows"][0]["values"]
-    assert rows[3]["start"]["rowIndex"] == 7 and yaber[0]["userEnteredValue"]["numberValue"] == 4
-    assert yaber[2]["note"] == LINK_PENDING_NOTE
-    assert len(rows[2]["rows"][0]["values"]) == 11  # sıra + marka + 8 ürün + toplam
-    total = rows[-1]
-    assert total["start"]["rowIndex"] == 8 and total["rows"][0]["values"][0]["userEnteredValue"]["formulaValue"] == "=SUM(K5:K8)"
+    c = _cells(reqs[2:])
+
+    def color(cell):
+        rgb = cell["userEnteredFormat"]["textFormat"]["foregroundColorStyle"]["rgbColor"]
+        return tuple(round(rgb[k] * 255) for k in ("red", "green", "blue"))
+
+    # sıra/marka/toplam: yalnızca değer (biçimine dokunulmaz); ürün hücreleri: değer + renk + hizalama
+    assert c[(4, 1)] == ({"userEnteredValue": {"stringValue": "SJCam"}}, BASIC_FIELDS)
+    assert c[(4, 10)][0]["userEnteredValue"]["formulaValue"] == "=COUNTA(C5:J5)"
+    sj30, f = c[(4, 2)]
+    assert f == PRODUCT_FIELDS and "backgroundColor" not in f  # zemin/kenarlık korunur
+    assert sj30["textFormatRuns"][0]["format"]["link"]["uri"] == "https://z.test/sj30"
+    assert color(sj30) == CATEGORIES["carried"][1] and color(c[(4, 3)][0]) == CATEGORIES["arriving"][1]
+    assert sj30["userEnteredFormat"]["horizontalAlignment"] == "CENTER"
+    assert "userEnteredValue" not in c[(4, 4)][0]  # boş ürün hücresi temizlenir
+    assert all((6, col) in c for col in range(2, 10)) and (6, 10) in c  # Zhiyun: 8 ürün + toplam
+    yaber, _ = c[(7, 2)]
+    assert c[(7, 0)][0]["userEnteredValue"]["numberValue"] == 4
+    assert yaber["note"] == LINK_PENDING_NOTE and color(yaber) == CATEGORIES["new"][1]
+    assert c[(8, 10)][0]["userEnteredValue"]["formulaValue"] == "=SUM(K5:K8)"
+    # TOPLAM'ın altı: önce temizlik, sonra renk açıklaması
+    clear = next(r["repeatCell"] for r in reqs if "repeatCell" in r)
+    assert clear["range"]["startRowIndex"] == 9
+    assert c[(10, 1)][0]["userEnteredValue"]["stringValue"] == "Renklerin anlamı"
+    legend = {c[(r, 1)][0]["userEnteredValue"]["stringValue"]: c[(r, 2)][0]["userEnteredValue"]["stringValue"]
+              for r in (11, 12, 13)}
+    assert legend == {f"● {n}": d for n, _, d in CATEGORIES.values()}
+    assert color(c[(11, 1)][0]) == CATEGORIES["new"][1]
 
     # arşiv zaten varsa tekrar kopyalanmaz; daha az marka → satır silinir
     reqs2 = build_write_requests(hs, {"period": "x", "brands": plan["brands"][:2]}, ["Sayfa1", "Ekim 2026"])
@@ -217,7 +251,7 @@ def test_build_plan():
     assert om["products"][1]["source"] == "yeni" and om["products"][1]["link"] is None
     assert plan["brands"][-1] == {"brand": "Yaber", "new_brand": True, "products": [
         {"text": "L2 PLUS", "link": None, "source": "yeni", "flags": ["new"],
-         "status": "TAHMINI VARIŞ KASIM ORTASI", "qty": 1200}]}
+         "status": "TAHMINI VARIŞ KASIM ORTASI", "qty": 1200, "category": "new", "months": 0}]}
     # Zhiyun dolu (8): yeni ürün taşanlara gider; "yeni" olmayan TG-7 Siyah ve Aralık'taki L3 eklenmez
     assert [o["text"] for o in plan["overflow"]] == []
     assert all(p["text"] != "TG-7 Siyah" for b in plan["brands"] for p in b["products"])
@@ -321,3 +355,45 @@ def test_local_tz_fallback(monkeypatch):
     monkeypatch.setattr(service, "ZoneInfo", missing)
     assert service.local_tz("Europe/Istanbul").utcoffset(None) == timedelta(hours=3)
     assert service.local_tz("Europe/Berlin").utcoffset(None) == timedelta(0)
+
+
+def test_categories_and_three_month_rule():
+    from fredymail.hero.sheet import BrandRow, HeroSheet, Product
+
+    def sheet(period, products):
+        return HeroSheet(0, "x", 0, period, None, 3, 0, 1, list(range(2, 10)), 10,
+                         [BrandRow(4, "OM System", [Product(t, "l") for t in products])], 5)
+
+    items = parse_workbook(_yoldaki(), TODAY)  # OM: "OM Yeni Kamera Kit" (YENİ ÜRÜN) ve "TG-7 Siyah" Kasım'da geliyor
+    new_kit = next(i.key for i in items if i.name == "OM Yeni Kamera Kit")
+    cur = sheet("1.10.2026-31.10.2026", ["OM SYSTEM TG-7", "OM System PEN", "OM Eski Ürün", "OM Yeni Kamera Kit"])
+    history = [sheet("1.9.2026-30.9.2026", ["OM System PEN", "OM Eski Ürün", "OM Yeni Kamera Kit"]),
+               sheet("1.8.2026-31.8.2026", ["OM Eski Ürün", "OM Yeni Kamera Kit"]),
+               sheet("1.7.2026-31.7.2026", ["OM System PEN"])]
+    plan = service.build_plan(cur, items, {new_kit}, 2026, 11, TODAY, history=history)
+    got = {p["text"]: (p["category"], p["months"]) for p in plan["brands"][0]["products"]}
+    assert got == {
+        "OM SYSTEM TG-7": ("arriving", 2),          # Kasım'da 2. ayı; TG-7 Siyah bu ay stoğa giriyor → kahverengi
+        "OM System PEN": ("carried", 3),            # Eylül + Ekim (Temmuz'la arası kopuk) → Kasım 3. ayı, mavi
+        "OM Yeni Kamera Kit": ("arriving", 4),      # 3 ay oldu ama bu ay YENİ ÜRÜN olarak geliyor → kalır
+    }
+    assert {"brand": "OM System", "text": "OM Eski Ürün", "reason": "3 aydır listede"} in plan["dropped"]
+
+
+def test_same_month_rewrite_recolors_without_readding():
+    from fredymail.hero.sheet import BrandRow, HeroSheet, Product
+
+    def sheet(period, products):
+        return HeroSheet(0, "x", 0, period, None, 3, 0, 1, list(range(2, 10)), 10,
+                         [BrandRow(4, "OM System", [Product(t, "l") for t in products])], 5)
+
+    items = parse_workbook(_yoldaki(), TODAY)
+    new_kit = next(i.key for i in items if i.name == "OM Yeni Kamera Kit")
+    # Kasım zaten yazılmış; kullanıcı yeni ürünü (OM Yeni Kamera Kit) elle silmiş
+    nov = sheet("1.11.2026-30.11.2026", ["OM SYSTEM TG-7", "OM Yaz Ürünü"])
+    oct_ = sheet("1.10.2026-31.10.2026", ["OM SYSTEM TG-7", "OM System PEN"])
+    plan = service.build_plan(nov, items, {new_kit}, 2026, 11, TODAY, history=[nov, oct_])
+    got = {p["text"]: (p["category"], p["months"]) for p in plan["brands"][0]["products"]}
+    assert got == {"OM SYSTEM TG-7": ("arriving", 2), "OM Yaz Ürünü": ("new", 1)}  # Ekim'de yoktu → kırmızı
+    assert plan["same_month"] and [o["text"] for o in plan["not_added"]] == ["OM Yeni Kamera Kit"]
+    assert build_write_requests(nov, plan, ["Sayfa1", "Ekim 2026"])[0].get("duplicateSheet") is None

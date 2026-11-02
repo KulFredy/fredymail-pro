@@ -168,15 +168,60 @@ def _str(v: str) -> dict:
     return {"userEnteredValue": {"stringValue": v}}
 
 
+# Renkler (yazı rengi): kategori → (ad, RGB, açıklama). Beyaz zeminde okunaklı, birbirinden ayrışan tonlar.
+CATEGORIES = {
+    "new": ("Kırmızı", (198, 40, 40), "Bu ay listeye ilk kez giren ürün"),
+    "arriving": ("Kahverengi", (141, 85, 36), "Listede devam eden, bu ay stoğa girecek ürün (Yoldaki Mallar)"),
+    "carried": ("Mavi", (30, 90, 168), "Önceki aydan devreden ürün"),
+}
+FONT_SIZE = 10
+BASIC_FIELDS = "userEnteredValue,textFormatRuns,note"
+PRODUCT_FIELDS = (BASIC_FIELDS + ",userEnteredFormat.textFormat.foregroundColorStyle,userEnteredFormat.textFormat.fontSize,"
+                  "userEnteredFormat.textFormat.bold,userEnteredFormat.wrapStrategy,"
+                  "userEnteredFormat.horizontalAlignment,userEnteredFormat.verticalAlignment")
+LEGEND_ROWS = 7  # TOPLAM satırının altında açıklama için ayrılan satır sayısı
+
+
+def _rgb(c: tuple[int, int, int]) -> dict:
+    return {"rgbColor": {"red": c[0] / 255, "green": c[1] / 255, "blue": c[2] / 255}}
+
+
+def category_of(p: dict) -> str:
+    return p.get("category") or ("new" if p.get("source") == "yeni" else "carried")
+
+
 def _product_cell(p: dict | None) -> dict:
+    fmt = {"wrapStrategy": "WRAP", "horizontalAlignment": "CENTER", "verticalAlignment": "MIDDLE",
+           "textFormat": {"fontSize": FONT_SIZE, "bold": False}}
     if not p or not p.get("text"):
-        return {}  # alanlar listede olduğundan hücre temizlenir
-    cell = _str(p["text"])
+        return {"userEnteredFormat": fmt}  # değer, link, not ve renk temizlenir; hizalama korunur
+    color = _rgb(CATEGORIES[category_of(p)][1])
+    fmt["textFormat"]["foregroundColorStyle"] = color
+    cell = {**_str(p["text"]), "userEnteredFormat": fmt}
     if p.get("link"):
-        cell["textFormatRuns"] = [{"startIndex": 0, "format": {"link": {"uri": p["link"]}}}]
+        cell["textFormatRuns"] = [{"startIndex": 0, "format": {"link": {"uri": p["link"]},
+                                                                "foregroundColorStyle": color, "underline": True}}]
     else:
         cell["note"] = LINK_PENDING_NOTE
     return cell
+
+
+def legend_rows(start_col: int, text_col: int) -> list[dict[int, dict]]:
+    """Sayfanın altındaki renk açıklaması (satır satır, sütun → hücre)."""
+    def txt(v: str, color=None, bold=False) -> dict:
+        tf = {"bold": bold, "fontSize": FONT_SIZE}
+        if color:
+            tf["foregroundColorStyle"] = _rgb(color)
+        return {**_str(v), "userEnteredFormat": {"textFormat": tf, "wrapStrategy": "OVERFLOW_CELL",
+                                                 "horizontalAlignment": "LEFT", "verticalAlignment": "MIDDLE"}}
+
+    rows: list[dict[int, dict]] = [{}, {start_col: txt("Renklerin anlamı", bold=True)}]
+    for name, color, desc in CATEGORIES.values():
+        rows.append({start_col: txt(f"● {name}", color, bold=True), text_col: txt(desc)})
+    rows.append({start_col: txt("Notlar", bold=True), text_col: txt(
+        "Bir ürün en fazla 3 ay üst üste listede kalır (bu ay yeni olarak gelmiyorsa). Linki olmayan ürünün mağaza "
+        "sayfası henüz açılmamıştır. Liste her ay otomatik hazırlanır, onaylandıktan sonra yazılır.")})
+    return rows
 
 
 def build_write_requests(hs: HeroSheet, plan: dict, existing_titles: list[str]) -> list[dict]:
@@ -211,22 +256,32 @@ def build_write_requests(hs: HeroSheet, plan: dict, existing_titles: list[str]) 
         if hs.no_col is not None:
             cells[hs.no_col] = {"userEnteredValue": {"numberValue": i + 1}}
         cells[hs.brand_col] = _str(b["brand"])
-        prods = (b.get("products") or [])[:len(hs.product_cols)]
-        for k, ci in enumerate(hs.product_cols):
-            cells[ci] = _product_cell(prods[k] if k < len(prods) else None)
         if hs.total_col is not None:
             cells[hs.total_col] = {"userEnteredValue": {"formulaValue": f"=COUNTA({p_first}{r + 1}:{p_last}{r + 1})"}}
         reqs.extend(_row_updates(hs.sheet_id, r, cells))
+        prods = (b.get("products") or [])[:len(hs.product_cols)]
+        pcells = {ci: _product_cell(prods[k] if k < len(prods) else None) for k, ci in enumerate(hs.product_cols)}
+        reqs.extend(_row_updates(hs.sheet_id, r, pcells, PRODUCT_FIELDS))
 
     if hs.total_row is not None and hs.total_col is not None:
         tr = hs.total_row + (n_new - n_old)
         tc = col_letter(hs.total_col)
         reqs.extend(_row_updates(hs.sheet_id, tr, {hs.total_col: {"userEnteredValue": {
             "formulaValue": f"=SUM({tc}{first + 1}:{tc}{first + n_new})"}}}))
+        # Renk açıklaması: TOPLAM'ın altındaki alan önce temizlenir (geçen ayın açıklaması da satırlarla birlikte
+        # kaydığı için aynı yerde durur), sonra yeniden yazılır.
+        start_col, text_col = hs.brand_col, hs.product_cols[0]
+        reqs.append({"repeatCell": {
+            "range": {"sheetId": hs.sheet_id, "startRowIndex": tr + 1, "endRowIndex": tr + 1 + LEGEND_ROWS,
+                      "startColumnIndex": start_col, "endColumnIndex": hs.product_cols[-1] + 1},
+            "cell": {}, "fields": "userEnteredValue,textFormatRuns,note,userEnteredFormat.textFormat"}})
+        for k, cells in enumerate(legend_rows(start_col, text_col)):
+            if cells:
+                reqs.extend(_row_updates(hs.sheet_id, tr + 1 + k, cells, PRODUCT_FIELDS))
     return reqs
 
 
-def _row_updates(sheet_id: int, row: int, cells: dict[int, dict]) -> list[dict]:
+def _row_updates(sheet_id: int, row: int, cells: dict[int, dict], fields: str = BASIC_FIELDS) -> list[dict]:
     """Bitişik sütun grupları için birer updateCells; yönetilmeyen sütunlara dokunulmaz."""
     out, cols = [], sorted(cells)
     i = 0
@@ -237,6 +292,6 @@ def _row_updates(sheet_id: int, row: int, cells: dict[int, dict]) -> list[dict]:
         out.append({"updateCells": {
             "start": {"sheetId": sheet_id, "rowIndex": row, "columnIndex": cols[i]},
             "rows": [{"values": [cells[c] for c in cols[i:j + 1]]}],
-            "fields": "userEnteredValue,textFormatRuns,note"}})
+            "fields": fields}})
         i = j + 1
     return out

@@ -25,6 +25,7 @@ from .yoldaki import YoldakiItem, month_bounds, parse_workbook
 log = logging.getLogger("fredymail.hero")
 
 CAMPAIGN_MIN_DAYS = 3  # ay içinde en az bu kadar gün sürmeyen kampanya devretmez
+MAX_MONTHS = 3  # bir ürün en fazla bu kadar ay üst üste listede kalır (yeni gelen hariç)
 
 
 def local_tz(name: str) -> tzinfo:
@@ -278,13 +279,44 @@ def same_product(a: str, b: str) -> bool:
     return len(ta & tb) / small >= 0.6
 
 
+def same_in_brand(a: str, b: str, brand: str) -> bool:
+    """Marka adı çıkarılarak karşılaştırma: 'Kodak Ku390' ile 'Kodak 32GB …' yalnızca marka yüzünden eşleşmesin."""
+    bt = _tokens(brand)
+    ta, tb = _tokens(a) - bt, _tokens(b) - bt
+    if not ta or not tb:
+        return False
+    return len(ta & tb) / min(len(ta), len(tb)) >= 0.6
+
+
+def months_on_list(text: str, brand: str, history: list[HeroSheet]) -> int:
+    """`history` (en yeni → en eski aylık listeler) içinde ürünün üst üste kaç ayda bulunduğu."""
+    n = 0
+    for sheet in history:
+        row = next((r for r in sheet.rows if r.brand == brand), None)
+        if row is None or not any(same_in_brand(p.text, text, brand) for p in row.products):
+            break
+        n += 1
+    return n
+
+
 def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year: int, month: int,
-               today: date, site=None, links: dict[str, str] | None = None) -> dict:
-    """Geçen ayın listesi + ay içinde stoğa girecek yeni ürünler → önerilen plan (kullanıcı onaylar)."""
+               today: date, site=None, links: dict[str, str] | None = None,
+               history: list[HeroSheet] | None = None) -> dict:
+    """Geçen ayın listesi + ay içinde stoğa girecek yeni ürünler → önerilen plan (kullanıcı onaylar).
+
+    Her ürünün bir kategorisi vardır (tabloda renk): new = bu ay ilk kez giren, arriving = listede devam eden ve bu ay
+    stoğa girecek, carried = devreden. `history`: geçen aydan önceki aylık listeler (arşiv sekmeleri, en yeni önce);
+    `hs` ile birlikte üst üste MAX_MONTHS ay listede olan ürün çıkarılır (bu ay yeni olarak gelmiyorsa).
+    """
     first, last = month_bounds(year, month)
     dropped: list[dict] = []
     plan_brands: list[dict] = []
     by_brand: dict[str, dict] = {}
+    arriving = [it for it in items if it.arrival.overlaps(first, last) or it.arrival.overdue(today)]
+    older = [h for h in (history or []) if h.period != hs.period]
+    # Aynı ay yeniden yazılıyor (ör. renk/biçim güncellemesi): `hs` zaten bu ayın listesi. Karşılaştırma bir önceki aya
+    # göre yapılır ve elle yapılan çıkarmalar geri alınmasın diye yeni ürün eklenmez.
+    same_month = hs.period == period_text(year, month)
     for row in hs.rows:
         kept = []
         for p in row.products:
@@ -292,12 +324,25 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
             if end is not None and end < first + timedelta(days=CAMPAIGN_MIN_DAYS):
                 dropped.append({"brand": row.brand, "text": p.text, "reason": f"kampanya {end:%d.%m} bitti"})
                 continue
+            incoming = [it for it in arriving if it.brand == row.brand and same_in_brand(p.text, it.name, row.brand)]
+            is_new_again = any(it.new_flag or it.key in new_keys for it in incoming)
+            before = months_on_list(p.text, row.brand, older)  # hedef aydan önce üst üste kaç ay listedeydi
+            if not same_month:
+                before += 1  # `hs` geçen ayın listesi
+            if before >= MAX_MONTHS and not is_new_again:
+                dropped.append({"brand": row.brand, "text": p.text, "reason": f"{before} aydır listede"})
+                continue
             link, flags = p.link, []
             if not link and site is not None:  # tabloda linki olmayan ürün: mağazada bulunursa link eklenir
                 m = site.match(p.text, row.brand)
                 if m.status == "found":
                     link, flags = m.url, ["link-site"]
-            kept.append({"text": p.text, "link": link, "source": "devreden", "flags": flags})
+            category = "new" if before == 0 else ("arriving" if incoming else "carried")
+            item = {"text": p.text, "link": link, "source": "yeni" if before == 0 else "devreden", "flags": flags,
+                    "months": before + 1, "category": category}
+            if incoming:
+                item["status"] = incoming[0].arrival.raw
+            kept.append(item)
         entry = {"brand": row.brand, "products": kept}
         plan_brands.append(entry)
         by_brand[row.brand] = entry
@@ -305,6 +350,7 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
     overflow: list[dict] = []
     other_brands: list[dict] = []
     new_brands: dict[str, dict] = {}
+    not_added: list[dict] = []
     for it in items:
         a = it.arrival
         if not (it.new_flag or it.key in new_keys):
@@ -313,7 +359,7 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
             continue
         flags = ["new"] + [f for f, on in (("uncertain", a.uncertain), ("overdue", a.overdue(today))) if on]
         prod = {"text": it.name, "link": (links or {}).get(it.key), "source": "yeni", "flags": flags, "status": a.raw,
-                "qty": it.qty}
+                "qty": it.qty, "category": "new", "months": 0}
         entry = by_brand.get(it.brand)
         if entry is None:
             if it.brand not in MARKETED:  # marketing listesinde olmayan marka: tabloya satır açılmaz
@@ -321,9 +367,9 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
                 continue
             entry = new_brands.setdefault(it.brand, {"brand": it.brand, "products": [], "new_brand": True})
         if any(same_product(p["text"], it.name) for p in entry["products"]):
-            for p in entry["products"]:  # zaten listede: yalnızca bilgi ekle
-                if same_product(p["text"], it.name):
-                    p.setdefault("status", a.raw)
+            continue  # zaten listede (devreden ürün stoğa giriyorsa kahverengi olarak işaretlendi)
+        if same_month:
+            not_added.append({"brand": it.brand, **prod})
             continue
         if len(entry["products"]) >= MAX_PRODUCTS:
             overflow.append({"brand": it.brand, **prod})
@@ -339,5 +385,7 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
         "dropped": dropped,
         "overflow": overflow,
         "other_brands": other_brands,
+        "same_month": same_month,
+        "not_added": not_added,
         "total": sum(len(b["products"]) for b in plan_brands),
     }

@@ -361,11 +361,31 @@ def _hero_client(s):
     return GoogleClient.from_file(s.google_sa_file)
 
 
-def _hero_sheet(s, client):
+def _hero_sheet(s, client, tab: str | None = None):
     from .hero.sheet import parse_grid
 
-    tab = s.hero_sheet_tab
+    tab = tab or s.hero_sheet_tab
     return parse_grid(client.sheet_grid(s.hero_sheet_id, f"'{tab}'!A1:Z200"), tab)
+
+
+def _hero_history(s, client, limit: int = 3) -> list:
+    """Arşiv sekmeleri ("Ekim 2026" …), en yeni önce: 3 ay kuralı için."""
+    import re
+
+    from .hero.sheet import MONTH_NAMES
+
+    found = []
+    for t in client.sheet_titles(s.hero_sheet_id):
+        m = re.fullmatch(r"(\w+)\s+(\d{4})", t["title"].strip())
+        if m and m.group(1) in MONTH_NAMES:
+            found.append((int(m.group(2)), MONTH_NAMES.index(m.group(1)) + 1, t["title"]))
+    out = []
+    for _, _, title in sorted(found, reverse=True)[:limit]:
+        try:
+            out.append(_hero_sheet(s, client, title))
+        except ValueError as e:
+            print(f"(uyarı: arşiv sekmesi '{title}' okunamadı: {e})")
+    return out
 
 
 def cmd_hero_sync(a) -> int:
@@ -467,7 +487,8 @@ def cmd_hero_preview(a) -> int:
         site = load_site_index(db)
         if site is None:
             print("(uyarı: mağaza kontrolü henüz yapılmadı; `fredymail hero-site` çalıştırın)")
-        plan = build_plan(hs, items, new_keys, year, month, today, site=site, links=site_links(db))
+        plan = build_plan(hs, items, new_keys, year, month, today, site=site, links=site_links(db),
+                          history=_hero_history(s, client))
         save_plan(db, plan)
     finally:
         db.close()
@@ -477,19 +498,27 @@ def cmd_hero_preview(a) -> int:
     if a.out:
         with open(a.out, "w", encoding="utf-8") as f:
             f.write(json.dumps(plan, ensure_ascii=False, indent=2))
+    print("🔴 ilk kez giren · 🟤 devam eden, bu ay stoğa girecek · 🔵 devreden")
     print(f"Plan: {plan['period']} (önceki: {plan['previous_period']} → arşiv sekmesi '{plan['archive_title']}')")
     for b in plan["brands"]:
         tag = " [YENİ MARKA]" if b.get("new_brand") else ""
         print(f"\n{b['brand']}{tag} ({len(b['products'])})")
         for p in b["products"]:
-            mark = "🆕" if p["source"] == "yeni" else "  "
+            cat = p.get("category") or ("new" if p["source"] == "yeni" else "carried")
+            mark = {"new": "🔴", "arriving": "🟤", "carried": "🔵"}[cat]
             link = "" if p.get("link") else "  (link yok)"
-            extra = f"  [{p['status']}]" if p.get("status") and p["source"] == "yeni" else ""
-            print(f"  {mark} {p['text']}{extra}{link}")
+            extra = f"  [{p['status']}]" if p.get("status") else ""
+            age = f"  ({p['months']}. ay)" if p.get("months") else ""
+            print(f"  {mark} {p['text']}{extra}{age}{link}")
     for d in plan["dropped"]:
         print(f"\n✂️  çıkarıldı: {d['brand']} · {d['text']} ({d['reason']})")
     for o in plan["overflow"]:
         print(f"\n➕ yer yok (8 sınırı): {o['brand']} · {o['text']}")
+    if plan.get("same_month"):
+        print("\nℹ️  Bu ay zaten yazılmış: yeni ürün eklenmedi (elle yaptığınız değişiklikler korunur); "
+              "renkler ve biçim güncellenecek.")
+        for o in plan.get("not_added", []):
+            print(f"   eklenmedi: {o['brand']} · {o['text']}")
     if plan.get("other_brands"):
         print("\nℹ️  marketing listesinde olmayan markaların yeni ürünleri (tabloya eklenmedi):")
         for o in plan["other_brands"]:
