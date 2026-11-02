@@ -323,6 +323,36 @@ def cmd_worker(a) -> int:
     return 0
 
 
+def cmd_hero_yoldaki(a) -> int:
+    """Yoldaki Mallar xlsx'ini okur, seçilen ayda stoğa girecekleri listeler (AI yok, ağ yok)."""
+    from datetime import date
+
+    from .hero.yoldaki import arriving_in, parse_workbook
+
+    today = date.fromisoformat(a.today) if a.today else date.today()
+    if a.month:
+        year, month = (int(x) for x in a.month.split("-"))
+    else:
+        year, month = today.year, today.month
+    with open(a.file, "rb") as f:
+        items = parse_workbook(f.read(), today)
+    result = arriving_in(items, year, month, today)
+    if a.json:
+        _print({"month": f"{year}-{month:02d}", "today": today.isoformat(), "brands": result})
+        return 0
+    marks = {"new": "🆕", "uncertain": "❔", "overdue": "⚠️"}
+    print(f"{year}-{month:02d} ayında stoğa girmesi beklenenler (bugün {today}) — {len(items)} kalem okundu")
+    for brand, rows in result.items():
+        print(f"\n{brand} ({len(rows)})")
+        for r in rows:
+            fl = " ".join(marks[f] for f in r["flags"])
+            qty = r["qty"] if r["qty"] is not None else "-"
+            sh = r["shipments"]
+            st = " + ".join(f"×{x['qty']} {x['status']}" for x in sh) if len(sh) > 1 else f"×{qty} {r['status']}"
+            print(f"  {fl:6} {r['name']}  [{st}]")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="fredymail", description="FredyMail yönetim komutları")
     sp = p.add_subparsers(dest="cmd", required=True)
@@ -387,6 +417,12 @@ def main(argv: list[str] | None = None) -> int:
     wh = sp.add_parser("worker-health", help="Worker kalp atışı taze mi (Docker healthcheck)")
     wh.add_argument("--max-age", type=int, default=900)
     wh.set_defaults(fn=cmd_worker_health)
+    hy = sp.add_parser("hero-yoldaki", help="Yoldaki Mallar xlsx'inden ay içinde stoğa girecekleri listele")
+    hy.add_argument("file", help="YOLDAKİ_MALLAR_GENEL.xlsx yolu")
+    hy.add_argument("--month", help="YYYY-AA (varsayılan: bu ay)")
+    hy.add_argument("--today", help="YYYY-AA-GG (test için; varsayılan: bugün)")
+    hy.add_argument("--json", action="store_true")
+    hy.set_defaults(fn=cmd_hero_yoldaki)
 
     a = p.parse_args(argv)
     return a.fn(a)

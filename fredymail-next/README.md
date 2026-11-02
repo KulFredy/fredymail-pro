@@ -57,6 +57,7 @@ fredymail-next/
 |---|---|
 | `discover <adres> [--host H]` | Posta sağlayıcısını ve güvenli IMAP ayarlarını tespit eder (**giriş yapmaz**) |
 | `sync-plan` | Canlı hesapta ilk senkron kapsamını gösterir (salt okunur, mail indirmez) |
+| `hero-yoldaki <xlsx> [--month YYYY-AA]` | Yoldaki Mallar tablosundan ay içinde stoğa girecekleri listeler (AI yok; bkz. [docs/HERO-PLAN.md](docs/HERO-PLAN.md)) |
 | `sync-once [--folder X] [--yes-live]` | Tek senkron döngüsü |
 | `import-eml <dizin> [--prefix Outlook]` · `import-mbox <dosya> --folder X` | Outlook arşivini içe aktarır |
 | `reindex --yes` | Arama indeksini Postgres'ten yeniden üretir |
