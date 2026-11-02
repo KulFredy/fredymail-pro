@@ -361,10 +361,18 @@ def _hero_client(s):
     return GoogleClient.from_file(s.google_sa_file)
 
 
+def _live_tab(s, client) -> dict:
+    """Canlı sekme: kimliği FM_HERO_SHEET_GID olan (adı her ay değişir); yoksa FM_HERO_SHEET_TAB, yoksa ilk sekme."""
+    props = client.sheet_titles(s.hero_sheet_id)
+    return (next((p for p in props if p.get("sheetId", 0) == s.hero_sheet_gid), None)
+            or next((p for p in props if p["title"] == s.hero_sheet_tab), None)
+            or min(props, key=lambda p: p.get("index", 0)))
+
+
 def _hero_sheet(s, client, tab: str | None = None):
     from .hero.sheet import parse_grid
 
-    tab = tab or s.hero_sheet_tab
+    tab = tab or _live_tab(s, client)["title"]
     return parse_grid(client.sheet_grid(s.hero_sheet_id, f"'{tab}'!A1:Z200"), tab)
 
 
@@ -375,7 +383,10 @@ def _hero_history(s, client, limit: int = 3) -> list:
     from .hero.sheet import MONTH_NAMES
 
     found = []
+    live = _live_tab(s, client)
     for t in client.sheet_titles(s.hero_sheet_id):
+        if t.get("sheetId", 0) == live.get("sheetId", 0):
+            continue  # canlı sekme de ay adı taşır ama arşiv değildir
         m = re.fullmatch(r"(\w+)\s+(\d{4})", t["title"].strip())
         if m and m.group(1) in MONTH_NAMES:
             found.append((int(m.group(2)), MONTH_NAMES.index(m.group(1)) + 1, t["title"]))

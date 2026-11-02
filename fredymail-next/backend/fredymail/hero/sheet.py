@@ -134,7 +134,7 @@ def parse_grid(resp: dict, tab: str) -> HeroSheet:
             continue
         prods = [Product(_cell_text(get(ci)), _cell_link(get(ci))) for ci in product_cols if _cell_text(get(ci))]
         rows.append(BrandRow(r0 + ri, brands.canonical(name) or name, prods))
-    return HeroSheet(sheet_id=props["sheetId"], title=props["title"], index=props.get("index", 0),
+    return HeroSheet(sheet_id=props.get("sheetId", 0), title=props["title"], index=props.get("index", 0),
                      period=period, period_cell=period_cell, header_row=r0 + header_row,
                      no_col=None if no_col is None else c0 + no_col, brand_col=c0 + brand_col,
                      product_cols=[c0 + c for c in product_cols], total_col=None if total_col is None else c0 + total_col,
@@ -227,9 +227,19 @@ def legend_rows(start_col: int, text_col: int) -> list[dict[int, dict]]:
 def build_write_requests(hs: HeroSheet, plan: dict, existing_titles: list[str]) -> list[dict]:
     """Plan → Sheets batchUpdate istekleri. Sıra önemlidir: önce arşiv kopyası, sonra satır sayısı, sonra değerler."""
     reqs: list[dict] = []
+    others = [t for t in existing_titles if t != hs.title]  # canlı sekmenin kendi adı hariç
+    # 1) Canlı sekmenin adı yeni ayın adı olur (kimliği, yani tasarımcının linki değişmez)
+    new_title = archive_title(plan.get("period"))
+    if new_title and new_title != hs.title:
+        if new_title in others:
+            raise ValueError(f"'{new_title}' adında başka bir sekme var; canlı sekme yeniden adlandırılamıyor. "
+                             "O sekmeyi silin ya da yeniden adlandırın.")
+        reqs.append({"updateSheetProperties": {"properties": {"sheetId": hs.sheet_id, "title": new_title},
+                                               "fields": "title"}})
+    # 2) Eski içerik arşive kopyalanır (ad artık boşta); aynı ay yeniden yazılıyorsa arşivlenmez
     arch = plan.get("archive_title") or archive_title(hs.period)
-    same_month = bool(plan.get("period")) and plan.get("period") == hs.period  # aynı ayı yeniden yazma: arşivleme
-    if arch and arch not in existing_titles and not same_month:
+    same_month = bool(plan.get("period")) and plan.get("period") == hs.period
+    if arch and arch not in others and not same_month:
         reqs.append({"duplicateSheet": {"sourceSheetId": hs.sheet_id, "insertSheetIndex": hs.index + 1,
                                         "newSheetName": arch}})
     if hs.period_cell and plan.get("period"):

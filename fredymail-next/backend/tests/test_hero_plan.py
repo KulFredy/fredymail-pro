@@ -167,10 +167,13 @@ def test_build_write_requests_adds_rows_archives_and_keeps_formats():
         {"brand": "Yaber", "products": [{"text": "Yaber L2 Plus", "link": None, "source": "yeni"}]},
     ]}
     reqs = build_write_requests(hs, plan, ["Sayfa1"])
-    assert reqs[0] == {"duplicateSheet": {"sourceSheetId": 7, "insertSheetIndex": 1, "newSheetName": "Ekim 2026"}}
-    assert reqs[1]["updateCells"]["rows"][0]["values"][0]["userEnteredValue"]["stringValue"] == "1.11.2026-30.11.2026"
-    assert reqs[2]["insertDimension"]["range"] == {"sheetId": 7, "dimension": "ROWS", "startIndex": 7, "endIndex": 8}
-    c = _cells(reqs[2:])
+    # önce canlı sekmenin adı yeni ay olur (kimlik/link aynı), sonra eski içerik arşive kopyalanır
+    assert reqs[0] == {"updateSheetProperties": {"properties": {"sheetId": 7, "title": "Kasım 2026"},
+                                                 "fields": "title"}}
+    assert reqs[1] == {"duplicateSheet": {"sourceSheetId": 7, "insertSheetIndex": 1, "newSheetName": "Ekim 2026"}}
+    assert reqs[2]["updateCells"]["rows"][0]["values"][0]["userEnteredValue"]["stringValue"] == "1.11.2026-30.11.2026"
+    assert reqs[3]["insertDimension"]["range"] == {"sheetId": 7, "dimension": "ROWS", "startIndex": 7, "endIndex": 8}
+    c = _cells(reqs[3:])
 
     def color(cell):
         rgb = cell["userEnteredFormat"]["textFormat"]["foregroundColorStyle"]["rgbColor"]
@@ -397,3 +400,23 @@ def test_same_month_rewrite_recolors_without_readding():
     assert got == {"OM SYSTEM TG-7": ("arriving", 2), "OM Yaz Ürünü": ("new", 1)}  # Ekim'de yoktu → kırmızı
     assert plan["same_month"] and [o["text"] for o in plan["not_added"]] == ["OM Yeni Kamera Kit"]
     assert build_write_requests(nov, plan, ["Sayfa1", "Ekim 2026"])[0].get("duplicateSheet") is None
+
+
+def test_live_tab_is_renamed_each_month_and_archived_under_old_name():
+    g = grid()
+    g["sheets"][0]["properties"]["title"] = "Kasım 2026"  # canlı sekme geçen ay adlandırılmış
+    g["sheets"][0]["data"][0]["rowData"][2]["values"][2] = _c("1.11.2026-30.11.2026")
+    hs = parse_grid(g, "Kasım 2026")
+    plan = {"period": "1.12.2026-31.12.2026", "brands": [{"brand": "SJCam", "products": []}]}
+    reqs = build_write_requests(hs, plan, ["Kasım 2026", "Ekim 2026"])
+    assert reqs[0]["updateSheetProperties"]["properties"] == {"sheetId": 7, "title": "Aralık 2026"}
+    assert reqs[1]["duplicateSheet"]["newSheetName"] == "Kasım 2026"  # canlı sekmenin eski adı artık boşta
+
+    # aynı ay yeniden yazma: ad zaten doğru, arşiv yok
+    same = build_write_requests(hs, {"period": "1.11.2026-30.11.2026", "brands": plan["brands"]},
+                                ["Kasım 2026", "Ekim 2026"])
+    assert not any("updateSheetProperties" in r or "duplicateSheet" in r for r in same)
+
+    # yeni ayın adında başka bir sekme varsa net hata
+    with pytest.raises(ValueError, match="Aralık 2026"):
+        build_write_requests(hs, plan, ["Kasım 2026", "Aralık 2026"])

@@ -150,7 +150,9 @@ class Settings(BaseSettings):
     # Google servis hesabı anahtarı (JSON). Yalnızca paylaşılan dosyalara erişir; dosya yoksa modül kapalıdır.
     google_sa_file: str = "/run/secrets/google_sa.json"
     hero_sheet_id: str = ""            # "Zoom Aylık Hero Ürünler Listesi" (Google Sheets) kimliği
-    hero_sheet_tab: str = "Sayfa1"     # tasarımcıya giden sabit sekme
+    # Tasarımcıya giden canlı sekme, kimliğiyle (linkteki #gid=…) bulunur; adı her ay o ayın adı olur ("Kasım 2026").
+    hero_sheet_gid: int = 0
+    hero_sheet_tab: str = "Sayfa1"     # yalnızca gid bulunamazsa yedek
     hero_yoldaki_file_id: str = ""     # YOLDAKİ_MALLAR_GENEL.xlsx (Drive) kimliği
     hero_timezone: str = "Europe/Istanbul"
     hero_run_days: str = "15,25"       # Yoldaki Mallar + mağaza kontrolü yalnızca ayın bu günlerinde

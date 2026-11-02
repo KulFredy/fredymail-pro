@@ -15,6 +15,13 @@ Her ayın başında sosyal medya tasarımcısına gönderilen "Zoom Aylık Hero 
 
 AI kuralı (`AI-GIZLILIK.md`) değişmez: worker'da ve zamanlayıcıda AI çağrısı yoktur.
 
+## Sekmeler
+
+Canlı sekme (tasarımcının linkindeki `#gid=0`) hep aynı sekmedir; yalnızca **adı** her ay o ayın adı olur
+("Kasım 2026", "Aralık 2026"…), bu yüzden link değişmez. Yeni ay yazılırken: canlı sekme yeni ayın adını alır →
+eski içerik eski ayın adıyla arşiv sekmesine kopyalanır → yeni ay yazılır. Canlı sekme adıyla değil kimliğiyle
+(`FM_HERO_SHEET_GID`) bulunur.
+
 ## Renkler ve 3 ay kuralı
 
 | Renk (yazı) | Anlamı |
