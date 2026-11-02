@@ -183,7 +183,8 @@ def build_write_requests(hs: HeroSheet, plan: dict, existing_titles: list[str]) 
     """Plan → Sheets batchUpdate istekleri. Sıra önemlidir: önce arşiv kopyası, sonra satır sayısı, sonra değerler."""
     reqs: list[dict] = []
     arch = plan.get("archive_title") or archive_title(hs.period)
-    if arch and arch not in existing_titles:
+    same_month = bool(plan.get("period")) and plan.get("period") == hs.period  # aynı ayı yeniden yazma: arşivleme
+    if arch and arch not in existing_titles and not same_month:
         reqs.append({"duplicateSheet": {"sourceSheetId": hs.sheet_id, "insertSheetIndex": hs.index + 1,
                                         "newSheetName": arch}})
     if hs.period_cell and plan.get("period"):

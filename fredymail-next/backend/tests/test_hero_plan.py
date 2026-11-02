@@ -170,6 +170,11 @@ def test_build_write_requests_adds_rows_archives_and_keeps_formats():
     assert not any("duplicateSheet" in r for r in reqs2)
     assert any(r.get("deleteDimension", {}).get("range", {}).get("startIndex") == 6 for r in reqs2)
 
+    # aynı ayı yeniden yazmak (ör. Kasım'a yeni ürün eklemek) taslağı arşive kopyalamaz
+    reqs3 = build_write_requests(hs, {"period": "1.10.2026-31.10.2026", "archive_title": "Ekim 2026",
+                                      "brands": plan["brands"]}, ["Sayfa1"])
+    assert not any("duplicateSheet" in r for r in reqs3)
+
 
 # ---------------------------------------------------------------- plan
 
