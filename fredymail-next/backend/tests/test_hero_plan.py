@@ -263,6 +263,11 @@ def test_maybe_run_daily_once_per_day_and_reminder(db, settings, tmp_path, monke
         return {"items": 1, "added": 0}
 
     monkeypatch.setattr(service, "run_sync", fake_run_sync)
+    site_runs = []
+    monkeypatch.setattr(service, "run_site_check",
+                        lambda db, settings, today=None, **k: site_runs.append(today) or service._set_kv(
+                            db, "hero_site", {"date": today.isoformat()}) or {"products": 0, "found": 0,
+                                                                               "missing": 0, "ambiguous": 0})
     ist = lambda d, h: datetime(2026, 11, d, h - 3, tzinfo=UTC)  # noqa: E731  (İstanbul = UTC+3)
     service.maybe_run_daily(db, settings, msgs.append, now=ist(2, 7))  # 08:00'den önce
     assert runs == []
@@ -270,6 +275,7 @@ def test_maybe_run_daily_once_per_day_and_reminder(db, settings, tmp_path, monke
     service.maybe_run_daily(db, settings, msgs.append, now=ist(2, 15))  # aynı gün tekrar yok
     service.maybe_run_daily(db, settings, msgs.append, now=ist(3, 9))
     assert runs == [date(2026, 11, 2), date(2026, 11, 3)] and msgs == []
+    assert site_runs == runs  # mağaza kontrolü senkrondan sonra, günde bir
     service.maybe_run_daily(db, settings, msgs.append, now=ist(25, 9))
     service.maybe_run_daily(db, settings, msgs.append, now=ist(26, 9))
     assert len(msgs) == 1 and "12.2026" in msgs[0] and "2026-12" in msgs[0]

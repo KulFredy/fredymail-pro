@@ -156,6 +156,8 @@ class Settings(BaseSettings):
     hero_sync_hour: int = 8            # Yoldaki Mallar günde bir kez, bu saatten sonra okunur
     hero_new_days: int = 45            # listede ilk kez görünen ürün bu kadar gün "yeni" sayılır
     hero_reminder_day: int = 25        # ayın bu günü Telegram hatırlatması (0 = kapalı)
+    hero_shop_url: str = "https://shop.zoomithalat.com"  # IdeaSoft mağazası; boşsa site kontrolü kapalı
+    hero_site_delay: float = 30.0      # mağaza robots.txt: Crawl-delay 30 sn
 
     # --- Marka (arayüzde ve bildirimlerde görünen ad; kod genel kalır) ---
     brand_name: str = "FredyMail"

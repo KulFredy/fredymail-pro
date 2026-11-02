@@ -76,13 +76,50 @@ def sync_items(db: Session, items: list[YoldakiItem], today: date, baseline_keys
 
 
 def new_product_keys(db: Session) -> set[str]:
-    """Yeni ürün sayılanlar: tabloda YENİ ÜRÜN notu olanlar.
+    """Yeni ürün sayılanlar: tabloda YENİ ÜRÜN notu olanlar + mağazada (shop.zoomithalat.com) karşılığı olmayanlar.
 
     "Yoldaki listede ilk kez görünmek" tek başına yeni ürün demek DEĞİLDİR: liste döner, depoya giren ürün düşer,
     yeniden siparişte geri gelir (ör. yıllardır satılan bataryalar). Bu yüzden ilk görünme yalnızca bilgi olarak
-    tutulur (`first_seen_keys`); asıl ikinci ölçüt "zoomithalat.com'da henüz yok" kontrolü olacaktır.
+    tutulur (`first_seen_keys`). Mağaza eşleşmesi "belirsiz" olan ürün yeni sayılmaz (on_site = None).
     """
-    return set(db.execute(select(HeroItem.key).where(HeroItem.new_flag.is_(True))).scalars())
+    q = select(HeroItem.key).where(HeroItem.new_flag.is_(True) | HeroItem.on_site.is_(False))
+    return set(db.execute(q).scalars())
+
+
+def site_links(db: Session) -> dict[str, str]:
+    """Yoldaki ürün anahtarı → mağaza linki (eşleşenler)."""
+    rows = db.execute(select(HeroItem.key, HeroItem.site_url).where(HeroItem.site_url.is_not(None)))
+    return {k: u for k, u in rows}
+
+
+def load_site_index(db: Session):
+    from .site import SiteIndex
+
+    kv = db.get(KeyValue, "hero_site")
+    urls = (kv.value or {}).get("urls") if kv else None
+    return SiteIndex(urls) if urls else None
+
+
+def run_site_check(db: Session, settings: Settings, http=None, sleep=None, today: date | None = None) -> dict:
+    """Mağaza site haritasını indirir (robots.txt aralığına uyarak) ve yoldaki ürünleri eşleştirir."""
+    import time as _time
+
+    from .site import SiteIndex, fetch_product_urls
+
+    today = today or datetime.now(local_tz(settings.hero_timezone)).date()
+    urls = fetch_product_urls(settings.hero_shop_url, http=http, delay=settings.hero_site_delay,
+                              sleep=sleep or _time.sleep)
+    index = SiteIndex(urls)
+    counts = {"found": 0, "missing": 0, "ambiguous": 0}
+    for item in db.execute(select(HeroItem)).scalars():
+        m = index.match(item.name, item.brand, item.code)
+        counts[m.status] += 1
+        item.on_site = {"found": True, "missing": False}.get(m.status)
+        item.site_url = m.url
+    db.commit()
+    res = {"date": today.isoformat(), "products": len(urls), **counts}
+    _set_kv(db, "hero_site", {**res, "urls": urls})
+    return res
 
 
 def first_seen_keys(db: Session, today: date, days: int) -> set[str]:
@@ -147,6 +184,20 @@ def maybe_run_daily(db: Session, settings: Settings, send_message=None, now: dat
             # saatte en fazla bir deneme
             _set_kv(db, "hero_sync", {**((kv.value or {}) if kv else {}), "tried": now.strftime("%Y-%m-%dT%H"),
                                       "error": str(e)[:300]})
+    sk = db.get(KeyValue, "hero_site")
+    sv = (sk.value or {}) if sk else {}
+    synced_today = (db.get(KeyValue, "hero_sync").value or {}).get("date") == today.isoformat() \
+        if db.get(KeyValue, "hero_sync") else False
+    if (settings.hero_shop_url and synced_today and sv.get("date") != today.isoformat()
+            and sv.get("tried") != now.strftime("%Y-%m-%dT%H")):
+        try:  # ~6 istek × 30 sn: worker döngüsü günde bir kez birkaç dakika bekler
+            res = run_site_check(db, settings, today=today)
+            log.info("hero: mağaza kontrolü ürün=%s eşleşen=%s yok=%s belirsiz=%s",
+                     res["products"], res["found"], res["missing"], res["ambiguous"])
+        except Exception as e:  # noqa: BLE001
+            db.rollback()
+            log.warning("hero: mağaza kontrolü yapılamadı: %s", e)
+            _set_kv(db, "hero_site", {**sv, "tried": now.strftime("%Y-%m-%dT%H"), "error": str(e)[:300]})
     if settings.hero_reminder_day and today.day >= settings.hero_reminder_day and send_message:
         rk = db.get(KeyValue, "hero_reminder")
         month_key = today.strftime("%Y-%m")
@@ -201,7 +252,7 @@ def same_product(a: str, b: str) -> bool:
 
 
 def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year: int, month: int,
-               today: date) -> dict:
+               today: date, site=None, links: dict[str, str] | None = None) -> dict:
     """Geçen ayın listesi + ay içinde stoğa girecek yeni ürünler → önerilen plan (kullanıcı onaylar)."""
     first, last = month_bounds(year, month)
     dropped: list[dict] = []
@@ -214,7 +265,12 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
             if end is not None and end < first + timedelta(days=CAMPAIGN_MIN_DAYS):
                 dropped.append({"brand": row.brand, "text": p.text, "reason": f"kampanya {end:%d.%m} bitti"})
                 continue
-            kept.append({"text": p.text, "link": p.link, "source": "devreden", "flags": []})
+            link, flags = p.link, []
+            if not link and site is not None:  # tabloda linki olmayan ürün: mağazada bulunursa link eklenir
+                m = site.match(p.text, row.brand)
+                if m.status == "found":
+                    link, flags = m.url, ["link-site"]
+            kept.append({"text": p.text, "link": link, "source": "devreden", "flags": flags})
         entry = {"brand": row.brand, "products": kept}
         plan_brands.append(entry)
         by_brand[row.brand] = entry
@@ -228,7 +284,7 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
         if not (a.overlaps(first, last) or a.overdue(today)):
             continue
         flags = ["new"] + [f for f, on in (("uncertain", a.uncertain), ("overdue", a.overdue(today))) if on]
-        prod = {"text": it.name, "link": None, "source": "yeni", "flags": flags, "status": a.raw,
+        prod = {"text": it.name, "link": (links or {}).get(it.key), "source": "yeni", "flags": flags, "status": a.raw,
                 "qty": it.qty}
         entry = by_brand.get(it.brand)
         if entry is None:

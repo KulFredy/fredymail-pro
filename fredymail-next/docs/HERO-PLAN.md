@@ -37,17 +37,23 @@ Aynı ürün birden çok sevkiyatta ise adetler toplanır, sevkiyatlar ayrı ayr
 Fatura başlık satırları ve yedek parçalar atlanır. Marka; sekme adından (`KODAK SD` → Kodak), çok markalı
 sekmelerde (`BT-TECH`, `VIDENDUM`) satırdaki marka hücresinden veya ürün adından bulunur (`hero/brands.py`).
 
-**"Yeni ürün" tespiti:** Şimdilik tabloda `YENİ ÜRÜN` notu olan ürünler. İkinci ölçüt olarak "ürün zoomithalat.com'da
-henüz yok" kontrolü eklenecek. Worker dosyayı günde bir okuyup her ürünü `hero_items` tablosuna yazar ve listeye ilk
-kez girdiği günü tutar; ancak **yoldaki listeye ilk kez girmek tek başına yeni ürün sayılmaz**. Liste döner: depoya
-giren ürün düşer, yeniden siparişte geri gelir (ilk kurulumda 219 kalemin 196'sı son 30 günde listeye girmişti,
-çoğu yıllardır satılan ürünlerdi). Bu bilgi yalnızca yardımcı olarak kullanılır.
+**"Yeni ürün" tespiti:** (1) tabloda `YENİ ÜRÜN` notu olanlar, (2) mağazada (shop.zoomithalat.com, IdeaSoft)
+karşılığı olmayanlar. Worker günde bir, Yoldaki Mallar'dan sonra mağazanın **yalnızca site haritasını** okur
+(`/sitemap.xml` → `/xml/sitemap_product_N.xml` → `/urun/<ad>` linkleri; robots.txt `Crawl-delay: 30` gereği istekler
+arası 30 sn, toplam birkaç dakika) ve her yoldaki ürünü linklerle eşleştirir (`hero/site.py`): model kodu varsa
+(A063Z, B091S…) birebir, yoksa anlamlı kelime örtüşmesi (≥ %75). Birden çok aday çıkarsa "belirsiz" sayılır ve yeni
+ürün kabul edilmez. Eşleşen ürünün mağaza linki plana yazılır; tablodaki linksiz ürünler de mağazada bulunursa
+linklenir.
+
+Yoldaki listeye ilk kez girmek tek başına yeni ürün sayılmaz: liste döner, depoya giren ürün düşer, yeniden siparişte
+geri gelir (ilk kurulumda 219 kalemin 196'sı son 30 günde listeye girmişti, çoğu yıllardır satılan ürünlerdi).
 
 ## Komutlar
 
 ```bash
 DC="docker compose -f docker-compose.yml -f docker-compose.vps.yml"
 $DC run --rm worker fredymail hero-sync                    # Yoldaki Mallar'ı şimdi oku (worker zaten günde bir okur)
+$DC run --rm worker fredymail hero-site                    # mağaza kontrolü (birkaç dk); --show-found eşleşmeleri gösterir
 $DC run --rm worker fredymail hero-preview --month 2026-12 # öneriyi göster, veritabanına kaydet (tabloya dokunmaz)
 $DC run --rm worker fredymail hero-write                   # kuru çalışma: ne yapılacağını gösterir
 $DC run --rm worker fredymail hero-write --yes             # arşiv sekmesi + Sayfa1 güncellemesi
@@ -86,7 +92,7 @@ docker compose run --rm --no-deps -v "$PWD/YOLDAKI.xlsx:/tmp/y.xlsx:ro" worker \
 - [x] Google servis hesabı ile Drive'dan okuma ve Sheets'e yazma (`hero/google.py`, `hero/sheet.py`)
 - [x] Günlük kopya, "ilk kez görünen" tespiti, ay sonu hatırlatması (`hero/service.py`, worker)
 - [x] Plan önerisi ve yazma komutları (`hero-preview`, `hero-write`)
-- [ ] zoomithalat.com link eşleştirme (site yapısı incelenecek)
+- [x] Mağaza kontrolü ve link eşleştirme (`hero/site.py`, `hero-site`)
 - [ ] Kampanya çıkarımı (AI, düğmeyle)
 - [ ] Hero Planı ekranı ve tasarımcı taslağı
 

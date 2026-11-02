@@ -337,3 +337,6 @@ class HeroItem(Base):
     last_status: Mapped[str] = mapped_column(Text, default="")
     baseline: Mapped[bool] = mapped_column(Boolean, default=False)
     new_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Mağaza kontrolü (hero/site.py): True = sitede var, False = yok (yeni ürün), None = bilinmiyor/belirsiz
+    on_site: Mapped[bool | None] = mapped_column(Boolean)
+    site_url: Mapped[str | None] = mapped_column(Text)

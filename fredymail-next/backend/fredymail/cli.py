@@ -383,11 +383,44 @@ def cmd_hero_sync(a) -> int:
     return 0
 
 
+def cmd_hero_site(a) -> int:
+    """Mağaza site haritasını indirip yoldaki ürünlerle eşleştirir; sonuçları marka bazında gösterir."""
+    from sqlalchemy import select
+
+    from .db import new_session
+    from .hero.service import run_site_check
+    from .models import HeroItem
+
+    s = get_settings()
+    db = new_session()
+    try:
+        print(f"{s.hero_shop_url} site haritası okunuyor (istekler arası {s.hero_site_delay:.0f} sn)…", flush=True)
+        res = run_site_check(db, s)
+        print(f"Mağazada {res['products']} ürün linki. Yoldaki ürünler: {res['found']} eşleşti, "
+              f"{res['missing']} sitede yok (yeni sayılır), {res['ambiguous']} belirsiz.")
+        rows = db.execute(select(HeroItem).order_by(HeroItem.brand, HeroItem.name)).scalars().all()
+        for label, cond in (("SİTEDE YOK → yeni ürün adayı", lambda r: r.on_site is False),
+                            ("BELİRSİZ (birden çok aday) → yeni sayılmaz", lambda r: r.on_site is None)):
+            sel = [r for r in rows if cond(r)]
+            if sel:
+                print(f"\n{label} ({len(sel)}):")
+                for r in sel[: a.limit]:
+                    print(f"  {r.brand:12} {r.name}")
+        if a.show_found:
+            print("\nEŞLEŞENLER:")
+            for r in rows:
+                if r.on_site:
+                    print(f"  {r.brand:12} {r.name}\n               → {r.site_url}")
+    finally:
+        db.close()
+    return 0
+
+
 def cmd_hero_preview(a) -> int:
     """Önerilen planı gösterir ve JSON'a yazar. Tabloya dokunmaz."""
     from datetime import date, datetime, timedelta
 
-    from .hero.service import build_plan, local_tz, new_product_keys
+    from .hero.service import build_plan, load_site_index, local_tz, new_product_keys, site_links
     from .hero.yoldaki import parse_workbook
 
     s = get_settings()
@@ -413,7 +446,10 @@ def cmd_hero_preview(a) -> int:
     db = new_session()
     try:
         new_keys = new_product_keys(db)
-        plan = build_plan(hs, items, new_keys, year, month, today)
+        site = load_site_index(db)
+        if site is None:
+            print("(uyarı: mağaza kontrolü henüz yapılmadı; `fredymail hero-site` çalıştırın)")
+        plan = build_plan(hs, items, new_keys, year, month, today, site=site, links=site_links(db))
         save_plan(db, plan)
     finally:
         db.close()
@@ -551,6 +587,10 @@ def main(argv: list[str] | None = None) -> int:
     hy.add_argument("--json", action="store_true")
     hy.set_defaults(fn=cmd_hero_yoldaki)
     sp.add_parser("hero-sync", help="Yoldaki Mallar'ı Drive'dan şimdi oku (günlük kopya)").set_defaults(fn=cmd_hero_sync)
+    hs_ = sp.add_parser("hero-site", help="Mağaza (shop.zoomithalat.com) kontrolü: ürün sitede var mı, linki ne")
+    hs_.add_argument("--limit", type=int, default=200)
+    hs_.add_argument("--show-found", action="store_true", help="eşleşen ürünleri linkleriyle göster")
+    hs_.set_defaults(fn=cmd_hero_site)
     hp = sp.add_parser("hero-preview", help="Aylık Hero planı önerisini göster ve JSON'a yaz (tabloya dokunmaz)")
     hp.add_argument("--month", help="YYYY-AA (varsayılan: gelecek ay)")
     hp.add_argument("--file", help="Drive yerine yerel Yoldaki Mallar xlsx'i")
