@@ -75,11 +75,20 @@ def sync_items(db: Session, items: list[YoldakiItem], today: date, baseline_keys
     return {"items": len(items), "added": len(added), "baseline": False}
 
 
-def recent_new_keys(db: Session, today: date, days: int) -> set[str]:
-    """Kurulumdan sonra ilk kez görünen (son `days` gün) veya tabloda YENİ ÜRÜN notu olan ürünler."""
+def new_product_keys(db: Session) -> set[str]:
+    """Yeni ürün sayılanlar: tabloda YENİ ÜRÜN notu olanlar.
+
+    "Yoldaki listede ilk kez görünmek" tek başına yeni ürün demek DEĞİLDİR: liste döner, depoya giren ürün düşer,
+    yeniden siparişte geri gelir (ör. yıllardır satılan bataryalar). Bu yüzden ilk görünme yalnızca bilgi olarak
+    tutulur (`first_seen_keys`); asıl ikinci ölçüt "zoomithalat.com'da henüz yok" kontrolü olacaktır.
+    """
+    return set(db.execute(select(HeroItem.key).where(HeroItem.new_flag.is_(True))).scalars())
+
+
+def first_seen_keys(db: Session, today: date, days: int) -> set[str]:
+    """Kurulumdan sonra yoldaki listeye ilk kez giren (son `days` gün) ürünler — bilgi amaçlı."""
     since = today - timedelta(days=days)
-    rows = db.execute(select(HeroItem.key).where(
-        ((HeroItem.baseline.is_(False)) & (HeroItem.first_seen >= since)) | HeroItem.new_flag.is_(True)))
+    rows = db.execute(select(HeroItem.key).where((HeroItem.baseline.is_(False)) & (HeroItem.first_seen >= since)))
     return set(rows.scalars())
 
 

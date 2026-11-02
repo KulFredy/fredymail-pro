@@ -37,10 +37,11 @@ Aynı ürün birden çok sevkiyatta ise adetler toplanır, sevkiyatlar ayrı ayr
 Fatura başlık satırları ve yedek parçalar atlanır. Marka; sekme adından (`KODAK SD` → Kodak), çok markalı
 sekmelerde (`BT-TECH`, `VIDENDUM`) satırdaki marka hücresinden veya ürün adından bulunur (`hero/brands.py`).
 
-**"Yeni ürün" tespiti:** Worker dosyayı günde bir okur ve her ürünü `hero_items` tablosuna yazar. Listede ilk kez
-görünen ürün `FM_HERO_NEW_DAYS` gün boyunca "yeni" sayılır. İlk kurulumda dosyanın Drive sürüm geçmişinden
-yaklaşık `FM_HERO_NEW_DAYS` gün önceki sürümü temel alınır; o tarihten sonra eklenenler hemen "yeni" görünür.
-Sürüm geçmişi okunamazsa (paylaşım yalnızca Görüntüleyici ise olabilir) o günkü liste temel kabul edilir.
+**"Yeni ürün" tespiti:** Şimdilik tabloda `YENİ ÜRÜN` notu olan ürünler. İkinci ölçüt olarak "ürün zoomithalat.com'da
+henüz yok" kontrolü eklenecek. Worker dosyayı günde bir okuyup her ürünü `hero_items` tablosuna yazar ve listeye ilk
+kez girdiği günü tutar; ancak **yoldaki listeye ilk kez girmek tek başına yeni ürün sayılmaz**. Liste döner: depoya
+giren ürün düşer, yeniden siparişte geri gelir (ilk kurulumda 219 kalemin 196'sı son 30 günde listeye girmişti,
+çoğu yıllardır satılan ürünlerdi). Bu bilgi yalnızca yardımcı olarak kullanılır.
 
 ## Komutlar
 

@@ -227,8 +227,9 @@ def test_sync_items_baseline_then_new(db):
     r1 = service.sync_items(db, items, TODAY)
     assert r1 == {"items": 5, "added": 0, "baseline": True}
     # kurulum günü: yalnızca YENİ ÜRÜN notlu ürün yeni sayılır
-    keys = service.recent_new_keys(db, TODAY, 45)
+    keys = service.new_product_keys(db)
     assert {k.split("|")[0] for k in keys} == {"OM System"} and len(keys) == 1
+    assert service.first_seen_keys(db, TODAY, 45) == set()
 
     wb = openpyxl.load_workbook(io.BytesIO(_yoldaki()))
     wb["YABER"].append(["Yaber K3", 50, "KASIM SONU"])
@@ -237,9 +238,11 @@ def test_sync_items_baseline_then_new(db):
     later = date(2026, 11, 5)
     r2 = service.sync_items(db, parse_workbook(buf.getvalue(), later), later)
     assert r2["added"] == 1 and not r2["baseline"]
-    keys = service.recent_new_keys(db, later, 45)
-    assert any(k.startswith("Yaber|") and "k3" in k for k in keys) and len(keys) == 2
-    assert service.recent_new_keys(db, date(2027, 2, 1), 45) == {k for k in keys if k.startswith("OM System")}
+    seen = service.first_seen_keys(db, later, 45)
+    assert len(seen) == 1 and next(iter(seen)).startswith("Yaber|")
+    assert service.first_seen_keys(db, date(2027, 2, 1), 45) == set()
+    # yoldaki listeye ilk kez girmek tek başına "yeni ürün" yapmaz
+    assert {k.split("|")[0] for k in service.new_product_keys(db)} == {"OM System"}
 
 
 def test_maybe_run_daily_once_per_day_and_reminder(db, settings, tmp_path, monkeypatch):
@@ -299,8 +302,8 @@ def test_first_sync_uses_old_revision_as_baseline(db, settings, sa, monkeypatch)
     monkeypatch.setattr(settings, "hero_yoldaki_file_id", "F")
     res = service.run_sync(db, settings, client=_client(sa, handler), today=TODAY)
     assert res["baseline"] and res["added"] == 2 and res["baseline_from"] == "2026-09-15T10:00:00Z"
-    keys = service.recent_new_keys(db, TODAY, 45)
-    assert sum(k.startswith("Yaber|") for k in keys) == 2 and sum(k.startswith("OM System|") for k in keys) == 1
+    keys = service.first_seen_keys(db, TODAY, 45)
+    assert len(keys) == 2 and all(k.startswith("Yaber|") for k in keys)
 
 
 def test_local_tz_fallback(monkeypatch):

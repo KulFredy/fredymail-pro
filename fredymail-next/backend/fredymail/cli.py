@@ -387,7 +387,7 @@ def cmd_hero_preview(a) -> int:
     """Önerilen planı gösterir ve JSON'a yazar. Tabloya dokunmaz."""
     from datetime import date, datetime, timedelta
 
-    from .hero.service import build_plan, local_tz, recent_new_keys
+    from .hero.service import build_plan, local_tz, new_product_keys
     from .hero.yoldaki import parse_workbook
 
     s = get_settings()
@@ -412,7 +412,7 @@ def cmd_hero_preview(a) -> int:
 
     db = new_session()
     try:
-        new_keys = recent_new_keys(db, today, s.hero_new_days)
+        new_keys = new_product_keys(db)
         plan = build_plan(hs, items, new_keys, year, month, today)
         save_plan(db, plan)
     finally:
