@@ -121,12 +121,30 @@ TYPES = frozenset("batarya sarj powerbank adaptor canta tripod monopod baslik ka
 ROMAN = frozenset("ii iii iv vi vii".split())
 
 
+def name_compounds(name: str) -> set[str]:
+    """Tireli kodlar birleştirilir: 'PL-RL-H55' → plrlh55, 'MHXPRO-3W' → mhxpro3w (harf ve rakam içeren, ≥5)."""
+    out = set()
+    for chunk in re.split(r"[\s/,+()（）]+", fold(name)):
+        parts = [x for x in re.split(r"[^a-z0-9]+", chunk) if x]
+        joined = "".join(parts)
+        if len(parts) >= 2 and len(joined) >= 5 and re.search(r"[a-z]", joined) and re.search(r"\d", joined):
+            out.add(joined)
+    return out
+
+
+def slug_compounds(slug: str) -> set[str]:
+    """Linkteki ardışık 2-4 parçanın birleşimleri: 'mb-pl-rl-h55-reloader' → {mbpl, plrl, plrlh55, …}."""
+    parts = slug.split("-")
+    return {"".join(parts[i:i + n]) for n in (2, 3, 4) for i in range(len(parts) - n + 1)}
+
+
 @dataclass
 class SiteProduct:
     url: str
     slug: str
     toks: set[str] = field(default_factory=set)
     codes: set[str] = field(default_factory=set)
+    compounds: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -164,7 +182,7 @@ class SiteIndex:
         for u in urls:
             slug = clean_slug(urlparse(u).path.rstrip("/").rsplit("/", 1)[-1])
             text = slug.replace("-", " ")
-            self.products.append(SiteProduct(u, slug, set(tokens(text)), model_codes(text)))
+            self.products.append(SiteProduct(u, slug, set(tokens(text)), model_codes(text), slug_compounds(slug)))
         self.vocab: set[str] = set().union(*(p.toks for p in self.products)) if self.products else set()
         df: dict[str, int] = {}
         for p in self.products:
@@ -211,17 +229,24 @@ class SiteIndex:
         pool = [p for p in pool if self._type_ok(name_toks, p)]
 
         ids = self._ids(name, sets)
-        known = {i for i in ids if any(i in p.toks for p in pool)}
-        unknown = {i for i in ids - known if not i.isdigit()}
+        comps = name_compounds(name)
+        has = lambda p, k: k in p.toks or k in p.compounds  # noqa: E731
+        known = {i for i in ids | comps if any(has(p, i) for p in pool)}
+        # Parantez dışındaki bilinmeyen kodlar (parantez içi tedarikçi kodları: CR133, PLB102 sayılmaz)
+        outside = self._ids(self._PARENS.sub(" ", name), sets)
+        unknown = {i for i in outside - known if not i.isdigit()}
         if unknown:  # aynı kalıpta BAŞKA kod taşıyan ilanlar başka modeldir (b091s ↔ a063s, wt8s ↔ wt4s)
             shapes = {code_shape(i) for i in unknown}
-            pool = [p for p in pool if not any(code_shape(c) in shapes and c not in ids for c in p.codes)]
+            pool = [p for p in pool if any(has(p, k) for k in known)
+                    or not any(code_shape(c) in shapes and c not in ids for c in p.codes)]
         if known:
-            hits = [p for p in pool if known & p.toks]
-            # Nadir ve uzun kod (manfrotto 1051bac, 165mv): ürünün kimliğidir, açıklama kelimeleri önemsizdir
-            rare = [i for i in known if sum(i in p.toks for p in pool) <= 2 and sum(c.isdigit() for c in i) >= 2]
-            if hits and rare and not unknown:
-                rare_hits = [p for p in hits if set(rare) & p.toks]
+            hits = [p for p in pool if any(has(p, k) for k in known)]
+            # Nadir ve kesin kod (manfrotto 1051bac, mt055cxpro3, pl-rl-h55; patona 1195): ürünün kimliğidir,
+            # açıklama kelimeleri önemsizdir
+            rare = [i for i in known if sum(has(p, i) for p in pool) <= 2
+                    and (sum(c.isdigit() for c in i) >= 2 or len(i) >= 6)]
+            if hits and rare:
+                rare_hits = [p for p in hits if any(has(p, i) for i in rare)]
                 best = self._best(name, rare_hits, brand_toks, min_score=0.0, ids=ids)
                 if best.status != "missing":
                     return best
@@ -320,7 +345,7 @@ class SiteIndex:
                 return Match(None, "missing", top)
         rival = next(((s, j) for s, j, p in scored[1:] if p.toks != best.toks), None)
         margin = top - rival[0] if rival else 1.0
-        if min_score and top < min_score and not (top >= 0.55 and margin >= 0.10):
+        if min_score and top < min_score and not (top >= 0.55 and margin >= 0.095):
             return Match(None, "missing", top)
         if rival and margin == 0 and rival[1] == top_j:
             return Match(None, "ambiguous", top)

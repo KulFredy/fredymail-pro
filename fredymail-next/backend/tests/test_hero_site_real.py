@@ -117,3 +117,37 @@ def test_real_still_new(name, brand):
 def test_capacity_variant_not_on_site_is_ambiguous_not_new():
     # Mağazada K820'nin 32/64GB'ı var, 16GB yok: aynı ürün ailesi → yeni ürün sayılmaz
     assert IDX.match("Kodak 16GB 2.0 Metal USB Bellek (K820)", "Kodak").status == "ambiguous"
+
+
+# İkinci canlı çalıştırmada (6b93ba5) hâlâ "yok" çıkan, linkinde model kodu birebir geçen ilanlar
+SLUGS2 = """
+manfrotto-bags-ma3-bp-gm-advanced-gear-backpack-m-iii manfrotto-mhxpro-3w-x-pro-3-way-head
+manfrotto-mk290xta3-3w-290-xtra-kit-3-way-head manfrotto-mt055cxpro3-karbon-tripod-ayagi
+manfrotto-mt190cxpro4-190-cf-4-s-horiz-col-tripod-kit manfrotto-mkbfra4gtxp-bh-befree-gt-xpro-alu
+patona-1195-battery-canon-bp-828 zhiyun-molus-b100-b200-b300-cob-led-isik zhiyun-weebill-5-gimbal
+""".split()
+IDX2 = SiteIndex([f"https://shop.zoomithalat.com/urun/{s}" for s in SLUGS + SLUGS2])
+
+
+@pytest.mark.parametrize(("name", "brand", "expect"), [
+    ("Lowepro Tahoe BP 150 Sırt Çantası Siyah", "Lowepro", "tahoe-bp-150-black"),
+    ("Manfrotto Bags PL-RL-H55 Reloader Switch 55 Profesyonel Tekerlekli Kilitli Sırt Çantası", "Manfrotto", "rl-h55"),
+    ("Manfrotto Bags MA3-BP-GM Advenced Gear Backpack III Önden Açılan Sırt Çantası", "Manfrotto", "ma3-bp-gm"),
+    ("Manfrotto MHXPRO-3W 3Yönlü Profesyonel Başlık", "Manfrotto", "mhxpro-3w-x-pro"),
+    ("Manfrotto MK290XTA3-3W 290XTRA serisi Tripod ve MH804-3W Kit Çantalı Foto Tripod Kiti", "Manfrotto", "mk290xta3"),
+    ("Manfrotto MT055CXPRO3 055serisi 3 Kademeli Karbonfiber Tripod", "Manfrotto", "mt055cxpro3"),
+    ("Manfrotto MT190CXPRO4 190serisi 4 Kademeli Karbonfiber Tripod", "Manfrotto", "mt190cxpro4"),
+    ("Manfrotto MKBFRA4GTXP-BH Befree Serisi Hareketli Orta Borulu Seyahat Tripod Kiti Çantalı", "Manfrotto",
+     "mkbfra4gtxp"),
+    ("Patona 1195 Batarya for Canon HF-G30 Canon XA20 Canon XA25", "Patona", "patona-1195"),
+    ("B100 PLB102（EUR/BLACK）", "Zhiyun", "b100-b200-b300"),
+    ("B300 PLB106（EUR/BLACK）", "Zhiyun", "b100-b200-b300"),
+])
+def test_real_found_by_exact_code(name, brand, expect):
+    m = IDX2.match(name, brand)
+    assert m.status == "found" and expect in m.url, (m, IDX2.explain(name, brand))
+
+
+def test_mhxpro_3w_is_not_3wg():
+    m = IDX.match("Manfrotto MHXPRO-3W 3Yönlü Profesyonel Başlık", "Manfrotto")  # yalnızca 3WG ilanı var
+    assert m.status != "found" or "3wg" not in m.url
