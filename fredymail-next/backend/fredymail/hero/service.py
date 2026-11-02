@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from ..config import Settings
 from ..mail.classify import fold
 from ..models import HeroItem, KeyValue
+from .brands import MARKETED
 from .sheet import MAX_PRODUCTS, HeroSheet, archive_title, period_text
 from .yoldaki import YoldakiItem, month_bounds, parse_workbook
 
@@ -276,6 +277,7 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
         by_brand[row.brand] = entry
 
     overflow: list[dict] = []
+    other_brands: list[dict] = []
     new_brands: dict[str, dict] = {}
     for it in items:
         a = it.arrival
@@ -288,6 +290,9 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
                 "qty": it.qty}
         entry = by_brand.get(it.brand)
         if entry is None:
+            if it.brand not in MARKETED:  # marketing listesinde olmayan marka: tabloya satır açılmaz
+                other_brands.append({"brand": it.brand, **prod})
+                continue
             entry = new_brands.setdefault(it.brand, {"brand": it.brand, "products": [], "new_brand": True})
         if any(same_product(p["text"], it.name) for p in entry["products"]):
             for p in entry["products"]:  # zaten listede: yalnızca bilgi ekle
@@ -307,5 +312,6 @@ def build_plan(hs: HeroSheet, items: list[YoldakiItem], new_keys: set[str], year
         "brands": plan_brands,
         "dropped": dropped,
         "overflow": overflow,
+        "other_brands": other_brands,
         "total": sum(len(b["products"]) for b in plan_brands),
     }

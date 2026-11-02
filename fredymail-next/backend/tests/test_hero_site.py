@@ -121,3 +121,68 @@ def test_site_check_marks_new_products_and_links(db, settings, monkeypatch):
     assert [p["text"] for p in tamron] == ["Tamron 28-75mm Nikon Z (A063Z)", "Tamron 16-50mm F2.8 A Sony E-Mount (B091S)"]
     assert plan["brands"][1]["products"][0]["link"] == URLS[3]  # Kingjoy M080: tablodaki eksik link mağazadan
     assert plan["brands"][-1]["brand"] == "Yaber" and plan["brands"][-1]["products"][0]["link"] is None
+    assert plan["other_brands"] == []
+
+
+def test_new_products_of_unmarketed_brands_are_reported_not_added():
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    v = wb.create_sheet("VIDENDUM")
+    v.append(["150X", "Lowepro Tahoe BP 150 Sırt Çantası Siyah", 200, "GÜMRÜKTE"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    items = parse_workbook(buf.getvalue(), date(2026, 11, 2))
+    hs = HeroSheet(0, "Sayfa1", 0, "1.10.2026-31.10.2026", (2, 2), 3, 0, 1, list(range(2, 10)), 10,
+                   [BrandRow(4, "Kingjoy", [Product("Kingjoy M080", "x")])], 5)
+    plan = service.build_plan(hs, items, {items[0].key}, 2026, 11, date(2026, 11, 2))
+    assert [b["brand"] for b in plan["brands"]] == ["Kingjoy"]
+    assert [o["text"] for o in plan["other_brands"]] == ["Lowepro Tahoe BP 150 Sırt Çantası Siyah"]
+
+
+# ---------------------------------------------------------------- canlı çıktıda görülen hatalı eşleşmeler
+
+LIVE = [B + s for s in (
+    "zhiyun-weebill-5-gimbal",
+    "zhiyun-weebill-5-combo-gimbal",
+    "zhiyun-molus-m40-se-cob-led-isik",
+    "zhiyun-parabolik-softbox-60d",
+    "patona-1002-canon-nb-2lh-batarya",
+    "patona-1259-premium-batarya-canon-lp-e6n",
+    "patona-4141-platinum-powerbank-dji-osmo-pocket-3",
+    "kodak-32gb-micro-sd-uhs-i-u3-v30-a1-hafiza-karti-adaptor-kirmizi",
+    "kodak-32gb-micro-sd-uhs-i-u3-v30-a1-hafiza-karti-adaptor-sari",
+    "om-system-tg-7-su-gecirmez-kamera-kirmizi",
+    "om-system-tg-7-su-gecirmez-kamera-siyah",
+    "tamron-a063s-28-75-mm-sony-f-2-8-di-iii-vxd-g2",
+    "tamron-b061r-18-300mm-canon-rf",
+    "kingjoy-m080-masaustu-tripod",
+    "saramonic-witalk9-x-intercom",
+)]
+
+
+@pytest.mark.parametrize(("name", "brand", "expect"), [
+    ("WEEBILL 5(CR133)", "Zhiyun", "weebill-5-gimbal"),            # iç kod (CR133) mağazada yok → yok sayılır
+    ("WEEBILL 5 COMBO(CR133)", "Zhiyun", "weebill-5-combo"),       # "combo" varyantı seçer
+    ("M40 SE PLM111(KHAKI)COMBO", "Zhiyun", "m40-se"),
+    ("Patona 1002 Battery Canon S30-S70 NB2LH NB-2LH", "Patona", "patona-1002"),  # ürün numarası + battery→batarya
+    ("Patona 4141 Platinum Powerbank for Dji OSmo Pocket 3/4/4P 5000mAh Black", "Patona", "patona-4141"),
+    ("Kodak 32GB UHS-I U3/V30/A1 Micro SD Hafıza Kartı + Adaptör (Kırmızı)", "Kodak", "kirmizi"),  # renk ayırır
+    ("Kodak 32GB UHS-I U3/V30/A1 Micro SD Hafıza Kartı + Adaptör (Sarı)", "Kodak", "sari"),
+    ("TG-7 Kırmızı", "OM System", "kirmizi"),
+    ("TG-7 Siyah", "OM System", "siyah"),
+])
+def test_live_false_misses_now_found(name, brand, expect):
+    m = SiteIndex(LIVE).match(name, brand)
+    assert m.status == "found" and expect in m.url, m
+
+
+@pytest.mark.parametrize(("name", "brand"), [
+    ("L2 PLUS", "Yaber"),                                          # marka mağazada hiç yok → yeni
+    ("Yaber L1 Pro", "Yaber"),
+    ("Lowepro Tahoe BP 150 Sırt Çantası Siyah", "Lowepro"),
+    ("Tamron 16-50mm F2.8 A Sony E-Mount (B091S)", "Tamron"),      # Tamron linkleri kod taşır; B091S yok → yeni
+    ("M080P", "Kingjoy"),
+    ("Patona 1352 Platinum Usb-C Girişli Batarya Canon LP-E17", "Patona"),  # numara mağazada yok
+])
+def test_live_true_new_products_stay_missing(name, brand):
+    assert SiteIndex(LIVE).match(name, brand).status == "missing"

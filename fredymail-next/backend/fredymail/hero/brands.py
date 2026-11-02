@@ -44,6 +44,14 @@ BRANDS: dict[str, tuple[str, ...]] = {
     "Portkeys": (),
 }
 
+# Marketing Asset tablosundaki markalar (13.08.2026): Hero listesine yeni marka satırı yalnızca bunlar için açılır.
+# Diğer markaların (ör. Lowepro, Lastolite) yeni ürünleri planda ayrı raporlanır, tabloya eklenmez.
+MARKETED = frozenset({
+    "Kodak", "Yashica", "Lemorele", "K&F Concept", "Desview", "Verbatim", "Viltrox", "Kingjoy", "Patona", "Yaber",
+    "PolarPro", "Zhiyun", "Cinepeer", "Saramonic", "Tamron", "OM System", "Delkin Devices", "Laowa", "Profoto",
+    "Portkeys", "SJCam", "Manfrotto",
+})
+
 # Birden çok markayı tek sekmede toplayan sekmeler: marka satırdan (marka hücresi veya ürün adı) okunur.
 GROUP_SHEETS = frozenset({"videndum", "bt-tech"})
 

@@ -472,6 +472,10 @@ def cmd_hero_preview(a) -> int:
         print(f"\n✂️  çıkarıldı: {d['brand']} · {d['text']} ({d['reason']})")
     for o in plan["overflow"]:
         print(f"\n➕ yer yok (8 sınırı): {o['brand']} · {o['text']}")
+    if plan.get("other_brands"):
+        print("\nℹ️  marketing listesinde olmayan markaların yeni ürünleri (tabloya eklenmedi):")
+        for o in plan["other_brands"]:
+            print(f"   {o['brand']} · {o['text']}")
     print(f"\nToplam {plan['total']} ürün. Plan kaydedildi; yazmak için: fredymail hero-write --yes")
     return 0
 

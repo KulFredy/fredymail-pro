@@ -26,9 +26,20 @@ _LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>")
 
 # Eşleştirmede sayılmayan genel kelimeler (TR/EN, fold edilmiş)
 STOP = frozenset("""
-lens lensi zoom full frame mount mm for ile ve icin kit black siyah beyaz white silver gri gray grey kirmizi red
-yesil green mavi blue sari yellow pro premium standart standard set adet the and with of combo kamera camera
+lens lensi zoom full frame mount mm for ile ve icin set adet the and with of kamera camera premium standart standard
 """.split())
+# Bölge/paket ekleri: yoldaki adlarında var, mağaza linklerinde olmaz (EUR/INT/CN…)
+NOISE = frozenset("eur int cn tr us uk eu ver version".split())
+# Varyant kelimeleri: ürünü değil varyantı ayırır. Puana girmez, yalnızca eşit adaylar arasında seçim yapar
+# (Kodak kart Kırmızı/Sarı, TG-7 Siyah/Kırmızı, Weebill 5 / Weebill 5 Combo).
+VARIANT = frozenset("""
+siyah black beyaz white silver gumus gri gray grey kirmizi red yesil green mavi blue sari yellow khaki haki beige bej
+turuncu orange pembe pink mor purple combo kit
+""".split())
+# Yoldaki adları çoğu zaman İngilizce, mağaza linkleri Türkçe
+SYNONYMS = {"battery": "batarya", "batery": "batarya", "akku": "batarya", "charger": "sarj", "light": "isik",
+            "lights": "isik", "backpack": "canta", "bag": "canta", "bags": "canta", "case": "canta",
+            "adapter": "adaptor", "card": "karti", "kart": "karti", "memory": "hafiza"}
 
 
 class SiteError(Exception):
@@ -68,7 +79,7 @@ def tokens(text: str) -> list[str]:
     out: list[str] = []
     for t in re.split(r"[^a-z0-9]+", fold(text or "")):
         if t:
-            out += _split_units(t)
+            out += [SYNONYMS.get(x, x) for x in _split_units(t)]
     return out
 
 
@@ -96,43 +107,101 @@ class Match:
     score: float = 0.0
 
 
+def _brand_token_sets(brand: str | None) -> list[set[str]]:
+    from .brands import BRANDS, canonical
+
+    if not brand:
+        return []
+    canon = canonical(brand) or brand
+    names = [canon, *BRANDS.get(canon, ())]
+    sets = [set(tokens(n)) - STOP for n in names]
+    return [x for x in sets if x]
+
+
 class SiteIndex:
+    """Mağaza linkleri üzerinde ürün arama.
+
+    Sıra: (1) marka mağazada hiç yoksa → yok; (2) ürün numarası/model kodu mağazada geçiyorsa birebir eşleşme;
+    markanın linkleri kod içerdiği hâlde kod mağazada hiç yoksa → yok (yeni model, ör. Tamron B091S);
+    (3) kelime örtüşmesi (mağazada hiç geçmeyen iç kodlar ve bölge ekleri sayılmaz), eşitlikte varyant kelimesi.
+    """
+
     def __init__(self, urls: list[str]):
         self.products = []
         for u in urls:
             slug = urlparse(u).path.rstrip("/").rsplit("/", 1)[-1]
             self.products.append(SiteProduct(u, slug, set(tokens(slug.replace("-", " ")))))
+        self.vocab: set[str] = set().union(*(p.toks for p in self.products)) if self.products else set()
 
     def __len__(self) -> int:
         return len(self.products)
 
+    def brand_pool(self, brand: str | None) -> list[SiteProduct] | None:
+        sets = _brand_token_sets(brand)
+        if not sets:
+            return None
+        return [p for p in self.products if any(bs <= p.toks for bs in sets)]
+
+    @staticmethod
+    def _ids(name: str, brand_sets: list[set[str]]) -> set[str]:
+        ids = set(model_codes(name))
+        folded = re.split(r"[^a-z0-9]+", fold(name))
+        brand_words = {w for bs in brand_sets for w in bs}
+        for i, t in enumerate(folded[:3]):  # "Patona 1259 …" / "Patona1395 …": markadan hemen sonraki numara
+            m = re.fullmatch(r"([a-z]*)(\d{4,})", t)
+            if m and (m.group(1) in brand_words or (m.group(1) == "" and i > 0 and folded[i - 1] in brand_words)):
+                ids.add(m.group(2))
+        return ids
+
     def match(self, name: str, brand: str | None = None, code: str | None = None) -> Match:
-        brand_toks = set(tokens(brand or "")) - STOP
-        pool = self.products
-        if brand_toks:
-            branded = [p for p in pool if brand_toks <= p.toks]
-            pool = branded or pool
-        # 1) model kodu: slug'da birebir geçmeli
-        codes = model_codes(name)
-        if codes:
-            hits = [p for p in pool if codes & p.toks]
-            if len(hits) == 1:
-                return Match(hits[0].url, "found", 1.0)
-            if len(hits) > 1:
-                best = self._best(name, hits, brand_toks)
+        sets = _brand_token_sets(brand)
+        brand_toks = set().union(*sets) if sets else set()
+        pool = self.brand_pool(brand)
+        if pool is None:
+            pool = self.products
+        elif not pool:
+            return Match(None, "missing")  # marka mağazada hiç yok
+
+        ids = self._ids(name, sets)
+        if ids:
+            pool_vocab = set().union(*(p.toks for p in pool))
+            known = ids & pool_vocab
+            if known:
+                hits = [p for p in pool if known & p.toks]
+                if len(hits) == 1:
+                    return Match(hits[0].url, "found", 1.0)
+                best = self._best(name, hits, brand_toks, min_score=0.0)
                 return best if best.status == "found" else Match(None, "ambiguous", best.score)
-        # 2) anlamlı kelime örtüşmesi
+            # Markanın linkleri kod/numara taşıyorsa ve bu kod mağazada yoksa: yeni model
+            with_ids = sum(1 for p in pool if any(re.search(r"[a-z]", t) and re.search(r"\d", t) and len(t) >= 4
+                                                  or re.fullmatch(r"\d{4,}", t) for t in p.toks))
+            if pool and with_ids / len(pool) >= 0.5:
+                return Match(None, "missing")
         return self._best(name, pool, brand_toks)
 
-    def _best(self, name: str, pool: list[SiteProduct], brand_toks: set[str]) -> Match:
-        want = {t for t in tokens(name) if t not in STOP} - brand_toks
-        if not want:
+    def _best(self, name: str, pool: list[SiteProduct], brand_toks: set[str], min_score: float = 0.75) -> Match:
+        toks = tokens(name)
+        variant = {t for t in toks if t in VARIANT}
+        want = {t for t in toks if t not in STOP and t not in NOISE and t not in VARIANT
+                and not (len(t) == 1 and t.isalpha()) and t in self.vocab} - brand_toks
+        if not want or not pool:
             return Match(None, "missing")
-        scored = sorted(((len(want & p.toks) / len(want), -len(p.toks), p) for p in pool),
-                        key=lambda x: (x[0], x[1]), reverse=True)
-        if not scored or scored[0][0] < 0.75:
-            return Match(None, "missing", scored[0][0] if scored else 0.0)
-        top = scored[0]
-        if len(scored) > 1 and scored[1][0] == top[0] and scored[1][1] == top[1]:
-            return Match(None, "ambiguous", top[0])
-        return Match(top[2].url, "found", top[0])
+
+        def jacc(p: SiteProduct) -> float:
+            other = p.toks - brand_toks - STOP - VARIANT
+            return len(want & other) / len(want | other) if other else 0.0
+
+        scored = [(len(want & p.toks) / len(want), p) for p in pool]
+        top = max(s for s, _ in scored)
+        if top < min_score:
+            return Match(None, "missing", top)
+        cands = [p for s, p in scored if s == top]
+        if len(cands) > 1:  # varyant: önce birebir aynı varyant kelimeleri, sonra kapsayan, sonra kesişen
+            exact = [p for p in cands if (p.toks & VARIANT) == variant]
+            narrowed = exact or ([p for p in cands if variant <= p.toks] if variant else []) \
+                or ([p for p in cands if variant & p.toks] if variant else [])
+            cands = narrowed or cands
+        cands.sort(key=jacc, reverse=True)
+        if len(cands) > 1 and jacc(cands[0]) == jacc(cands[1]):
+            return Match(None, "ambiguous", top)
+        return Match(cands[0].url, "found", top)
