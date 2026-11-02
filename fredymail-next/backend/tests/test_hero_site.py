@@ -29,7 +29,9 @@ URLS = [B + s for s in (
 
 
 def test_tokens_and_codes():
-    assert tokens("Tamron 28-75mm F/2.8") == ["tamron", "28", "75", "mm", "f", "2", "8"]
+    assert tokens("Tamron 28-75mm F/2.8") == ["tamron", "28", "75mm", "75", "mm", "f", "2", "8"]
+    assert "1051bac" in tokens("manfrotto-ma-1051bac-mini")  # kod bütün hâliyle de kalır
+    assert "typea" in tokens("CFexpress Type A") and "typeb" in tokens("cf-express-type-b")
     assert model_codes("Tamron 28-75mm (A063Z) Nikon Z") == {"a063z"}
     assert model_codes("Kodak 32GB K200W 5000mah") == {"k200w"}
 
