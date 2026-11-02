@@ -38,7 +38,7 @@ Fatura başlık satırları ve yedek parçalar atlanır. Marka; sekme adından (
 sekmelerde (`BT-TECH`, `VIDENDUM`) satırdaki marka hücresinden veya ürün adından bulunur (`hero/brands.py`).
 
 **"Yeni ürün" tespiti:** (1) tabloda `YENİ ÜRÜN` notu olanlar, (2) mağazada (shop.zoomithalat.com, IdeaSoft)
-karşılığı olmayanlar. Worker günde bir, Yoldaki Mallar'dan sonra mağazanın **yalnızca site haritasını** okur
+karşılığı olmayanlar. Worker ayın 15'i ve 25'i (`FM_HERO_RUN_DAYS`), Yoldaki Mallar'dan sonra mağazanın **yalnızca site haritasını** okur
 (`/sitemap.xml` → `/xml/sitemap_product_N.xml` → `/urun/<ad>` linkleri; robots.txt `Crawl-delay: 30` gereği istekler
 arası 30 sn, toplam birkaç dakika) ve her yoldaki ürünü linklerle eşleştirir (`hero/site.py`): model kodu varsa
 (A063Z, B091S…) birebir, yoksa anlamlı kelime örtüşmesi (≥ %75). Birden çok aday çıkarsa "belirsiz" sayılır ve yeni
@@ -52,7 +52,7 @@ geri gelir (ilk kurulumda 219 kalemin 196'sı son 30 günde listeye girmişti, �
 
 ```bash
 DC="docker compose -f docker-compose.yml -f docker-compose.vps.yml"
-$DC run --rm worker fredymail hero-sync                    # Yoldaki Mallar'ı şimdi oku (worker zaten günde bir okur)
+$DC run --rm worker fredymail hero-sync                    # Yoldaki Mallar'ı şimdi oku (worker ayın 15/25'inde kendisi okur)
 $DC run --rm worker fredymail hero-site                    # mağaza kontrolü (birkaç dk); --show-found eşleşmeleri gösterir
 $DC run --rm worker fredymail hero-preview --month 2026-12 # öneriyi göster, veritabanına kaydet (tabloya dokunmaz)
 $DC run --rm worker fredymail hero-write                   # kuru çalışma: ne yapılacağını gösterir
@@ -78,13 +78,26 @@ docker compose run --rm --no-deps -v "$PWD/YOLDAKI.xlsx:/tmp/y.xlsx:ro" worker \
 
 ## Akış
 
-1. **Her gün (worker, AI yok):** Yoldaki Mallar okunur, Postgres'e kopyası alınır, ilk kez görünen ürünler
-   işaretlenir, sitedeki linkler kontrol edilir.
+1. **Ayın 15'i ve 25'i, 08:00'den sonra (worker, AI yok):** Yoldaki Mallar okunur ve Postgres'e kopyası alınır, ardından mağaza kontrolü yapılır (~3 dk). Diğer günler hiçbir şey çalışmaz.
 2. **Ayın 25'i:** Telegram hatırlatması.
 3. **"Hero Planı" ekranı:** geçen ayın listesi + yoldan gelen adaylar + "Kampanyaları maillerden çıkar" düğmesi
    (AI; kaynak mail çipleriyle). Kullanıcı seçer.
 4. **"Sheets'e yaz":** mevcut liste `Ekim 2026` gibi bir arşiv sekmesine kopyalanır, `Sayfa1` güncellenir.
 5. **Tasarımcı maili:** FredyMail taslak hazırlar; gönderim Outlook'tan.
+
+## AI ve maliyet
+
+| Adım | AI? | Ne zaman | Maliyet |
+|---|---|---|---|
+| Yoldaki Mallar okuma, mağaza kontrolü, plan, Sheets'e yazma | Hayır (kural tabanlı) | Ayın 15'i ve 25'i + elle | 0 |
+| Kampanyaları maillerden çıkarma (yapılacak) | Evet, `FM_AI_MODEL` (hafif model) | Yalnızca kullanıcı düğmeye basınca, ayda ~1 kez | Ayda birkaç sent (aşağıda) |
+| Hafif modelin yanıtı geçersiz JSON ise | `FM_AI_MODEL_HEAVY` (varsa), **bir kez** | Nadiren | İhmal edilebilir |
+
+Kampanya çıkarımı tahmini: ayda ~100 aday mail × ≤4.000 karakter (~1.000 token) = ~100 bin girdi tokenı,
+15 mail/çağrı → ~7 çağrı, ~7 bin çıktı tokenı. `.env.example`'daki fiyat ayarlarıyla (hafif: 0,10 $/0,40 $ / 1M token)
+≈ **0,01–0,02 $/ay**; tamamı güçlü modelle yapılsa (2 $/12 $ / 1M) ≈ **0,30 $/ay**. Gerçek fiyatlar LiteLLM/OpenRouter
+panelinden doğrulanmalı. Mevcut günlük bütçe sınırı (`FM_AI_DAILY_BUDGET_USD`) ve önbellek aynen geçerlidir.
+VPS yükü: ayda iki kez ~3 dakikalık, 6 HTTP isteklik bir iş.
 
 ## Durum
 

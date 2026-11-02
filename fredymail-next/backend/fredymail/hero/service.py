@@ -165,48 +165,59 @@ def run_sync(db: Session, settings: Settings, client=None, today: date | None = 
     return res
 
 
-def maybe_run_daily(db: Session, settings: Settings, send_message=None, now: datetime | None = None) -> None:
-    """Worker her döngüde çağırır: günde bir kez senkron, ayda bir kez hatırlatma. Hata worker'ı durdurmaz."""
+def run_days(settings: Settings) -> set[int]:
+    return {int(x) for x in settings.hero_run_days.split(",") if x.strip().isdigit()}
+
+
+def maybe_run_scheduled(db: Session, settings: Settings, send_message=None, now: datetime | None = None) -> None:
+    """Worker her döngüde çağırır; iş yalnızca ayın belirli günlerinde (varsayılan 15 ve 25) yapılır.
+
+    O gün `hero_sync_hour`'dan sonra: Yoldaki Mallar okunur, ardından mağaza kontrolü yapılır (~3 dk).
+    `hero_reminder_day` günü kontrol bittikten sonra Telegram hatırlatması gider. Hata worker'ı durdurmaz;
+    başarısız iş aynı gün saatte en fazla bir kez yeniden denenir.
+    """
     if not hero_configured(settings):
         return
     tz = local_tz(settings.hero_timezone)
     now = now.astimezone(tz) if now else datetime.now(tz)
-    today = now.date()
-    kv = db.get(KeyValue, "hero_sync")
-    last = (kv.value or {}).get("date") if kv else None
-    last_try = (kv.value or {}).get("tried") if kv else None
-    if now.hour >= settings.hero_sync_hour and last != today.isoformat() and last_try != now.strftime("%Y-%m-%dT%H"):
+    today, hour_key = now.date(), now.strftime("%Y-%m-%dT%H")
+    if today.day not in run_days(settings) or now.hour < settings.hero_sync_hour:
+        return
+
+    def due(key: str) -> bool:
+        kv = db.get(KeyValue, key)
+        v = (kv.value or {}) if kv else {}
+        return v.get("date") != today.isoformat() and v.get("tried") != hour_key
+
+    def failed(key: str, e: Exception) -> None:
+        db.rollback()
+        kv = db.get(KeyValue, key)
+        _set_kv(db, key, {**((kv.value or {}) if kv else {}), "tried": hour_key, "error": str(e)[:300]})
+
+    if due("hero_sync"):
         try:
             res = run_sync(db, settings, today=today)
-            log.info("hero: yoldaki mallar okundu kalem=%s yeni=%s", res["items"], res["added"])
+            log.info("hero: yoldaki mallar okundu kalem=%s", res["items"])
         except Exception as e:  # noqa: BLE001
-            db.rollback()
             log.warning("hero: yoldaki mallar okunamadı: %s", e)
-            # saatte en fazla bir deneme
-            _set_kv(db, "hero_sync", {**((kv.value or {}) if kv else {}), "tried": now.strftime("%Y-%m-%dT%H"),
-                                      "error": str(e)[:300]})
-    sk = db.get(KeyValue, "hero_site")
-    sv = (sk.value or {}) if sk else {}
-    synced_today = (db.get(KeyValue, "hero_sync").value or {}).get("date") == today.isoformat() \
-        if db.get(KeyValue, "hero_sync") else False
-    if (settings.hero_shop_url and synced_today and sv.get("date") != today.isoformat()
-            and sv.get("tried") != now.strftime("%Y-%m-%dT%H")):
-        try:  # ~6 istek × 30 sn: worker döngüsü günde bir kez birkaç dakika bekler
+            failed("hero_sync", e)
+            return
+    if settings.hero_shop_url and due("hero_site"):
+        try:
             res = run_site_check(db, settings, today=today)
             log.info("hero: mağaza kontrolü ürün=%s eşleşen=%s yok=%s belirsiz=%s",
                      res["products"], res["found"], res["missing"], res["ambiguous"])
         except Exception as e:  # noqa: BLE001
-            db.rollback()
             log.warning("hero: mağaza kontrolü yapılamadı: %s", e)
-            _set_kv(db, "hero_site", {**sv, "tried": now.strftime("%Y-%m-%dT%H"), "error": str(e)[:300]})
-    if settings.hero_reminder_day and today.day >= settings.hero_reminder_day and send_message:
+            failed("hero_site", e)
+            return
+    if settings.hero_reminder_day and today.day == settings.hero_reminder_day and send_message:
         rk = db.get(KeyValue, "hero_reminder")
-        month_key = today.strftime("%Y-%m")
-        if not rk or (rk.value or {}).get("month") != month_key:
+        if not rk or (rk.value or {}).get("month") != today.strftime("%Y-%m"):
             nxt = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
-            send_message(f"Hero listesi zamanı: {nxt.strftime('%m.%Y')} taslağını hazırlayıp onaylayın "
-                         f"(fredymail hero-preview --month {nxt.strftime('%Y-%m')}).")
-            _set_kv(db, "hero_reminder", {"month": month_key, "at": now.isoformat()})
+            send_message(f"Hero listesi: {nxt.strftime('%m.%Y')} taslağı hazır. Önizleme: "
+                         f"fredymail hero-preview --month {nxt.strftime('%Y-%m')}, onay: fredymail hero-write --yes")
+            _set_kv(db, "hero_reminder", {"month": today.strftime("%Y-%m"), "at": now.isoformat()})
 
 
 def save_plan(db: Session, plan: dict) -> None:

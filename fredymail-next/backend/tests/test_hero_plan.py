@@ -250,43 +250,38 @@ def test_sync_items_baseline_then_new(db):
     assert {k.split("|")[0] for k in service.new_product_keys(db)} == {"OM System"}
 
 
-def test_maybe_run_daily_once_per_day_and_reminder(db, settings, tmp_path, monkeypatch):
+def test_scheduled_runs_only_on_15th_and_25th(db, settings, tmp_path, monkeypatch):
     sa_file = tmp_path / "sa.json"
     sa_file.write_text("{}")
     monkeypatch.setattr(settings, "google_sa_file", str(sa_file))
     monkeypatch.setattr(settings, "hero_yoldaki_file_id", "FILE")
-    runs, msgs = [], []
+    runs, site_runs, msgs = [], [], []
 
     def fake_run_sync(db, settings, today=None, client=None):
         runs.append(today)
-        service._set_kv(db, "hero_sync", {"date": today.isoformat(), "items": 1, "added": 0})
+        service._set_kv(db, "hero_sync", {"date": today.isoformat()})
         return {"items": 1, "added": 0}
 
+    def fake_site(db, settings, today=None, **k):
+        site_runs.append(today)
+        service._set_kv(db, "hero_site", {"date": today.isoformat()})
+        return {"products": 0, "found": 0, "missing": 0, "ambiguous": 0}
+
     monkeypatch.setattr(service, "run_sync", fake_run_sync)
-    site_runs = []
-    monkeypatch.setattr(service, "run_site_check",
-                        lambda db, settings, today=None, **k: site_runs.append(today) or service._set_kv(
-                            db, "hero_site", {"date": today.isoformat()}) or {"products": 0, "found": 0,
-                                                                               "missing": 0, "ambiguous": 0})
+    monkeypatch.setattr(service, "run_site_check", fake_site)
     ist = lambda d, h: datetime(2026, 11, d, h - 3, tzinfo=UTC)  # noqa: E731  (İstanbul = UTC+3)
-    service.maybe_run_daily(db, settings, msgs.append, now=ist(2, 7))  # 08:00'den önce
-    assert runs == []
-    service.maybe_run_daily(db, settings, msgs.append, now=ist(2, 9))
-    service.maybe_run_daily(db, settings, msgs.append, now=ist(2, 15))  # aynı gün tekrar yok
-    service.maybe_run_daily(db, settings, msgs.append, now=ist(3, 9))
-    assert runs == [date(2026, 11, 2), date(2026, 11, 3)] and msgs == []
-    assert site_runs == runs  # mağaza kontrolü senkrondan sonra, günde bir
-    service.maybe_run_daily(db, settings, msgs.append, now=ist(25, 9))
-    service.maybe_run_daily(db, settings, msgs.append, now=ist(26, 9))
+    for d, h in ((2, 9), (14, 12), (15, 7), (15, 9), (15, 18), (16, 9), (25, 9), (25, 10), (26, 9)):
+        service.maybe_run_scheduled(db, settings, msgs.append, now=ist(d, h))
+    assert runs == site_runs == [date(2026, 11, 15), date(2026, 11, 25)]
     assert len(msgs) == 1 and "12.2026" in msgs[0] and "2026-12" in msgs[0]
 
     def failing(db, settings, today=None, client=None):
         raise RuntimeError("ağ yok")
 
     monkeypatch.setattr(service, "run_sync", failing)
-    service.maybe_run_daily(db, settings, None, now=ist(27, 9))  # hata yutulur, worker durmaz
+    service.maybe_run_scheduled(db, settings, None, now=datetime(2026, 12, 15, 6, tzinfo=UTC))
     assert "ağ yok" in db.get(service.KeyValue, "hero_sync").value["error"]
-
+    assert site_runs[-1] == date(2026, 11, 25)  # okuma başarısızsa mağaza kontrolü yapılmaz
 
 def test_first_sync_uses_old_revision_as_baseline(db, settings, sa, monkeypatch):
     old = openpyxl.load_workbook(io.BytesIO(_yoldaki()))

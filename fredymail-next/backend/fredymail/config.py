@@ -153,7 +153,8 @@ class Settings(BaseSettings):
     hero_sheet_tab: str = "Sayfa1"     # tasarımcıya giden sabit sekme
     hero_yoldaki_file_id: str = ""     # YOLDAKİ_MALLAR_GENEL.xlsx (Drive) kimliği
     hero_timezone: str = "Europe/Istanbul"
-    hero_sync_hour: int = 8            # Yoldaki Mallar günde bir kez, bu saatten sonra okunur
+    hero_run_days: str = "15,25"       # Yoldaki Mallar + mağaza kontrolü yalnızca ayın bu günlerinde
+    hero_sync_hour: int = 8            # o günlerde bu saatten sonra
     hero_new_days: int = 45            # listede ilk kez görünen ürün bu kadar gün "yeni" sayılır
     hero_reminder_day: int = 25        # ayın bu günü Telegram hatırlatması (0 = kapalı)
     hero_shop_url: str = "https://shop.zoomithalat.com"  # IdeaSoft mağazası; boşsa site kontrolü kapalı

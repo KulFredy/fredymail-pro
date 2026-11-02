@@ -158,10 +158,10 @@ def run_forever(settings: Settings | None = None) -> None:
                 hb["anomaly_folders"] = anomalies
                 send_alert(db, settings, f"{anomalies} klasörde sunucudan toplu mail kaybı görüldü. FredyMail kopyaları "
                                          "koruyor; sunucu sağlayıcısıyla kontrol edin.")
-            try:  # Hero planı: günde bir Yoldaki Mallar okuması + ay sonu hatırlatması (AI yok)
-                from .hero.service import maybe_run_daily
+            try:  # Hero planı: ayın 15'i ve 25'i Yoldaki Mallar + mağaza kontrolü, 25'inde hatırlatma (AI yok)
+                from .hero.service import maybe_run_scheduled
 
-                maybe_run_daily(db, settings, send_message=lambda t, db=db: send_notice(db, settings, t))
+                maybe_run_scheduled(db, settings, send_message=lambda t, db=db: send_notice(db, settings, t))
             except Exception as e:  # noqa: BLE001
                 db.rollback()
                 log.warning("hero görevi atlandı: %s", type(e).__name__)
