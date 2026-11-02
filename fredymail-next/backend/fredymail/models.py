@@ -319,3 +319,21 @@ class KeyValue(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class HeroItem(Base):
+    """Yoldaki Mallar'da görülen ürünler: "ilk kez görünen = yeni ürün" tespiti için (docs/HERO-PLAN.md).
+
+    İlk okumada var olan ürünler `baseline` işaretlenir; böylece kurulum günü her şey "yeni" sayılmaz.
+    """
+
+    __tablename__ = "hero_items"
+    key: Mapped[str] = mapped_column(String(400), primary_key=True)
+    brand: Mapped[str] = mapped_column(String(120))
+    name: Mapped[str] = mapped_column(Text)
+    code: Mapped[str | None] = mapped_column(String(120))
+    first_seen: Mapped[date] = mapped_column(Date)
+    last_seen: Mapped[date] = mapped_column(Date, index=True)
+    last_status: Mapped[str] = mapped_column(Text, default="")
+    baseline: Mapped[bool] = mapped_column(Boolean, default=False)
+    new_flag: Mapped[bool] = mapped_column(Boolean, default=False)

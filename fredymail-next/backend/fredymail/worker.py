@@ -71,6 +71,18 @@ def send_alert(db, settings: Settings, text: str) -> None:
     _set_kv(db, "last_alert", {"at": datetime.now(UTC).isoformat(), "text": text})
 
 
+def send_notice(db, settings: Settings, text: str) -> None:
+    """Opsiyonel Telegram bilgilendirmesi (uyarı değil; saat sınırı yok, çağıran taraf seyreltir)."""
+    if not (settings.alert_telegram_bot_token and settings.alert_telegram_chat_id):
+        return
+    try:
+        httpx.post(f"https://api.telegram.org/bot{settings.alert_telegram_bot_token}/sendMessage",
+                   json={"chat_id": settings.alert_telegram_chat_id, "text": f"{settings.brand_name} 📋 {text}"},
+                   timeout=10)
+    except httpx.HTTPError:
+        log.warning("bilgilendirme gönderilemedi")
+
+
 def run_forever(settings: Settings | None = None) -> None:
     settings = settings or get_settings()
     setup_logging(settings.log_level)
@@ -146,6 +158,13 @@ def run_forever(settings: Settings | None = None) -> None:
                 hb["anomaly_folders"] = anomalies
                 send_alert(db, settings, f"{anomalies} klasörde sunucudan toplu mail kaybı görüldü. FredyMail kopyaları "
                                          "koruyor; sunucu sağlayıcısıyla kontrol edin.")
+            try:  # Hero planı: günde bir Yoldaki Mallar okuması + ay sonu hatırlatması (AI yok)
+                from .hero.service import maybe_run_daily
+
+                maybe_run_daily(db, settings, send_message=lambda t, db=db: send_notice(db, settings, t))
+            except Exception as e:  # noqa: BLE001
+                db.rollback()
+                log.warning("hero görevi atlandı: %s", type(e).__name__)
             hb["state"] = "idle"
             _set_kv(db, "worker", hb)
         except Exception:

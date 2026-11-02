@@ -37,7 +37,32 @@ Aynı ürün birden çok sevkiyatta ise adetler toplanır, sevkiyatlar ayrı ayr
 Fatura başlık satırları ve yedek parçalar atlanır. Marka; sekme adından (`KODAK SD` → Kodak), çok markalı
 sekmelerde (`BT-TECH`, `VIDENDUM`) satırdaki marka hücresinden veya ürün adından bulunur (`hero/brands.py`).
 
-Elle deneme (ağ ve veritabanı gerekmez):
+**"Yeni ürün" tespiti:** Worker dosyayı günde bir okur ve her ürünü `hero_items` tablosuna yazar. Listede ilk kez
+görünen ürün `FM_HERO_NEW_DAYS` gün boyunca "yeni" sayılır. İlk kurulumda dosyanın Drive sürüm geçmişinden
+yaklaşık `FM_HERO_NEW_DAYS` gün önceki sürümü temel alınır; o tarihten sonra eklenenler hemen "yeni" görünür.
+Sürüm geçmişi okunamazsa (paylaşım yalnızca Görüntüleyici ise olabilir) o günkü liste temel kabul edilir.
+
+## Komutlar
+
+```bash
+DC="docker compose -f docker-compose.yml -f docker-compose.vps.yml"
+$DC run --rm worker fredymail hero-sync                    # Yoldaki Mallar'ı şimdi oku (worker zaten günde bir okur)
+$DC run --rm worker fredymail hero-preview --month 2026-12 # öneriyi göster, veritabanına kaydet (tabloya dokunmaz)
+$DC run --rm worker fredymail hero-write                   # kuru çalışma: ne yapılacağını gösterir
+$DC run --rm worker fredymail hero-write --yes             # arşiv sekmesi + Sayfa1 güncellemesi
+```
+
+Planı elle düzenlemek için: `$DC run --rm -T worker fredymail hero-preview --out - > plan.json`, dosyayı düzenle,
+`$DC run --rm -T worker fredymail hero-write - --yes < plan.json`. Önizlemeden sonra tablo elle değiştiyse yazma
+reddedilir (`--force` ile geçilir).
+
+Plan kuralları: geçen ayın ürünleri devreder; adında `Kampanya (gg.aa-gg.aa)` olan ve ay içinde en az 3 gün sürmeyen
+kampanya çıkarılır; ay içinde stoğa girecek "yeni" ürünler markasına eklenir (zaten listede olan ürün tekrar eklenmez),
+markası listede yoksa yeni marka satırı açılır; 8 sınırını aşanlar "yer yok" olarak raporlanır. Yazarken yalnızca
+hücre değeri, link ve not değişir (renkler korunur); linki olmayan ürüne "link bekleniyor" notu düşülür;
+"Toplam Ürün" hücreleri `COUNTA`/`SUM` formülüyle yazılır.
+
+Yerel dosyayla deneme (ağ ve veritabanı gerekmez):
 
 ```bash
 docker compose run --rm --no-deps -v "$PWD/YOLDAKI.xlsx:/tmp/y.xlsx:ro" worker \
@@ -57,9 +82,10 @@ docker compose run --rm --no-deps -v "$PWD/YOLDAKI.xlsx:/tmp/y.xlsx:ro" worker \
 ## Durum
 
 - [x] Yoldaki Mallar okuyucusu (`fredymail/hero/yoldaki.py`) + `hero-yoldaki` komutu + testler
-- [ ] Google servis hesabı ile Drive'dan okuma ve Sheets'e yazma
-- [ ] Günlük kopya ve "ilk kez görünen" tespiti (Postgres)
-- [ ] zoomithalat.com link eşleştirme
+- [x] Google servis hesabı ile Drive'dan okuma ve Sheets'e yazma (`hero/google.py`, `hero/sheet.py`)
+- [x] Günlük kopya, "ilk kez görünen" tespiti, ay sonu hatırlatması (`hero/service.py`, worker)
+- [x] Plan önerisi ve yazma komutları (`hero-preview`, `hero-write`)
+- [ ] zoomithalat.com link eşleştirme (site yapısı incelenecek)
 - [ ] Kampanya çıkarımı (AI, düğmeyle)
 - [ ] Hero Planı ekranı ve tasarımcı taslağı
 
@@ -71,13 +97,17 @@ docker compose run --rm --no-deps -v "$PWD/YOLDAKI.xlsx:/tmp/y.xlsx:ro" worker \
 4. Servis hesabı → **Keys → Add key → Create new key → JSON**. Dosya bilgisayara iner.
 5. Servis hesabının e-posta adresiyle (`fredymail-hero@<proje>.iam.gserviceaccount.com`) paylaş:
    - Hero Ürünler Listesi → **Düzenleyici**
-   - YOLDAKİ_MALLAR_GENEL.xlsx → **Görüntüleyici** (dosya sahibi paylaşmalı)
+   - YOLDAKİ_MALLAR_GENEL.xlsx → **Düzenleyici** önerilir (dosya sahibi paylaşmalı). Drive sürüm geçmişi
+     yalnızca düzenleyicilere açık; kod Drive'a **salt okunur** kapsamla bağlandığı için dosyayı değiştiremez.
+     Görüntüleyici de çalışır, yalnızca ilk kurulumdaki "yeni" tespiti zayıflar.
 6. Anahtarı VPS'e kopyala. Sohbete veya AI'a **yapıştırma**:
    ```bash
    scp ~/Downloads/<indirilen>.json root@<vps>:/opt/fredymail/fredymail-pro/fredymail-next/secrets/google_sa.json
    ssh root@<vps> 'cd /opt/fredymail/fredymail-pro/fredymail-next && chown 10001:10001 secrets/google_sa.json && chmod 400 secrets/google_sa.json'
    ```
    `secrets/` zaten `/run/secrets` olarak salt okunur bağlanıyor ve git dışında.
+7. `.env`'e `FM_HERO_SHEET_ID` ve `FM_HERO_YOLDAKI_FILE_ID` ekle (dosya linklerindeki `/d/<kimlik>/` kısmı), sonra
+   `git pull && $DC build && $DC up -d` (migrate servisi `hero_items` tablosunu oluşturur).
 
 ## Güvenlik notu
 

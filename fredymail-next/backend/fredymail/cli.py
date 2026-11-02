@@ -353,6 +353,133 @@ def cmd_hero_yoldaki(a) -> int:
     return 0
 
 
+def _hero_client(s):
+    from .hero.google import GoogleClient
+
+    if not s.hero_sheet_id:
+        raise SystemExit("FM_HERO_SHEET_ID tanımlı değil (.env)")
+    return GoogleClient.from_file(s.google_sa_file)
+
+
+def _hero_sheet(s, client):
+    from .hero.sheet import parse_grid
+
+    tab = s.hero_sheet_tab
+    return parse_grid(client.sheet_grid(s.hero_sheet_id, f"'{tab}'!A1:Z200"), tab)
+
+
+def cmd_hero_sync(a) -> int:
+    from .db import new_session
+    from .hero.service import run_sync
+
+    s = get_settings()
+    if not s.hero_yoldaki_file_id:
+        raise SystemExit("FM_HERO_YOLDAKI_FILE_ID tanımlı değil (.env)")
+    db = new_session()
+    try:
+        _print(run_sync(db, s))
+    finally:
+        db.close()
+    return 0
+
+
+def cmd_hero_preview(a) -> int:
+    """Önerilen planı gösterir ve JSON'a yazar. Tabloya dokunmaz."""
+    from datetime import date, datetime, timedelta
+
+    from .hero.service import build_plan, local_tz, recent_new_keys
+    from .hero.yoldaki import parse_workbook
+
+    s = get_settings()
+    today = datetime.now(local_tz(s.hero_timezone)).date()
+    if a.month:
+        year, month = (int(x) for x in a.month.split("-"))
+    else:  # varsayılan: gelecek ay (ayın 25'inde hazırlanır)
+        nxt = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
+        year, month = nxt.year, nxt.month
+    client = _hero_client(s)
+    hs = _hero_sheet(s, client)
+    if a.file:
+        with open(a.file, "rb") as f:
+            data = f.read()
+    else:
+        data, _ = client.download_xlsx(s.hero_yoldaki_file_id)
+    items = parse_workbook(data, today)
+    if a.today:
+        today = date.fromisoformat(a.today)
+    from .db import new_session
+    from .hero.service import save_plan
+
+    db = new_session()
+    try:
+        new_keys = recent_new_keys(db, today, s.hero_new_days)
+        plan = build_plan(hs, items, new_keys, year, month, today)
+        save_plan(db, plan)
+    finally:
+        db.close()
+    if a.out == "-":
+        print(json.dumps(plan, ensure_ascii=False, indent=2))
+        return 0
+    if a.out:
+        with open(a.out, "w", encoding="utf-8") as f:
+            f.write(json.dumps(plan, ensure_ascii=False, indent=2))
+    print(f"Plan: {plan['period']} (önceki: {plan['previous_period']} → arşiv sekmesi '{plan['archive_title']}')")
+    for b in plan["brands"]:
+        tag = " [YENİ MARKA]" if b.get("new_brand") else ""
+        print(f"\n{b['brand']}{tag} ({len(b['products'])})")
+        for p in b["products"]:
+            mark = "🆕" if p["source"] == "yeni" else "  "
+            link = "" if p.get("link") else "  (link yok)"
+            extra = f"  [{p['status']}]" if p.get("status") and p["source"] == "yeni" else ""
+            print(f"  {mark} {p['text']}{extra}{link}")
+    for d in plan["dropped"]:
+        print(f"\n✂️  çıkarıldı: {d['brand']} · {d['text']} ({d['reason']})")
+    for o in plan["overflow"]:
+        print(f"\n➕ yer yok (8 sınırı): {o['brand']} · {o['text']}")
+    print(f"\nToplam {plan['total']} ürün. Plan kaydedildi; yazmak için: fredymail hero-write --yes")
+    return 0
+
+
+def cmd_hero_write(a) -> int:
+    """Planı tabloya yazar: önce mevcut sekme arşive kopyalanır, sonra sabit sekme güncellenir."""
+    from .hero.sheet import build_write_requests
+
+    s = get_settings()
+    if a.plan == "-":
+        plan = json.load(sys.stdin)
+    elif a.plan:
+        with open(a.plan, encoding="utf-8") as f:
+            plan = json.load(f)
+    else:
+        from .db import new_session
+        from .hero.service import load_plan
+
+        db = new_session()
+        try:
+            plan = load_plan(db)
+        finally:
+            db.close()
+        if plan is None:
+            raise SystemExit("Kayıtlı plan yok; önce hero-preview çalıştırın.")
+    client = _hero_client(s)
+    hs = _hero_sheet(s, client)
+    if plan.get("previous_period") != hs.period and not a.force:
+        print(f"Tablo önizlemeden sonra değişmiş görünüyor (şu an: {hs.period}, plan: {plan.get('previous_period')}). "
+              "Yeniden hero-preview çalıştırın ya da --force kullanın.")
+        return 1
+    titles = [t["title"] for t in client.sheet_titles(s.hero_sheet_id)]
+    reqs = build_write_requests(hs, plan, titles)
+    n = sum(len(b["products"]) for b in plan["brands"])
+    print(f"{len(plan['brands'])} marka, {n} ürün, {len(reqs)} işlem → '{hs.title}'"
+          + (f"; arşiv: '{plan.get('archive_title')}'" if any("duplicateSheet" in r for r in reqs) else ""))
+    if not a.yes:
+        print("Kuru çalışma: tabloya yazılmadı. Yazmak için --yes ekleyin.")
+        return 0
+    client.batch_update(s.hero_sheet_id, reqs)
+    print("Yazıldı. Link değişmedi.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="fredymail", description="FredyMail yönetim komutları")
     sp = p.add_subparsers(dest="cmd", required=True)
@@ -423,6 +550,18 @@ def main(argv: list[str] | None = None) -> int:
     hy.add_argument("--today", help="YYYY-AA-GG (test için; varsayılan: bugün)")
     hy.add_argument("--json", action="store_true")
     hy.set_defaults(fn=cmd_hero_yoldaki)
+    sp.add_parser("hero-sync", help="Yoldaki Mallar'ı Drive'dan şimdi oku (günlük kopya)").set_defaults(fn=cmd_hero_sync)
+    hp = sp.add_parser("hero-preview", help="Aylık Hero planı önerisini göster ve JSON'a yaz (tabloya dokunmaz)")
+    hp.add_argument("--month", help="YYYY-AA (varsayılan: gelecek ay)")
+    hp.add_argument("--file", help="Drive yerine yerel Yoldaki Mallar xlsx'i")
+    hp.add_argument("--out", help="planı ayrıca dosyaya yaz ('-' = yalnızca JSON'u stdout'a bas)")
+    hp.add_argument("--today", help=argparse.SUPPRESS)
+    hp.set_defaults(fn=cmd_hero_preview)
+    hw = sp.add_parser("hero-write", help="Onaylanan planı Hero tablosuna yaz (arşiv + güncelleme)")
+    hw.add_argument("plan", nargs="?", help="plan JSON dosyası ('-' = stdin); boşsa son hero-preview planı")
+    hw.add_argument("--yes", action="store_true", help="gerçekten yaz (yoksa kuru çalışma)")
+    hw.add_argument("--force", action="store_true", help="tablo önizlemeden sonra değişmiş olsa da yaz")
+    hw.set_defaults(fn=cmd_hero_write)
 
     a = p.parse_args(argv)
     return a.fn(a)

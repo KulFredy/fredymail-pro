@@ -146,6 +146,17 @@ class Settings(BaseSettings):
 
     static_dir: str = "/app/static"
 
+    # --- Aylık Hero Ürünler Listesi (docs/HERO-PLAN.md) ---
+    # Google servis hesabı anahtarı (JSON). Yalnızca paylaşılan dosyalara erişir; dosya yoksa modül kapalıdır.
+    google_sa_file: str = "/run/secrets/google_sa.json"
+    hero_sheet_id: str = ""            # "Zoom Aylık Hero Ürünler Listesi" (Google Sheets) kimliği
+    hero_sheet_tab: str = "Sayfa1"     # tasarımcıya giden sabit sekme
+    hero_yoldaki_file_id: str = ""     # YOLDAKİ_MALLAR_GENEL.xlsx (Drive) kimliği
+    hero_timezone: str = "Europe/Istanbul"
+    hero_sync_hour: int = 8            # Yoldaki Mallar günde bir kez, bu saatten sonra okunur
+    hero_new_days: int = 45            # listede ilk kez görünen ürün bu kadar gün "yeni" sayılır
+    hero_reminder_day: int = 25        # ayın bu günü Telegram hatırlatması (0 = kapalı)
+
     # --- Marka (arayüzde ve bildirimlerde görünen ad; kod genel kalır) ---
     brand_name: str = "FredyMail"
     brand_tagline: str = "Intelligence"
