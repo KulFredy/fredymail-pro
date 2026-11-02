@@ -499,7 +499,10 @@ def cmd_hero_preview(a) -> int:
         with open(a.out, "w", encoding="utf-8") as f:
             f.write(json.dumps(plan, ensure_ascii=False, indent=2))
     print("🔴 ilk kez giren · 🟤 devam eden, bu ay stoğa girecek · 🔵 devreden")
-    print(f"Plan: {plan['period']} (önceki: {plan['previous_period']} → arşiv sekmesi '{plan['archive_title']}')")
+    if plan.get("same_month"):
+        print(f"Plan: {plan['period']} (bu ay yeniden yazılıyor; arşiv sekmesi oluşturulmaz)")
+    else:
+        print(f"Plan: {plan['period']} (önceki: {plan['previous_period']} → arşiv sekmesi '{plan['archive_title']}')")
     for b in plan["brands"]:
         tag = " [YENİ MARKA]" if b.get("new_brand") else ""
         print(f"\n{b['brand']}{tag} ({len(b['products'])})")
