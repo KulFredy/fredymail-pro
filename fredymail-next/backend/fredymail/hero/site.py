@@ -93,6 +93,15 @@ def model_codes(text: str) -> set[str]:
             and not re.fullmatch(r"\d+(?:\.\d+)?[a-z]{1,3}", t)}
 
 
+def code_shape(t: str) -> str:
+    """a063s -> 'adddа' biçimi: harf=a, rakam=d (b091s ile aynı, cr133 ile farklı)."""
+    return re.sub(r"\d", "d", re.sub(r"[a-z]", "a", t))
+
+
+def _codeish(t: str) -> bool:
+    return (len(t) >= 4 and bool(re.search(r"[a-z]", t)) and bool(re.search(r"\d", t))) or bool(re.fullmatch(r"\d{4,}", t))
+
+
 @dataclass
 class SiteProduct:
     url: str
@@ -172,10 +181,11 @@ class SiteIndex:
                     return Match(hits[0].url, "found", 1.0)
                 best = self._best(name, hits, brand_toks, min_score=0.0)
                 return best if best.status == "found" else Match(None, "ambiguous", best.score)
-            # Markanın linkleri kod/numara taşıyorsa ve bu kod mağazada yoksa: yeni model
-            with_ids = sum(1 for p in pool if any(re.search(r"[a-z]", t) and re.search(r"\d", t) and len(t) >= 4
-                                                  or re.fullmatch(r"\d{4,}", t) for t in p.toks))
-            if pool and with_ids / len(pool) >= 0.5:
+            # Kod mağazada yok. Markanın linkleri AYNI BİÇİMDE kodlar taşıyorsa (Tamron: a063s ~ b091s) bu yeni bir
+            # modeldir. Biçim farklıysa (Zhiyun iç kodu cr133, Patona numarası 1259) kelime eşleştirmesine geçilir.
+            shapes = {code_shape(i) for i in ids}
+            same = sum(1 for p in pool if any(code_shape(t) in shapes for t in p.toks if _codeish(t)))
+            if pool and same / len(pool) >= 0.3:
                 return Match(None, "missing")
         return self._best(name, pool, brand_toks)
 
@@ -205,3 +215,16 @@ class SiteIndex:
         if len(cands) > 1 and jacc(cands[0]) == jacc(cands[1]):
             return Match(None, "ambiguous", top)
         return Match(cands[0].url, "found", top)
+
+    def explain(self, name: str, brand: str | None = None, n: int = 2) -> list[tuple[float, str]]:
+        """Teşhis: markanın mağazadaki ürünleri arasında kelime örtüşmesi en yüksek `n` aday (puan, link adı)."""
+        sets = _brand_token_sets(brand)
+        brand_toks = set().union(*sets) if sets else set()
+        pool = self.brand_pool(brand) or []
+        want = {t for t in tokens(name) if t not in STOP and t not in NOISE and t not in VARIANT
+                and not (len(t) == 1 and t.isalpha())} - brand_toks
+        if not want or not pool:
+            return []
+        scored = sorted(((len(want & p.toks) / len(want), p.slug) for p in pool), reverse=True)
+        return scored[:n]
+

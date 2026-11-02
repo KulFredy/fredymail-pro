@@ -110,7 +110,22 @@ def run_site_check(db: Session, settings: Settings, http=None, sleep=None, today
     today = today or datetime.now(local_tz(settings.hero_timezone)).date()
     urls = fetch_product_urls(settings.hero_shop_url, http=http, delay=settings.hero_site_delay,
                               sleep=sleep or _time.sleep)
-    index = SiteIndex(urls)
+    return _apply_site_index(db, SiteIndex(urls), urls, today)
+
+
+def rematch_site(db: Session, settings: Settings, today: date | None = None) -> dict:
+    """Kayıtlı link listesiyle yeniden eşleştirir (mağazaya istek atmaz): kural değişikliğinden sonra kullanılır."""
+    from .site import SiteIndex
+
+    kv = db.get(KeyValue, "hero_site")
+    urls = ((kv.value or {}).get("urls") if kv else None) or []
+    if not urls:
+        raise ValueError("kayıtlı mağaza link listesi yok; önce hero-site (indirmeli) çalıştırın")
+    today = today or datetime.now(local_tz(settings.hero_timezone)).date()
+    return _apply_site_index(db, SiteIndex(urls), urls, today)
+
+
+def _apply_site_index(db: Session, index, urls: list[str], today: date) -> dict:
     counts = {"found": 0, "missing": 0, "ambiguous": 0}
     for item in db.execute(select(HeroItem)).scalars():
         m = index.match(item.name, item.brand, item.code)

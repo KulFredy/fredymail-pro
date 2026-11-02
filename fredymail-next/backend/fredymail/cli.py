@@ -394,11 +394,26 @@ def cmd_hero_site(a) -> int:
     s = get_settings()
     db = new_session()
     try:
-        print(f"{s.hero_shop_url} site haritası okunuyor (istekler arası {s.hero_site_delay:.0f} sn)…", flush=True)
-        res = run_site_check(db, s)
+        if a.no_fetch:
+            from .hero.service import rematch_site
+
+            res = rematch_site(db, s)
+        else:
+            print(f"{s.hero_shop_url} site haritası okunuyor (istekler arası {s.hero_site_delay:.0f} sn)…", flush=True)
+            res = run_site_check(db, s)
         print(f"Mağazada {res['products']} ürün linki. Yoldaki ürünler: {res['found']} eşleşti, "
               f"{res['missing']} sitede yok (yeni sayılır), {res['ambiguous']} belirsiz.")
         rows = db.execute(select(HeroItem).order_by(HeroItem.brand, HeroItem.name)).scalars().all()
+        index = None
+        if a.explain:
+            from .hero.service import load_site_index
+
+            index = load_site_index(db)
+            pools = {}
+            for b in sorted({r.brand for r in rows}):
+                pool = index.brand_pool(b)
+                pools[b] = len(pool or [])
+            print("\nMağazada marka başına link sayısı: " + ", ".join(f"{b} {n}" for b, n in pools.items()))
         for label, cond in (("SİTEDE YOK → yeni ürün adayı", lambda r: r.on_site is False),
                             ("BELİRSİZ (birden çok aday) → yeni sayılmaz", lambda r: r.on_site is None)):
             sel = [r for r in rows if cond(r)]
@@ -406,6 +421,9 @@ def cmd_hero_site(a) -> int:
                 print(f"\n{label} ({len(sel)}):")
                 for r in sel[: a.limit]:
                     print(f"  {r.brand:12} {r.name}")
+                    if index is not None:
+                        for score, slug in index.explain(r.name, r.brand):
+                            print(f"      {score:.2f}  {slug}")
         if a.show_found:
             print("\nEŞLEŞENLER:")
             for r in rows:
@@ -594,6 +612,9 @@ def main(argv: list[str] | None = None) -> int:
     hs_ = sp.add_parser("hero-site", help="Mağaza (shop.zoomithalat.com) kontrolü: ürün sitede var mı, linki ne")
     hs_.add_argument("--limit", type=int, default=200)
     hs_.add_argument("--show-found", action="store_true", help="eşleşen ürünleri linkleriyle göster")
+    hs_.add_argument("--explain", action="store_true",
+                     help="yok/belirsiz ürünler için mağazadaki en yakın 2 adayı ve puanını göster")
+    hs_.add_argument("--no-fetch", action="store_true", help="site haritasını yeniden indirme, kayıtlı listeyle eşleştir")
     hs_.set_defaults(fn=cmd_hero_site)
     hp = sp.add_parser("hero-preview", help="Aylık Hero planı önerisini göster ve JSON'a yaz (tabloya dokunmaz)")
     hp.add_argument("--month", help="YYYY-AA (varsayılan: gelecek ay)")

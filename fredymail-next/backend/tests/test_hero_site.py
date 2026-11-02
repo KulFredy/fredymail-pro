@@ -186,3 +186,41 @@ def test_live_false_misses_now_found(name, brand, expect):
 ])
 def test_live_true_new_products_stay_missing(name, brand):
     assert SiteIndex(LIVE).match(name, brand).status == "missing"
+
+
+# Canlıda Patona/Zhiyun linkleri de kod taşıyınca "kod yoksa yeni model" kuralı yanlış tetiklenmişti.
+CODED = LIVE + [B + s for s in (
+    "zhiyun-molus-x100-bi-color-cob-led",
+    "zhiyun-molus-x200-rgb-cob-led",
+    "zhiyun-crane-m3s-gimbal",
+    "patona-sony-np-fz100-premium-batarya",
+    "patona-canon-lp-e6nh-platinum-usb-c-batarya",
+    "patona-nikon-en-el15c-platinum-batarya",
+    "tamron-a058s-35-150mm-sony-e",
+    "tamron-a036-28-200mm-sony-e",
+)]
+
+
+@pytest.mark.parametrize(("name", "brand", "expect"), [
+    ("WEEBILL 5 COMBO(CR133)", "Zhiyun", "weebill-5-combo"),
+    ("M40 SE PLM111(KHAKI)COMBO", "Zhiyun", "m40-se"),
+    ("Patona 1259 Premium Batarya Canon LP-E6N", "Patona", "patona-1259"),
+    ("Patona 1360 Platinum Batarya Sony NP-FZ100 with USB-C", "Patona", "np-fz100"),
+])
+def test_code_rule_does_not_fire_for_other_code_shapes(name, brand, expect):
+    m = SiteIndex(CODED).match(name, brand)
+    assert m.status == "found" and expect in m.url, m
+
+
+def test_code_rule_still_catches_new_tamron_model():
+    assert SiteIndex(CODED).match("Tamron 16-50mm F2.8 A Sony E-Mount (B091S)", "Tamron").status == "missing"
+
+
+def test_rematch_without_fetch_and_explain(db, settings):
+    today = date(2026, 11, 2)
+    service.sync_items(db, parse_workbook(_yoldaki(), today), today)
+    service._set_kv(db, "hero_site", {"date": "2026-11-01", "urls": URLS})
+    res = service.rematch_site(db, settings, today=today)
+    assert res["products"] == len(URLS) and res["found"] == 1
+    top = service.load_site_index(db).explain("Tamron 28-75mm Nikon Z (A063Z)", "Tamron")
+    assert top[0][1].startswith("tamron-a063z") and top[0][0] == 1.0
