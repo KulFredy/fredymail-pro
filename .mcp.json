@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "icerik-fabrikasi": {
+      "command": "npm",
+      "args": ["run", "-s", "mcp"],
+      "env": { "FABRIKA_URL": "http://127.0.0.1:4747" }
+    }
+  }
+}

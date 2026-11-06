@@ -1,6 +1,8 @@
 # İçerik Fabrikası · Ürün Planı v0.2
 
-> Durum: **onay bekliyor**. Bu belge kod yazılmadan önceki öneridir. Onaydan sonra yalnızca **Faz 1 (Instagram Hızlı Edit)** uçtan uca geliştirilir.
+> Durum: **onaylandı · Faz 1 geliştirildi** (kurulum ve kullanım: [README](../README.md)). Faz 2 onay bekliyor.
+>
+> Faz 1'de plandan bilinçli sapmalar: kütüphane ve iş kuyruğu için SQLite yerine JSON dosyaları (tek kullanıcıda yeterli, yerel bağımlılık yok; SaaS'ta Postgres'e taşınır). Son render 4K orijinalden yapılır (Remotion yön ve HDR ton eşlemeyi uygular), önizleme 1080p kopyalardan. Kamera log LUT'ları 12 profil olarak hazır gelir ve klip başına seçilir; Sony log çekimleri dosya üst verisinden otomatik algılanır.
 >
 > Netleşen kararlar: tek kullanıcı · **Mac M2** · **tarayıcıda yerel uygulama** (Mac uygulaması sonra) · telefon **Android** (iPhone'a geçişe hazır) · kamera görüntüleri **genelde 4K** · ekip ≤3 kişi → Remotion ücretsiz lisans kapsamında · arayüz Türkçe · çalışma anında ücretli servis yok.
 >

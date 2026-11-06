@@ -1,0 +1,86 @@
+[
+  {
+    "id": "sony-slog3-sgamut3cine",
+    "title": "Sony S-Log3 / S-Gamut3.Cine",
+    "curve": "S-Log3",
+    "gamut": "S-Gamut3.Cine",
+    "grey18": 0.4064
+  },
+  {
+    "id": "sony-slog3-sgamut3",
+    "title": "Sony S-Log3 / S-Gamut3",
+    "curve": "S-Log3",
+    "gamut": "S-Gamut3",
+    "grey18": 0.4064
+  },
+  {
+    "id": "sony-slog2-sgamut",
+    "title": "Sony S-Log2 / S-Gamut",
+    "curve": "S-Log2",
+    "gamut": "S-Gamut",
+    "grey18": 0.3234
+  },
+  {
+    "id": "panasonic-vlog",
+    "title": "Panasonic V-Log / V-Gamut",
+    "curve": "V-Log",
+    "gamut": "V-Gamut",
+    "grey18": 0.4213
+  },
+  {
+    "id": "canon-clog3",
+    "title": "Canon Log 3 / Cinema Gamut",
+    "curve": "Canon Log 3",
+    "gamut": "Cinema Gamut",
+    "grey18": 0.328
+  },
+  {
+    "id": "canon-clog2",
+    "title": "Canon Log 2 / Cinema Gamut",
+    "curve": "Canon Log 2",
+    "gamut": "Cinema Gamut",
+    "grey18": 0.392
+  },
+  {
+    "id": "fujifilm-flog",
+    "title": "Fujifilm F-Log / F-Gamut",
+    "curve": "F-Log",
+    "gamut": "F-Gamut",
+    "grey18": 0.4633
+  },
+  {
+    "id": "fujifilm-flog2",
+    "title": "Fujifilm F-Log2 / F-Gamut",
+    "curve": "F-Log2",
+    "gamut": "F-Gamut",
+    "grey18": 0.3836
+  },
+  {
+    "id": "nikon-nlog",
+    "title": "Nikon N-Log / BT.2020",
+    "curve": "N-Log",
+    "gamut": "ITU-R BT.2020",
+    "grey18": 0.3516
+  },
+  {
+    "id": "dji-dlog",
+    "title": "DJI D-Log / D-Gamut",
+    "curve": "D-Log",
+    "gamut": "DJI D-Gamut",
+    "grey18": 0.3988
+  },
+  {
+    "id": "apple-log",
+    "title": "Apple Log / BT.2020",
+    "curve": "Apple Log Profile",
+    "gamut": "ITU-R BT.2020",
+    "grey18": 0.4883
+  },
+  {
+    "id": "arri-logc3",
+    "title": "ARRI LogC3 / AWG3",
+    "curve": "ARRI LogC3",
+    "gamut": "ARRI Wide Gamut 3",
+    "grey18": 0.391
+  }
+]
