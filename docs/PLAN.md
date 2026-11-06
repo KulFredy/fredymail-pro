@@ -1,8 +1,10 @@
-# İçerik Fabrikası · Ürün Planı v0.1
+# İçerik Fabrikası · Ürün Planı v0.2
 
 > Durum: **onay bekliyor**. Bu belge kod yazılmadan önceki öneridir. Onaydan sonra yalnızca **Faz 1 (Instagram Hızlı Edit)** uçtan uca geliştirilir.
 >
-> Başlangıç varsayımları (değiştirilebilir): tek kullanıcı · Mac'te yerel çalışma · arayüz Türkçe · çalışma anında ücretli servis yok.
+> Netleşen kararlar: tek kullanıcı · **Mac M2** · **tarayıcıda yerel uygulama** (Mac uygulaması sonra) · telefon **Android** (iPhone'a geçişe hazır) · kamera görüntüleri **genelde 4K** · ekip ≤3 kişi → Remotion ücretsiz lisans kapsamında · arayüz Türkçe · çalışma anında ücretli servis yok.
+>
+> v0.2 değişiklikleri: müzik için üç mod (müzik her zaman kısma gerektirmiyor), tam renk düzeltme + LUT (video ve fotoğraf), kamera/4K iş akışı, klip sesi ayarı, elle yazı, yatay 16:9 çıktı.
 
 ---
 
@@ -29,14 +31,32 @@ Uygulama her açılışta son projeyi, son adımı ve oynatma imlecini geri yük
 
 | # | Adım | Ne yaparım | Otomatik olan |
 |---|---|---|---|
-| 1 | **Ekle** | Mac'e sürükle-bırak **veya** "Telefondan ekle" → QR'ı okut → telefon galerisinden çoklu seçim | Yön düzeltme, iPhone HDR→SDR, HEIC→JPEG, önizleme kopyası (proxy), dalga formu, Türkçe çözümleme arka planda başlar. Orijinal dosyaya dokunulmaz. |
-| 2 | **Biçim** | Story / Reel / Post. "+ Aynı projeden 4:5 post da ver" | 9:16 → 1080×1920, 4:5 → 1080×1350 |
+| 1 | **Ekle** | Mac'e sürükle-bırak (kamera kartı/klasör dahil) **veya** "Telefondan ekle" → QR'ı okut → telefon galerisinden çoklu seçim | Yön düzeltme, HDR→SDR, HEIC→JPEG, 4K için 1080p önizleme kopyası (proxy), dalga formu, Türkçe çözümleme arka planda başlar. Orijinal dosyaya dokunulmaz. |
+| 2 | **Biçim** | Story / Reel / Post / **Yatay 16:9**. "+ Aynı projeden 4:5 post da ver" | 9:16 → 1080×1920, 4:5 → 1080×1350, 16:9 → 1920×1080 |
 | 3 | **Sırala & kısalt** | Klipleri sürükle, uç tutamaçlarıyla kısalt | Hedef süre göstergesi (ör. 15,0 sn) |
-| 4 | **Kadraj** | Her klip için **Sığdır** (bulanık arka plan) ve **Doldur** (kırp) yan yana; Doldur'da kadrajı sürükle | Instagram arayüz güvenli alanı aç/kapat. Kadraj **çıktı başına** saklanır (post kadrajı Story'yi bozmaz) |
-| 5 | **Renk** | Görünüm seç (Doğal, Sıcak, Soğuk, Canlı, Film, S/B) + yoğunluk | Tüm projeye veya tek klibe |
-| 6 | **Müzik** *(fotoğraf postunda gizli)* | Kendi ses dosyam, seviye | "Konuşmada kıs" açık: −14 dB, 0,3 sn iniş, 0,6 sn dönüş |
-| 7 | **Altyazı** *(fotoğraf postunda gizli)* | Önizlemede kelimeye tıkla → düzelt | Sadece konuşma olan bölümde; sessiz klipte "Konuşma bulunamadı, altyazı atlandı" |
+| 4 | **Kadraj** | Her klip için **Sığdır** (bulanık arka plan) ve **Doldur** (kırp) yan yana; Doldur'da kadrajı sürükle, yakınlaştır | 4K yataydan dikey kırpma kalite kaybı olmadan yapılır (2160 px yükseklik → 1920). Güvenli alan aç/kapat. Kadraj **çıktı başına** saklanır |
+| 5 | **Renk & ışık** | Hazır görünüm + yoğunluk **veya** "Ayarla" sekmesi: pozlama, kontrast, parlak alanlar, gölgeler, sıcaklık, ton, canlılık, doygunluk, keskinlik, vinyet · **LUT yükle (.cube)** + LUT yoğunluğu · ayarı kopyala/yapıştır, "tümüne uygula" | Video ve fotoğrafta aynı ayarlar. Log çekim varsa önce "kamera dönüşümü" LUT'u, sonra yaratıcı görünüm |
+| 6 | **Ses & müzik** *(fotoğraf postunda gizli)* | Klip sesi: seviye / sustur / yavaş aç-kapa. Müzik: dosya, seviye, başlangıç noktası ve **müzik modu** (aşağıda) | Proje konuşma içermiyorsa kısma ayarı hiç görünmez |
+| 7 | **Yazı & altyazı** | Konuşma varsa: kelimeye tıkla → düzelt. Konuşma yoksa: **elle yazı ekle** (ör. "Papağanla tanışın 🦜"), süresini sürükle | Sadece konuşma olan bölüme altyazı; sessiz klipte "Konuşma bulunamadı, altyazı atlandı" |
 | 8 | **Teslim** | Her çıktı kartında: Telefona indir (QR) · Klasörde göster · Açıklamayı kopyala · Müziksiz sürüm | Çözünürlük, codec, süre ffprobe ile doğrulanır, kartta ✓ görünür |
+
+### Müzik modları (tek dokunuşla değişir)
+| Mod | Ne olur | Ne zaman |
+|---|---|---|
+| **Arka planda kısık** | Müzik baştan sona sabit, düşük seviyede akar (varsayılan −18 dB). Konuşmada ayrıca kısılmaz. | Az konuştuğun, müziğin hep "altta" kalmasını istediğin videolar |
+| **Konuşmada kıs** | Müzik normal seviyede; yalnız konuştuğun anlarda iner (−14 dB, 0,3 sn iniş, 0,6 sn dönüş), sonra geri gelir | Fotoğraf/ortam görüntüsünde müziğin öne çıkmasını, konuşmada geri çekilmesini istediğinde |
+| **Sabit** | Hiç otomatik değişiklik yok; seviyeyi sen belirlersin | Sadece müzik + görüntü |
+
+Varsayılan: projede konuşma algılanmadıysa **Sabit**; algılandıysa **Konuşmada kıs** önerilir ama seçili mod hatırlanır. Klip bazında "bu klipte müziği sustur" da var.
+
+### Örnek: hafta sonu gezisi, kamerayla 4K papağan çekimi
+1. Kartı Mac'e tak, klasörü sürükle. 4K klipler içe aktarılır; önizleme 1080p kopyalarla akıcı çalışır, çıktı 4K orijinalden üretilir.
+2. Biçim: Reel + 4:5 post. Yatay papağan karesini dikeyde **Doldur** ile kadrajla; papağan kenara kaçarsa kadrajı sürükle.
+3. Kes: iyi anları uç tutamaçlarıyla seç, sırala.
+4. Renk: kameran log çekiyorsa dönüşüm LUT'unu seç, sonra kendi `.cube` LUT'un veya "Canlı" görünüm, yoğunluk %60; ayarı kopyala → tümüne yapıştır.
+5. Ses: kamera sesi (rüzgâr) −20 dB; papağanın sesini duymak istediğin klipte 0 dB. Müzik: **Arka planda kısık**.
+6. Yazı: konuşma yoksa "Papağanla tanışın" yazısını ekle; bir yerde konuştuysan oraya altyazı otomatik gelir.
+7. Fotoğraflar: aynı renk ayarı ve LUT fotoğraflara da uygulanır, 4:5 post olarak JPEG alınır.
 
 **Stüdyoda aç:** Hızlı Edit zaten tek bir zaman çizelgesi üretir. Stüdyo aynı projeyi açar; kesmeler, müzik, konuşma ve altyazı ayrı izlerde görünür (Faz 2).
 
@@ -46,13 +66,14 @@ Uygulama her açılışta son projeyi, son adımı ve oynatma imlecini geri yük
 
 **Var:**
 - Proje oluştur / otomatik kaydet / yeniden aç, son konumdan devam
-- Çoklu içe aktarma (Mac sürükle-bırak + aynı Wi-Fi üzerinden telefondan QR ile yükleme)
-- iPhone/Android yön, HEIC, HDR (HLG/Dolby Vision) → SDR normalize; orijinaller salt-okunur arşivde
-- Story / Reel (9:16) ve akış postu (4:5); bir projede birden çok çıktı
-- Kırpma, sıralama, Sığdır/Doldur, elle kadraj kaydırma, güvenli alan katmanı
-- 6 renk görünümü + yoğunluk (önizleme ve çıktıda birebir aynı formül)
-- Kendi müziğim + konuşmada otomatik kısma (ducking)
-- Yerel Whisper ile Türkçe çözümleme, kelime zamanlı altyazı, kelime düzeltme, videoya gömme
+- Çoklu içe aktarma (Mac sürükle-bırak, kamera klasörü + aynı Wi-Fi üzerinden telefondan QR ile yükleme)
+- Android/iPhone yön, HEIC, HDR (HLG/HDR10/Dolby Vision) → SDR normalize; 4K/10-bit kamera dosyaları; orijinaller salt-okunur arşivde
+- 4K kaynakta 1080p önizleme kopyası, çıktı orijinalden
+- Story / Reel (9:16), akış postu (4:5), yatay 16:9 (1080p); bir projede birden çok çıktı
+- Kırpma, sıralama, Sığdır/Doldur, elle kadraj kaydırma/yakınlaştırma, güvenli alan katmanı
+- Renk: 6 hazır görünüm + yoğunluk, temel ışık/renk ayarları, `.cube` LUT (kamera dönüşümü + yaratıcı), ayarı kopyala/yapıştır; video ve fotoğrafta aynı
+- Klip sesi seviyesi/susturma, kendi müziğim, üç müzik modu (arka planda kısık / konuşmada kıs / sabit)
+- Yerel Whisper ile Türkçe çözümleme, kelime zamanlı altyazı, kelime düzeltme, videoya gömme; konuşmasız videolar için elle yazı
 - Teslim: H.264/AAC MP4, JPEG, müziksiz sürüm, açıklama metni kopyalama, telefona indirme
 - Geri al / yinele (her değişiklik bir işlem kaydı)
 - **MCP sunucusu:** Claude Code / Claude Desktop aynı işlemleri araç olarak çağırabilir
@@ -99,9 +120,10 @@ Tek komutla başlar: `npm run fabrika` → `http://localhost:4747` (ve aynı Wi-
 ### Teknik kararlar
 | Konu | Karar | Neden |
 |---|---|---|
-| Renderer | **Remotion** (Faz 1–3) | Aynı kompozisyonla hem canlı önizleme (Player) hem H.264/AAC render; altyazı ve ses eğrileri hazır; olgun. Renderer bir arayüz arkasında, gerekirse değiştirilebilir. |
-| HyperFrames | Faz 3'te tekrar değerlendir | HTML tabanlı, ajan dostu, açık lisanslı. Ticarileşmede Remotion şirket lisansı gerekirse alternatif. |
-| Renk | SVG `feColorMatrix` + yoğunluk ile birim matris arası geçiş | Tarayıcı önizlemesi ve Chrome tabanlı render birebir aynı sonucu verir |
+| Renderer | **Remotion** (Faz 1–3) | Aynı kompozisyonla hem canlı önizleme (Player) hem H.264/AAC render; altyazı ve ses eğrileri hazır; olgun. Ekip ≤3 kişi olduğu için ücretsiz lisans kapsamında. Renderer bir arayüz arkasında. |
+| HyperFrames | Ekip büyürse / SaaS lisansı gündeme gelirse | HTML tabanlı, açık lisanslı alternatif |
+| Renk + LUT | **Tek WebGL (GLSL) gölgelendirici**: kamera LUT'u → ışık/renk ayarları → görünüm/yaratıcı LUT (3B doku) → yoğunluk karışımı | Aynı gölgelendirici tarayıcı önizlemesinde ve render'da çalışır; LUT'lu sonuç önizlemede ne ise çıktıda o. Fotoğraf için de aynı kod. |
+| 4K | 1080p H.264 önizleme kopyası; render 4K orijinalden okur | Akıcı önizleme + dikey kırpmada tam kalite |
 | Konuşma | **whisper.cpp** (Metal hızlandırma), `large-v3-turbo` modeli, DTW kelime zamanlaması | Yerel, ücretsiz, Türkçe iyi; Homebrew ile kurulur |
 | Konuşma algılama (ducking) | Whisper segmentleri + enerji eşiği | Ek model gerekmez; sessiz klipte altyazı atlanır |
 | Medya | FFmpeg/ffprobe | Normalize (yön, HDR→SDR, sabit kare hızı), proxy, doğrulama |
@@ -132,9 +154,16 @@ Tek komutla başlar: `npm run fabrika` → `http://localhost:4747` (ve aynı Wi-
       { "id": "c2", "asset": "a_ortam",   "in": 4.2, "out": 7.2 },
       { "id": "c3", "asset": "a_konusma", "in": 1.1, "out": 10.1 }
     ],
-    "music":    { "asset": "a_muzik", "gainDb": -6, "duck": { "depthDb": -14, "attack": 0.3, "release": 0.6 } },
+    "music":    { "asset": "a_muzik", "gainDb": -6, "start": 12.0,
+                  "mode": "duck",            // "bed" (arka planda kısık) | "duck" | "fixed"
+                  "bedDb": -18, "duck": { "depthDb": -14, "attack": 0.3, "release": 0.6 } },
+    "clipAudio": { "c2": { "gainDb": -20 }, "c3": { "gainDb": 0 } },
     "captions": { "source": "c3", "words": [ { "t0": 1.32, "t1": 1.71, "text": "Merhaba", "edited": false } ] },
-    "look":     { "preset": "sicak", "intensity": 0.35 }
+    "texts":    [],
+    "look":     { "inputLut": null, "preset": "sicak", "intensity": 0.35,
+                  "adjust": { "exposure": 0, "contrast": 0, "highlights": 0, "shadows": 0,
+                              "temp": 0, "tint": 0, "vibrance": 0, "saturation": 0 },
+                  "creativeLut": null, "lutIntensity": 1 }
   },
   "outputs": [
     { "id": "o_story", "format": "story", "size": [1080, 1920],
@@ -178,7 +207,14 @@ Hepsi `core` işlemlerini çağırır; arayüzde yapılabilen her şey Claude'da
 11. **Telefona indir** (QR) → telefonda oynat. **Açıklamayı kopyala** çalışıyor.
 12. **Sessiz klip testi:** konuşma klibini sessiz bir klip ile değiştir → ✓ "Konuşma bulunamadı, altyazı atlandı", çıktı yine üretiliyor.
 
-Otomatik karşılığı: aynı senaryo, üretilmiş test medyasıyla (`npm test -- e2e`) çalışır ve ffprobe ile çözünürlük, codec ve süreyi doğrular.
+**İkinci senaryo: kamera 4K (papağan)**
+
+13. Bir 4K kamera klibi + bir fotoğraf → Reel + 4:5 post. Kendi `.cube` LUT'unu yükle, yoğunluğu %60 yap, ayarı fotoğrafa da yapıştır.
+14. Kamera sesini −20 dB yap, müzik modu **Arka planda kısık**, elle bir yazı ekle.
+    ✓ Önizleme akıcı (1080p kopya), LUT'lu görüntü önizlemede ve çıktıda aynı.
+    ✓ `reel.mp4` 1080×1920 keskin (4K'dan kırpıldı), müzik baştan sona sabit ve kısık; `post.jpg` aynı LUT ile.
+
+Otomatik karşılığı: aynı senaryolar, üretilmiş test medyasıyla (`npm test -- e2e`) çalışır ve ffprobe ile çözünürlük, codec ve süreyi doğrular; renk için önizleme karesi ile render karesi piksel farkıyla karşılaştırılır.
 
 ---
 
@@ -193,7 +229,8 @@ Otomatik karşılığı: aynı senaryo, üretilmiş test medyasıyla (`npm test 
 ---
 
 ## 6. Değiştirilebilir varsayımlar
-- Ducking: −14 dB, 0,3 sn iniş, 0,6 sn dönüş
+- Müzik modu: konuşma yoksa "Sabit"; varsa "Konuşmada kıs" önerilir. "Arka planda kısık" −18 dB; kısma −14 dB, 0,3 sn iniş, 0,6 sn dönüş
+- Render: M2'de GPU (Metal) üzerinden WebGL; 4K kaynakta önizleme 1080p
 - Altyazı: marka yazı tipi (yoksa Türkçe karakter destekli Inter Bold), beyaz + ince gölge, en çok 2 satır, alt güvenli alanın hemen üstü
 - Fotoğraf klibi varsayılan 3 sn; Story hedefi 15 sn
 - Whisper modeli `large-v3-turbo` (~1,6 GB, bir kez indirilir); düşük RAM'de `small`
@@ -203,5 +240,8 @@ Otomatik karşılığı: aynı senaryo, üretilmiş test medyasıyla (`npm test 
 - iPhone HDR/Dolby Vision klipleri SDR'a çevrilirken ton biraz değişebilir; dönüşüm ayarı Faz 1'de gerçek iPhone dosyasıyla ayarlanacak.
 - Whisper kelime zamanlaması ±100 ms sapabilir; kelime düzenleyicide zaman da ince ayarlanabilir.
 - Instagram güvenli alan ölçüleri resmi değil, yaklaşık; ayarlanabilir katman olarak sunulur.
-- Remotion render süresi Chrome tabanlıdır; 15 sn Story için Apple Silicon'da ~1 dk mertebesi beklenir (ölçülecek).
+- Remotion render süresi Chrome tabanlıdır; 4K kaynaklı 15 sn Story için M2'de 1–2 dk mertebesi beklenir (ölçülecek). Uzun yatay videolar (Stüdyo, Faz 2) için gerekirse FFmpeg tabanlı hızlı render yolu eklenir.
+- 10-bit log görüntü önizleme/render sırasında 8-bit'e iner; Instagram çıktısı için yeterli, sinema kalitesi renk derecelendirme hedef değil.
+- RAW fotoğraf (CR3/ARW/NEF/DNG) Faz 1'de yok: JPEG/HEIC/PNG desteklenir. RAW için LibRaw sonraki adımda; o zamana kadar Lightroom'dan JPEG dışa aktarılabilir.
+- Android'de bazı telefonlar HDR10+ ve değişken kare hızıyla kaydeder; içe aktarmada sabit kare hızına ve SDR'a çevrilir.
 - Geliştirme bu bulut ortamında (Linux) yapılır; nihai kabul testi Mac'te.
