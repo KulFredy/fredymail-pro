@@ -4,6 +4,20 @@ import { FPS, type AssetRef, type Clip, type Framing, type Output, type Project,
 export const dbToGain = (db: number) => Math.pow(10, db / 20);
 export const toFrames = (sec: number) => Math.round(sec * FPS);
 
+/** Tık önleyici en kısa ses geçişi (kare) */
+export const MIN_AUDIO_EDGE = 3;
+
+/**
+ * Bir ses parçasının f. karedeki kazanç çarpanı (0–1): yumuşak giriş/çıkış.
+ * Geçiş süresi en az MIN_AUDIO_EDGE karedir; giriş ve çıkış parçanın yarısını geçemez.
+ */
+export const edgeGain = (f: number, lenF: number, fadeInSec = 0, fadeOutSec = 0) => {
+  const half = Math.max(1, lenF / 2);
+  const inF = Math.min(half, Math.max(MIN_AUDIO_EDGE, toFrames(fadeInSec)));
+  const outF = Math.min(half, Math.max(MIN_AUDIO_EDGE, toFrames(fadeOutSec)));
+  return Math.max(0, Math.min(1, f / inF, (lenF - f) / outF));
+};
+
 export type LayoutItem = { clip: Clip; start: number; end: number; duration: number };
 
 /** Klipleri ana izde art arda dizer (zaman çizelgesi saniye cinsinden) */

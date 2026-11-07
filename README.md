@@ -4,7 +4,8 @@ Telefondan ve kameradan gelen çekimleri dakikalar içinde Instagram Story, Reel
 
 - **Faz 1 · Instagram Hızlı Edit** hazır: içe aktar → biçim → sırala/kısalt → kadraj → renk & ışık (LUT dahil) → ses & müzik → Türkçe altyazı & yazı → teslim.
 - **Faz 2 · Kurgu Stüdyosu** hazır: yatay video, çok izli zaman çizelgesi, mikrofonla veya yazarak Türkçe kurgu komutları.
-- Hareketli grafik ve doğrudan yayın sonraki fazlarda; plan: [docs/PLAN.md](docs/PLAN.md).
+- **Faz 3 · Yerel Stüdyo ve ince kurgu** sürüyor: aranabilir Türkçe transkript, transkriptten kesme, komutun etkisini gösteren sağ panel, ses dalgası, I/O ile kare hassasiyetinde kesim, yumuşak ses geçişleri. İnternetsiz çalışır.
+- Faz sırası (referanslar ve LUT kütüphanesi, bağlantılar, marka/kampanya, yayın): [docs/FAZLAR.md](docs/FAZLAR.md).
 
 Güncellemek için (proje klasöründe): `bash scripts/guncelle.sh`
 
@@ -41,10 +42,13 @@ Geri al / yinele: ⌘Z / ⇧⌘Z.
 
 Ana ekranda **Kurgu Stüdyosu** yeni bir yatay proje açar; Hızlı Edit'teki her proje de **Stüdyoda aç** ile aynı zaman çizelgesinde açılır.
 
-- **Zaman çizelgesi:** görüntü, üst iz (B-roll), dış ses, müzik, altyazı ve yazı ayrı izlerde. Cetvele tıklayıp sürükleyerek imleci taşıyın; klipleri sürükleyerek sıralayın. Soldaki iz adlarındaki **+** ile o ize ekleme yapılır (müzik ekle, dış ses kaydet, yazı ekle…).
-- **Sol panel:** Komut · Medya · Seçili öğe sekmeleri; zaman çizelgesinde bir öğeye tıklayınca ayarları açılır (kırpma, ses, **kadraj ve boyut**, köşeye küçültme).
+- **Düzen:** solda **Medya** ve **Transkript**, ortada geniş önizleme, sağda **Komut** ve **Seçili öğe**. Sağ paneli köşedeki düğmeyle kapatınca önizleme genişler.
+- **Transkript:** konuşmalı her klibin ve dış sesin Türkçe metni, kurgudaki zamanıyla. Zamana tıklayınca cümlenin başına, kelimeye tıklayınca tam o kelimeye gidilir; klip zaman çizelgesinde seçilir. Arama kutusuyla metinde arayın. Seçili cümlede iki ayrı eylem var: **Cümleyi kes** (kurgudan çıkarır, boşluk kapanır) ve **Altyazıyı düzelt** (yalnız yazıyı değiştirir, kurguya dokunmaz). Kesilen cümleler soluk ve üstü çizili kalır; ⌘Z ile geri gelir.
+- **Zaman çizelgesi:** görüntü, üst iz (B-roll), dış ses, müzik, altyazı ve yazı ayrı izlerde; klip ve dış seste ses dalgası görünür. Cetvele tıklayıp sürükleyerek imleci taşıyın; klipleri sürükleyerek sıralayın. İz adlarındaki **+** ile o ize ekleme yapılır.
+- **Kısayollar:** boşluk oynat/durdur · ← → bir kare · ⇧← → bir saniye · **I** giriş, **O** çıkış işareti, **⌫** işaretli aralığı sil (Esc temizler) · **S** veya ⌘B imleçte böl · ⌘Z geri al · F tam ekran.
+- **Seçili öğe:** zaman çizelgesinde bir öğeye tıklayınca sağda ayarları açılır: kırpma, ses, **yumuşak ses girişi/çıkışı**, kadraj ve boyut, köşeye küçültme.
 - **Önizleme:** tam ekran (F), **Kadrajı düzenle** ile görüntüyü sürükleyip tekerlekle boyutlandırma, altta render çözünürlüğü (720p · 1080p · 2K · 4K).
-- **Komut:** solda mikrofona basıp konuşun (bitince tekrar basın) ya da yazıp Enter'a basın. Komut önce zaman çizelgesinde işaretlenir (kırmızı: kesilecek, mavi: eklenecek). **Önizle** ile kaydetmeden izleyin, **Uygula** ile kaydedin. İki olası yer varsa A/B seçenekleri zaman koduyla gelir.
+- **Komut:** sağda mikrofona basıp konuşun (bitince tekrar basın) ya da yazıp Enter'a basın. Panel ne anladığını (*Algılanan talep*), hangi işlemi, **hangi klipte ve hangi zaman aralığında** yapacağını ve kapsamını (tüm proje / yalnız bir çıktı / ayrı iz) gösterir; silinecek bir yazı gibi yan etkileri ⚠ ile uyarır. Aralığa tıklayınca o ana gidilir. **Önizle** ile kaydetmeden izleyin, **Uygula** ile kaydedin, **Vazgeç** ile bırakın; uyguladıktan sonra **Geri al** tek tıktır. İki olası yer varsa A/B seçenekleri zaman koduyla gelir.
 - **Talimat / Dış ses kaydı:** *Talimat* modunda söyledikleriniz yalnız komut olur, videoya girmez. *Dış ses kaydı* modunda kayıt oynatma imlecinden itibaren videoya ses olarak eklenir ve altyazısı çıkarılır.
 - **Kişisel stil / bu proje:** "Bundan sonra…", "her zaman…" ile başlayan altyazı tercihleri kişisel stilinize kaydedilir; "bu sefer…" yalnız bu projeye not olarak kalır.
 - Her komut tek bir geri alma adımıdır: ⌘Z, ya da Teslim'de kaydettiğiniz sürüme dönün.
@@ -158,16 +162,18 @@ npm run dev        # API (4747) + Vite (5173), dosya değişince yenilenir
 npm test           # birim testleri
 npm run e2e        # Faz 1 uçtan uca kabul testi (test medyası üretir, render eder, doğrular)
 npm run e2e:studio # Faz 2: mikrofon yolundan iki revizyon, render, geri alma
+npm run e2e:offline # Faz 3: internetsiz — eski projeyi aç, düzenle, yeniden aç, MP4 + JPEG, dış ses ölçümü
+npm run e2e:ui     # Faz 3: tarayıcıda transkript/önizleme/zaman çizelgesi senkronu, komut akışı (Playwright gerekir)
 npm run typecheck
 ```
 
 Ortam değişkenleri: `FABRIKA_HOME` (veri klasörü), `FABRIKA_PORT` (4747), `FABRIKA_WHISPER_BIN`, `FABRIKA_WHISPER_MODEL`, `FABRIKA_GL` (render WebGL arka ucu; Mac'te `angle`), `FABRIKA_BROWSER` (Remotion için Chrome yolu, normalde gerekmez).
 
-## Faz 1 sınırları
+## Bilinen sınırlar
 
 - RAW fotoğraf (CR3/ARW/NEF/DNG) yok; Lightroom'dan JPEG verin.
 - Hareketli grafik, `/KOMUT` sözlüğü ve doğrudan Instagram yayını sonraki fazlarda.
-- Stüdyo komutları kural tabanlıdır: listedeki kalıplara yakın cümleleri anlar; serbest anlatım için Claude bağlantısı sonraki adım.
+- Claude bağlantısı kapalıyken Stüdyo komutları kural tabanlıdır: listedeki kalıplara yakın cümleleri anlar.
 - Kaynak oranında (ör. 4:3) çıktı ve Premiere'e aktarım henüz yok; 9:16, 16:9, 4:5 ve 1:1 çıktı verilir.
 - Instagram güvenli alan ölçüleri resmi değil, yaklaşıktır.
 - Remotion, en çok 3 kişilik ekiplere ücretsizdir; ekip büyürse şirket lisansı gerekir (plan: HyperFrames alternatifi).

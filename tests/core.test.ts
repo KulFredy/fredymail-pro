@@ -256,3 +256,24 @@ describe('Whisper çıktısı', () => {
     expect(cleanWords([{ text: 'eee', t0: 0, t1: 0.2, p: 0.05 }])).toHaveLength(0);
   });
 });
+
+describe('ses geçişleri', async () => {
+  const { edgeGain } = await import('../src/core/timeline');
+  it('varsayılan: yalnız 3 karelik tık önleyici geçiş', () => {
+    expect(edgeGain(0, 300)).toBe(0);
+    expect(edgeGain(3, 300)).toBe(1);
+    expect(edgeGain(150, 300)).toBe(1);
+    expect(edgeGain(299, 300)).toBeCloseTo(1 / 3);
+  });
+  it('yumuşak giriş/çıkış saniye cinsinden; parçanın yarısını geçemez', () => {
+    expect(edgeGain(15, 300, 1, 0)).toBeCloseTo(0.5); // 1 sn = 30 kare
+    expect(edgeGain(300 - 30, 300, 0, 2)).toBeCloseTo(0.5); // 2 sn = 60 kare
+    expect(edgeGain(10, 20, 5, 5)).toBeCloseTo(1); // 20 karelik parçada en çok 10 kare
+  });
+  it('eski projelerde alanlar varsayılanla gelir; klip ve dış ses güncellenebilir', () => {
+    let p = applyOps(newProject('p9', 'Ses', ctx.now()), [{ type: 'clips.add', assetIds: ['konusma'] }], ctx);
+    expect(p.clips[0]).toMatchObject({ audioFadeIn: 0, audioFadeOut: 0 });
+    p = applyOps(p, [{ type: 'clip.update', clipId: p.clips[0].id, patch: { audioFadeIn: 0.5 } }], ctx);
+    expect(p.clips[0]).toMatchObject({ audioFadeIn: 0.5, audioFadeOut: 0, gainDb: 0 });
+  });
+});

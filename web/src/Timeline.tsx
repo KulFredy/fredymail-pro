@@ -1,11 +1,69 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
+import { Loader2, Plus, Scissors, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
-import { captionPages, formatTime, layoutClips, timelineWords, toFrames, totalDuration } from '../../src/core/timeline';
+import { captionPages, edgeGain, formatTime, layoutClips, timelineWords, toFrames, totalDuration } from '../../src/core/timeline';
 import { fileHref } from './api';
 import { useApp, useProject } from './state';
 
 export type Selection = { kind: 'clip' | 'overlay' | 'voice' | 'text'; id: string } | null;
+/** Giriş/çıkış işaretleri (I / O tuşları): kare hassasiyetinde aralık */
+export type Marks = { in: number | null; out: number | null };
+
+// ---------- Ses dalgası (içe aktarmada hesaplanan waveform.json: saniyede 40 tepe) ----------
+const PEAKS_PER_SEC = 40;
+const waveCache = new Map<string, Promise<number[]>>();
+const usePeaks = (file: string | null | undefined) => {
+  const [peaks, setPeaks] = useState<number[] | null>(null);
+  useEffect(() => {
+    if (!file) return;
+    let alive = true;
+    if (!waveCache.has(file))
+      waveCache.set(
+        file,
+        fetch(fileHref(file))
+          .then((r) => r.json())
+          .then((j) => (Array.isArray(j.peaks) ? (j.peaks as number[]) : []))
+          .catch(() => []),
+      );
+    void waveCache.get(file)!.then((p) => alive && setPeaks(p));
+    return () => {
+      alive = false;
+    };
+  }, [file]);
+  return peaks;
+};
+
+/** Kaynağın [from, to] aralığının dalga formu; yumuşak giriş/çıkış dalgada görünür */
+const Wave: React.FC<{ file: string | null | undefined; from: number; to: number; width: number; fadeIn?: number; fadeOut?: number; className?: string }> = ({
+  file,
+  from,
+  to,
+  width,
+  fadeIn = 0,
+  fadeOut = 0,
+  className,
+}) => {
+  const peaks = usePeaks(file);
+  if (!peaks?.length || width < 8 || to <= from) return null;
+  const cols = Math.max(4, Math.min(Math.floor(width / 2), Math.ceil((to - from) * PEAKS_PER_SEC)));
+  const lenF = toFrames(to - from);
+  let d = '';
+  for (let i = 0; i < cols; i++) {
+    const a = Math.floor((from + ((to - from) * i) / cols) * PEAKS_PER_SEC);
+    const b = Math.max(a + 1, Math.floor((from + ((to - from) * (i + 1)) / cols) * PEAKS_PER_SEC));
+    let m = 0;
+    for (let k = a; k < b && k < peaks.length; k++) m = Math.max(m, peaks[k] ?? 0);
+    const g = edgeGain(toFrames(((to - from) * (i + 0.5)) / cols), lenF, fadeIn, fadeOut);
+    const h = Math.max(0.5, Math.min(1, Math.sqrt(m)) * g * 48);
+    const x = ((i + 0.5) / cols) * 100;
+    d += `M${x.toFixed(2)} ${(50 - h).toFixed(1)}V${(50 + h).toFixed(1)}`;
+  }
+  return (
+    <svg className={`tl-wave ${className ?? ''}`} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+      <path d={d} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+};
 
 const LABEL_W = 92;
 
@@ -22,12 +80,15 @@ const LANE_ACTION: Record<string, string> = {
   t: 'Oynatma imlecine yazı ekle',
 };
 
-export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSelect?: (s: Selection) => void; onLaneAction?: (key: string) => void }> = ({
-  compact,
-  selection,
-  onSelect,
-  onLaneAction,
-}) => {
+export const Timeline: React.FC<{
+  compact?: boolean;
+  selection?: Selection;
+  onSelect?: (s: Selection) => void;
+  onLaneAction?: (key: string) => void;
+  marks?: Marks;
+  onDeleteMarks?: () => void;
+  onClearMarks?: () => void;
+}> = ({ compact, selection, onSelect, onLaneAction, marks, onDeleteMarks, onClearMarks }) => {
   const { project, refs, frame, seekRef, setUi, apply, highlights } = useProject();
   const { library } = useApp();
   const wrap = useRef<HTMLDivElement>(null);
@@ -92,6 +153,22 @@ export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSe
       <div className="tl-head">
         <b className="mono">{formatTime(t)}</b>
         <span className="muted mono">/ {formatTime(total)}</span>
+        {marks && (marks.in !== null || marks.out !== null) ? (
+          <span className="tl-marks-info">
+            <span className="mono">Giriş {marks.in !== null ? formatTime(marks.in) : '—'}</span>
+            <span className="mono">Çıkış {marks.out !== null ? formatTime(marks.out) : '—'}</span>
+            {marks.in !== null && marks.out !== null && Math.abs(marks.out - marks.in) >= 1 / FPS ? (
+              <button className="btn tiny danger" onClick={onDeleteMarks} title="Aralığı sil, boşluğu kapat (⌫)">
+                <Scissors size={12} /> {Math.abs(marks.out - marks.in).toFixed(2)} sn sil
+              </button>
+            ) : null}
+            <button className="icon-btn sm" onClick={onClearMarks} title="İşaretleri temizle (Esc)">
+              <XIcon size={12} />
+            </button>
+          </span>
+        ) : !compact ? (
+          <span className="muted small tl-keys">I / O: aralık işaretle · S: imleçte böl · ← →: kare · ⇧← →: saniye</span>
+        ) : null}
         <div className="spacer" />
         <button className="icon-btn" title="Uzaklaş" onClick={() => setZoom((z) => Math.max(1, z / 1.5))} disabled={zoom <= 1}>
           <ZoomOut size={15} />
@@ -172,6 +249,17 @@ export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSe
                             {a?.status === 'importing' ? <Loader2 size={10} className="spin" /> : null}
                           </span>
                           {x(item.duration) > 70 ? <span className="tl-name">{a?.name}</span> : null}
+                          {a?.kind === 'video' && a.hasAudio ? (
+                            <Wave
+                              file={a.waveform}
+                              from={item.clip.in}
+                              to={item.clip.out}
+                              width={x(item.duration)}
+                              fadeIn={item.clip.audioFadeIn}
+                              fadeOut={item.clip.audioFadeOut}
+                              className={item.clip.muted ? 'muted' : ''}
+                            />
+                          ) : null}
                         </div>
                       );
                     })
@@ -199,6 +287,7 @@ export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSe
                             onClick={() => select({ kind: 'voice', id: v.id })}
                           >
                             <span className="tl-name">🎙 {library.get(v.assetId)?.name}</span>
+                            <Wave file={library.get(v.assetId)?.waveform} from={v.in} to={v.out} width={x(v.out - v.in)} fadeIn={v.fadeIn} fadeOut={v.fadeOut} />
                           </div>
                         ))
                       : l.key === 'a1'
@@ -230,6 +319,11 @@ export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSe
               </div>
             ))}
 
+            {marks && marks.in !== null && marks.out !== null ? (
+              <div className="tl-markrange" style={{ left: x(Math.min(marks.in, marks.out)), width: Math.max(2, x(Math.abs(marks.out - marks.in))) }} />
+            ) : null}
+            {marks?.in != null ? <div className="tl-mark in" style={{ left: x(marks.in) }} title={`Giriş ${formatTime(marks.in)}`} /> : null}
+            {marks?.out != null ? <div className="tl-mark out" style={{ left: x(marks.out) }} title={`Çıkış ${formatTime(marks.out)}`} /> : null}
             {highlights.map((h, i) => (
               <div key={i} className={`tl-highlight ${h.kind}`} style={{ left: x(h.start), width: Math.max(3, x(h.end - h.start)) }}>
                 <span>{formatTime(h.start)}</span>

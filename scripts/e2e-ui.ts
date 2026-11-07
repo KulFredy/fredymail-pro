@@ -193,6 +193,35 @@ const main = async () => {
     const back = (await api('GET', `/api/projects/${pid}`)).project;
     check('Komut panelinden Geri al: kurgu eski haline döndü', JSON.stringify(back.clips) === JSON.stringify(before.clips));
 
+    // 7) Kare hassasiyetinde aralık: I → 15 kare ileri → O → ⌫ ; S ile imleçte böl
+    await page.locator('[data-sid] .tr-time').first().click();
+    await page.locator('.studio-center').click({ position: { x: 5, y: 5 } });
+    const tIn = (await state()).playhead;
+    await page.keyboard.press('i');
+    for (let k = 0; k < 15; k++) await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('o');
+    await page.waitForTimeout(200);
+    const marksText = await page.locator('.tl-marks-info').innerText();
+    check('I/O ile 15 karelik (0,50 sn) aralık işaretlendi', marksText.includes('0.50 sn sil'), marksText.replace(/\n+/g, ' · '));
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(800);
+    const cutIO = (await api('GET', `/api/projects/${pid}`)).project;
+    const lenIO = cutIO.clips.reduce((x: number, c: any) => x + c.out - c.in, 0);
+    check('⌫ ile işaretli aralık silindi (tam 15 kare)', Math.abs(lenBefore - lenIO - 0.5) < 1e-3 && Math.abs(cutIO.clips[0].out - tIn) < 0.02, `${lenBefore.toFixed(3)} → ${lenIO.toFixed(3)} sn`);
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(600);
+    await page.locator('[data-sid] .tr-time').first().click();
+    await page.locator('.studio-center').click({ position: { x: 5, y: 5 } });
+    const tSplit = (await state()).playhead;
+    await page.keyboard.press('s');
+    await page.waitForTimeout(800);
+    const split = (await api('GET', `/api/projects/${pid}`)).project;
+    check('S ile imleçte bölündü (2 parça, aynı süre)', split.clips.length === before.clips.length + 1 && Math.abs(split.clips[0].out - tSplit) < 0.02, `${split.clips.length} parça, bölme ${tSplit.toFixed(2)} sn`);
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(600);
+    const waves = await page.locator('.tl-wave').count();
+    check('Ses dalgası çiziliyor (klip ve dış ses)', waves >= 2, `${waves} dalga`);
+
     if (process.env.FABRIKA_UI_SHOT) await page.screenshot({ path: process.env.FABRIKA_UI_SHOT });
     check('Sayfada hata yok', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {

@@ -57,7 +57,7 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('clip.update'),
     clipId: z.string(),
-    patch: patchOf(ClipSchema.pick({ camera: true, gainDb: true, muted: true, musicMuted: true })),
+    patch: patchOf(ClipSchema.pick({ camera: true, gainDb: true, muted: true, musicMuted: true, audioFadeIn: true, audioFadeOut: true })),
   }),
   /** look: null → projenin ayarına döner */
   z.object({ type: z.literal('clip.setLook'), clipId: z.string(), look: LookPatch.nullable() }),

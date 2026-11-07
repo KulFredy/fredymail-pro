@@ -242,6 +242,15 @@ const main = async () => {
     const after = await loudness(eV.file, vEnd + 0.5, Math.min(eV.verification.duration - 0.2, vEnd + 3));
     check('Dış ses çıktıda duyuluyor (kendi süresinde), sonrası sessiz', inVoice > -35 && after < -60, `dış ses ${inVoice.toFixed(1)} dB · sonrası ${after.toFixed(1)} dB`);
 
+    // 8) Dış sese yumuşak çıkış (2 sn) → render'da son kısım belirgin şekilde kısılır
+    const winA = vEnd - 0.95;
+    const winB = vEnd - 0.55;
+    const before8 = await loudness(eV.file, winA, winB);
+    await api('POST', `/api/projects/${pid}/ops`, { ops: [{ type: 'voice.update', id: v.id, patch: { fadeOut: 2 } }] });
+    const eF = await render(pid, vOut.id);
+    const after8 = await loudness(eF.file, winA, winB);
+    check('Dış ses yumuşak çıkışı render\'da duyuluyor', before8 - after8 > 5, `${before8.toFixed(1)} → ${after8.toFixed(1)} dB`);
+
     console.log(`\nÇıktılar: ${path.join(home, 'projeler', pid, 'exports')}`);
   } catch (e) {
     check('Test akışı tamamlandı', false, (e as Error).message);

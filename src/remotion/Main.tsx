@@ -4,6 +4,7 @@ import { FORMATS } from '../core/formats';
 import { effectiveCamera, effectiveLook } from '../core/looks';
 import { FPS, type CompProps, type Output, type TextOverlay } from '../core/schema';
 import {
+  edgeGain,
   captionPages,
   computeBox,
   dbToGain,
@@ -40,7 +41,6 @@ const ClipLayer: React.FC<{ item: LayoutItem; output: Output; props: CompProps }
   const cam = effectiveCamera(clip, asset.cameraDetected);
   const gain = dbToGain(clip.gainDb);
   const lenF = toFrames(item.duration);
-  const edge = 3; // klik sesini önlemek için kısa ses geçişi
   return (
     <AbsoluteFill style={{ background: '#000', overflow: 'hidden' }}>
       <GradedMedia
@@ -55,7 +55,7 @@ const ClipLayer: React.FC<{ item: LayoutItem; output: Output; props: CompProps }
         lutUrl={look.lut ? (props.luts[look.lut] ?? null) : null}
         trimBefore={toFrames(clip.in)}
         muted={clip.muted || !asset.hasAudio}
-        volume={(f: number) => gain * Math.min(1, f / edge, (lenF - f) / edge)}
+        volume={(f: number) => gain * edgeGain(f, lenF, clip.audioFadeIn, clip.audioFadeOut)}
       />
       {look.adjust.vignette > 0 ? (
         <AbsoluteFill
@@ -187,7 +187,7 @@ const VideoView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
         <Sequence key={o.id} from={toFrames(o.at)} durationInFrames={Math.max(1, toFrames(o.out - o.in))} name="Üst iz">
           <ClipLayer
             item={{
-              clip: { id: o.id, assetId: o.assetId, in: o.in, out: o.out, camera: o.camera, look: null, gainDb: 0, muted: true, musicMuted: false },
+              clip: { id: o.id, assetId: o.assetId, in: o.in, out: o.out, camera: o.camera, look: null, gainDb: 0, muted: true, musicMuted: false, audioFadeIn: 0, audioFadeOut: 0 },
               start: o.at,
               end: o.at + (o.out - o.in),
               duration: o.out - o.in,
@@ -201,9 +201,10 @@ const VideoView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
         const a = props.assets[v.assetId];
         if (!a?.url) return null;
         const g = dbToGain(v.gainDb);
+        const lenF = Math.max(1, toFrames(v.out - v.in));
         return (
-          <Sequence key={v.id} from={toFrames(v.at)} durationInFrames={Math.max(1, toFrames(v.out - v.in))} name="Dış ses">
-            <Audio src={a.url} trimBefore={toFrames(v.in)} volume={g} />
+          <Sequence key={v.id} from={toFrames(v.at)} durationInFrames={lenF} name="Dış ses">
+            <Audio src={a.url} trimBefore={toFrames(v.in)} volume={(f: number) => g * edgeGain(f, lenF, v.fadeIn, v.fadeOut)} />
           </Sequence>
         );
       })}

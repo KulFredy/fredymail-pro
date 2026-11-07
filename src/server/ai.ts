@@ -17,7 +17,7 @@ const OPS_DOC = `İşlemler (JSON). Zamanlar saniye. "timeline" = zaman çizelge
 - {"type":"clip.split","clipId":ID,"at":T}  klibi zaman çizelgesindeki anda böler
 - {"type":"clip.trim","clipId":ID,"in":K,"out":K}  kaynak giriş/çıkış
 - {"type":"clips.reorder","order":[ID,...]} · {"type":"clips.remove","clipId":ID} · {"type":"clips.add","assetIds":[ID]}
-- {"type":"clip.update","clipId":ID,"patch":{"gainDb":dB,"muted":bool,"musicMuted":bool}}
+- {"type":"clip.update","clipId":ID,"patch":{"gainDb":dB,"muted":bool,"musicMuted":bool,"audioFadeIn":sn,"audioFadeOut":sn}} (audioFadeIn/Out: klip sesinin yumuşak girişi/çıkışı, 0–5 sn)
 - {"type":"overlay.add","assetId":ID,"at":T,"duration":S}  üst iz (B-roll), ana ses devam eder
 - {"type":"overlay.update","id":ID,"patch":{"at":T,"in":K,"out":K}} · {"type":"overlay.remove","id":ID}
 - {"type":"output.setFraming","outputId":ID,"clipId":KLIP_VEYA_UST_IZ_ID,"framing":{"mode":"fill|fit-blur|fit","zoom":0.1..4,"x":0..1,"y":0..1}}
@@ -31,7 +31,7 @@ const OPS_DOC = `İşlemler (JSON). Zamanlar saniye. "timeline" = zaman çizelge
 - {"type":"captions.set","enabled":bool,"style":{"color":"#RRGGBB","highlight":"#RRGGBB","size":24..140,"maxLines":1..3,"uppercase":bool,"box":bool,"outline":bool,"position":"bottom|middle|top","offset":-600..600}}  offset: piksel, + yukarı
 - {"type":"captions.editWord","key":"assetId:index","text":"yeni" veya ""}
 - {"type":"text.add","text":{"text":"...","start":T,"end":T,"y":0..1,"size":20..220,"style":"shadow|box|outline"}} · {"type":"text.update","id":ID,"patch":{...}} · {"type":"text.remove","id":ID}
-- {"type":"voice.update","id":ID,"patch":{"at":T,"gainDb":dB}} · {"type":"voice.remove","id":ID}`;
+- {"type":"voice.update","id":ID,"patch":{"at":T,"gainDb":dB,"fadeIn":sn,"fadeOut":sn}} · {"type":"voice.remove","id":ID}`;
 
 const SYSTEM = `Sen İçerik Fabrikası video kurgu uygulamasının komut yorumlayıcısısın. Kullanıcı Türkçe konuşarak veya yazarak kurgu talimatı verir. Görevin talimatı aşağıdaki işlemlere çevirip "kurgu_plani" aracını tam bir kez çağırmaktır. Metin yanıt yazma.
 

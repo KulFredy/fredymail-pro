@@ -57,6 +57,9 @@ export const ClipSchema = z.object({
   gainDb: z.number().min(-60).max(12).default(0),
   muted: z.boolean().default(false),
   musicMuted: z.boolean().default(false),
+  /** Klip sesinin yumuşak girişi/çıkışı (sn); 0 → yalnız tık önleyici kısa geçiş */
+  audioFadeIn: z.number().min(0).max(5).default(0),
+  audioFadeOut: z.number().min(0).max(5).default(0),
 });
 export type Clip = z.infer<typeof ClipSchema>;
 
@@ -157,6 +160,9 @@ export const VoiceSchema = z.object({
   in: z.number().min(0).default(0),
   out: z.number().positive(),
   gainDb: z.number().min(-40).max(12).default(0),
+  /** Yumuşak giriş/çıkış (sn) */
+  fadeIn: z.number().min(0).max(5).default(0),
+  fadeOut: z.number().min(0).max(5).default(0),
 });
 export type Voice = z.infer<typeof VoiceSchema>;
 

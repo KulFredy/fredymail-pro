@@ -12,7 +12,7 @@ import { Preview } from './Preview';
 import { FramingControls } from './FramingControls';
 import { useApp, useProject } from './state';
 import { ExportStep } from './steps/ExportStep';
-import { Timeline, type Selection } from './Timeline';
+import { Timeline, type Marks, type Selection } from './Timeline';
 import { TranscriptPanel } from './TranscriptPanel';
 import { Modal, Segmented, Slider, fmtDb, fmtSec } from './ui';
 
@@ -584,6 +584,8 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ se
             <Slider label="Başlangıç" value={c.in} min={0} max={Math.max(0.1, c.out - 0.2)} step={0.05} format={fmtSec} onChange={(v) => apply([{ type: 'clip.trim', clipId: c.id, in: v, out: c.out }], { key: `in:${c.id}` })} />
             <Slider label="Bitiş" value={c.out} min={c.in + 0.2} max={a.duration} step={0.05} format={fmtSec} onChange={(v) => apply([{ type: 'clip.trim', clipId: c.id, in: c.in, out: v }], { key: `out:${c.id}` })} />
             <Slider label="Ses" value={c.gainDb} min={-40} max={6} step={1} format={fmtDb} onChange={(v) => apply([{ type: 'clip.update', clipId: c.id, patch: { gainDb: v } }], { key: `g:${c.id}` })} />
+            <Slider label="Ses girişi (yumuşak)" value={c.audioFadeIn ?? 0} min={0} max={Math.min(5, item.duration / 2)} step={0.05} format={fmtSec} onChange={(v) => apply([{ type: 'clip.update', clipId: c.id, patch: { audioFadeIn: v } }], { key: `fi:${c.id}` })} />
+            <Slider label="Ses çıkışı (yumuşak)" value={c.audioFadeOut ?? 0} min={0} max={Math.min(5, item.duration / 2)} step={0.05} format={fmtSec} onChange={(v) => apply([{ type: 'clip.update', clipId: c.id, patch: { audioFadeOut: v } }], { key: `fo:${c.id}` })} />
           </>
         ) : (
           <Slider label="Süre" value={c.out - c.in} min={0.5} max={15} step={0.1} format={fmtSec} onChange={(v) => apply([{ type: 'clip.trim', clipId: c.id, in: 0, out: v }], { key: `d:${c.id}` })} />
@@ -651,6 +653,8 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ se
         <audio controls src={fileHref(library.get(v.assetId)?.preview ?? null)} style={{ width: '100%' }} />
         <Slider label="Başlangıç" value={v.at} min={0} max={Math.max(0.1, layoutClips(project).at(-1)?.end ?? 1)} step={0.05} format={fmtSec} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { at: x } }], { key: `vat:${v.id}` })} />
         <Slider label="Ses" value={v.gainDb} min={-30} max={6} step={1} format={fmtDb} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { gainDb: x } }], { key: `vg:${v.id}` })} />
+        <Slider label="Yumuşak giriş" value={v.fadeIn ?? 0} min={0} max={Math.min(5, (v.out - v.in) / 2)} step={0.05} format={fmtSec} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { fadeIn: x } }], { key: `vfi:${v.id}` })} />
+        <Slider label="Yumuşak çıkış" value={v.fadeOut ?? 0} min={0} max={Math.min(5, (v.out - v.in) / 2)} step={0.05} format={fmtSec} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { fadeOut: x } }], { key: `vfo:${v.id}` })} />
         <button className="btn tiny danger" onClick={() => (apply([{ type: 'voice.remove', id: v.id }]), onClear())}>
           <Trash2 size={13} /> Kaldır
         </button>
@@ -673,7 +677,7 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ se
 };
 
 export const Studio: React.FC = () => {
-  const { project, apply, undo, redo, canUndo, canRedo, undoLabel, redoLabel, saving, reload, frame } = useProject();
+  const { project, apply, undo, redo, canUndo, canRedo, undoLabel, redoLabel, saving, reload, frame, setHighlights } = useProject();
   const [selection, setSelection] = useState<Selection>(project.ui.selectedClipId ? { kind: 'clip', id: project.ui.selectedClipId } : null);
   const [exporting, setExporting] = useState(false);
   const [name, setName] = useState(project.name);
@@ -687,6 +691,26 @@ export const Studio: React.FC = () => {
     setRightOpen(true);
   };
   const [cmdMode, setCmdMode] = useState<'talimat' | 'disses'>('talimat');
+  const [marks, setMarks] = useState<Marks>({ in: null, out: null });
+  const deleteMarks = () => {
+    if (marks.in === null || marks.out === null) return;
+    const [a, b] = [Math.min(marks.in, marks.out), Math.max(marks.in, marks.out)];
+    if (b - a < 1 / FPS) return;
+    apply([{ type: 'timeline.deleteRange', start: a, end: b }], { label: `${(b - a).toFixed(2)} sn aralık silindi` });
+    setMarks({ in: null, out: null });
+  };
+  /** İmleçte böl: seçili klip imleci kapsıyorsa o, değilse imlecin altındaki klip */
+  const splitAtPlayhead = () => {
+    const t = frame / FPS;
+    const items = layoutClips(project);
+    const sel = selection?.kind === 'clip' ? items.find((l) => l.clip.id === selection.id && t > l.start && t < l.end) : undefined;
+    const item = sel ?? items.find((l) => t > l.start && t < l.end);
+    if (!item || t - item.start < 0.1 || item.end - t < 0.1) {
+      toast('Bölmek için imleci bir klibin içine getirin', 'error');
+      return;
+    }
+    apply([{ type: 'clip.split', clipId: item.clip.id, at: t }], { label: 'İmleçte bölündü' });
+  };
   const musicInput = useRef<HTMLInputElement>(null);
   const { toast } = useApp();
   const addMusic = async (files: File[]) => {
@@ -725,11 +749,29 @@ export const Studio: React.FC = () => {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+        return;
+      }
+      const t = frame / FPS;
+      const key = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && key === 'b') {
+        e.preventDefault();
+        splitAtPlayhead();
+      } else if (e.metaKey || e.ctrlKey || e.altKey) {
+        return;
+      } else if (key === 'i' || key === 'o') {
+        setMarks((m) => ({ ...m, [key === 'i' ? 'in' : 'out']: t }));
+        setHighlights([]);
+      }
+      else if (key === 's') splitAtPlayhead();
+      else if (key === 'escape') setMarks({ in: null, out: null });
+      else if ((key === 'backspace' || key === 'delete') && marks.in !== null && marks.out !== null) {
+        e.preventDefault();
+        deleteMarks();
       }
     };
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
-  }, [undo, redo]);
+  });
 
   return (
     <div className={`studio ${rightOpen ? '' : 'right-closed'}`}>
@@ -826,6 +868,9 @@ export const Studio: React.FC = () => {
             if (sel) openRight('secili');
           }}
           onLaneAction={laneAction}
+          marks={marks}
+          onDeleteMarks={deleteMarks}
+          onClearMarks={() => setMarks({ in: null, out: null })}
         />
       </footer>
       <input ref={musicInput} type="file" accept="audio/*" hidden onChange={(e) => void addMusic([...(e.target.files ?? [])])} />

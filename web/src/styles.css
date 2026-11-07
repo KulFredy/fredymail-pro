@@ -435,6 +435,20 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .tr-empty { padding: 4px 0; }
 .icon-btn.sm { width: 26px; height: 26px; }
 
+/* Zaman çizelgesi: ses dalgası, giriş/çıkış işaretleri */
+.tl-wave { position: absolute; left: 0; right: 0; bottom: 0; height: 55%; width: 100%; z-index: 1; pointer-events: none; }
+.tl-wave path { stroke: rgba(170, 230, 255, .85); stroke-width: 1.4; fill: none; }
+.tl-item.voice .tl-wave { height: 70%; }
+.tl-item.voice .tl-wave path { stroke: rgba(220, 205, 255, .9); }
+.tl-wave.muted path { stroke: rgba(255,255,255,.25); }
+.tl-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: #5ad1ff; z-index: 4; pointer-events: none; }
+.tl-mark.in::before, .tl-mark.out::before { position: absolute; top: 0; font-size: 10px; color: #001820; background: #5ad1ff; padding: 0 3px; border-radius: 0 3px 3px 0; }
+.tl-mark.in::before { content: 'I'; left: 0; }
+.tl-mark.out::before { content: 'O'; right: 0; border-radius: 3px 0 0 3px; }
+.tl-markrange { position: absolute; top: 0; bottom: 0; background: rgba(90,209,255,.12); border-left: 0; z-index: 3; pointer-events: none; }
+.tl-marks-info { display: inline-flex; gap: 10px; align-items: center; margin-left: 14px; font-size: 12px; color: #9fe3ff; }
+.tl-keys { margin-left: 14px; }
+
 /* Komut etkisi */
 .asked q { color: var(--text); }
 .impact { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
