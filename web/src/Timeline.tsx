@@ -146,7 +146,14 @@ export const Timeline: React.FC<{
     { key: 't', label: 'Yazı', show: !compact || project.texts.length > 0 },
   ];
 
-  if (!project.clips.length) return <div className="strip-empty">Klipler burada görünecek. Eklemek için “Ekle” adımını veya Telefondan ekle'yi kullanın.</div>;
+  if (!project.clips.length)
+    return (
+      <div className="strip-empty">
+        {compact
+          ? 'Klipler burada görünecek. Eklemek için “Ekle” adımını veya Telefondan ekle\'yi kullanın.'
+          : 'Klipler burada görünecek. Soldaki Medya sekmesinden “Yükle” ile dosya ekleyin, sonra “Ana ize” deyin.'}
+      </div>
+    );
 
   return (
     <div className={`timeline ${compact ? 'compact' : ''}`} ref={wrap}>

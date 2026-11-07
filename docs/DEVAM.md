@@ -18,7 +18,7 @@ Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
 - Mac'te sesli komutların gerçek kullanımda doğruluğu.
 
 ### Mac'te test listesi (Faz 3, ~15 dk)
-Önce güncelle: `bash scripts/guncelle.sh`, sonra `npm run fabrika`.
+Önce güncelle: `bash scripts/guncelle.sh claude/kind-davinci-9kuqyj` (eski betik varsayılan olarak eski dalı indiriyordu; bir kez dal adıyla çalıştırınca yeni betik gelir, sonrasında `bash scripts/guncelle.sh` yeter). Açık uygulamayı Ctrl+C ile kapatıp `npm run fabrika` ile yeniden başlat, tarayıcıda ⌘R.
 1. **İnternetsiz:** Wi-Fi'yi kapat. Terminalde `npm run e2e:offline` → sonda "13/13 kontrol geçti" görmelisin. Ardından uygulamada eski bir projeyi aç, bir klip ekle, kes, LUT uygula, altyazıda bir kelimeyi düzelt, uygulamayı kapatıp aç; 1080p MP4 ve bir JPEG al. Dış ses kaydı olan bir projede MP4'te dış sesin duyulduğunu dinle. Wi-Fi'yi aç.
 2. **Transkript:** kendi konuşmalı videonu Stüdyo'ya ekle. Transkript sekmesinde bir cümlenin zamanına tıkla → önizleme ve zaman çizelgesi aynı anda mı? Bir kelimeye tıkla → tam o kelimeye mi gitti? Bir cümleyi **Cümleyi kes** ile çıkar, dinle: hece yutuluyor mu, nefes/boşluk doğal mı? Sonraki cümleye tıkla: hâlâ doğru yerde mi? **Altyazıyı düzelt** ile bir kelimeyi değiştir: süre değişmemeli.
 3. **İnce kurgu:** I ile giriş, birkaç kez → ile kare kare ilerle, O ile çıkış, ⌫ ile sil. S ile imleçte böl. Seçili klipte "Ses girişi/çıkışı (yumuşak)" ayarla ve dinle. Ses dalgası kliplerde görünüyor mu?
@@ -44,7 +44,7 @@ Sonra: Faz 4 (Referanslar, LUT Kütüphanem, hareket) → Faz 5 (Bağlantılar) 
 Küçükler (uygun fazda): RAW fotoğraf (LibRaw), kaynak oranında çıktı (ör. 4:3), Premiere'e aktarım (OpenTimelineIO / FCP XML), telefonda düzenleme ekranı, depoyu `main` dalına birleştirme.
 
 ## Bulut oturumu notları
-- Çalışma dalı adı oturuma göre değişebilir (ör. `claude/kind-davinci-9kuqyj`); içerik `claude/hopeful-thompson-lgey2c` üzerinden devam eder.
+- Çalışma dalı: `claude/kind-davinci-9kuqyj` (`claude/hopeful-thompson-lgey2c` üzerine devam eder). **Dal değişirse `scripts/guncelle.sh` içindeki varsayılan `BRANCH` da değiştirilmeli**, yoksa kullanıcının Mac'ine eski sürüm iner.
 - `npm run e2e` için `espeak-ng` gerekir (`apt-get update && apt-get install -y espeak-ng`); yoksa test sesi bip olur ve "Story süresi ≈15 sn" kontrolü düşer (11.8 sn).
 
 ## Yeni oturum için başlangıç komutu
