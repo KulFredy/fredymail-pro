@@ -4,6 +4,7 @@ import {
   PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal,
 } from 'lucide-react';
 import { COMMAND_EXAMPLES, planCommand, type Plan, type PlanCandidate } from '../../src/core/commands';
+import { describeImpact } from '../../src/core/impact';
 import { FPS } from '../../src/core/schema';
 import { formatTime, layoutClips, toFrames } from '../../src/core/timeline';
 import { api, fileHref, upload } from './api';
@@ -82,6 +83,8 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
   const [previewing, setPreviewing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [asked, setAsked] = useState('');
+  const [lastApplied, setLastApplied] = useState<string | null>(null);
   const recorder = useRecorder();
   const playhead = frame / FPS;
 
@@ -96,6 +99,8 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
   const run = async (input: string) => {
     if (previewing) await reload();
     setPreviewing(false);
+    setAsked(input.trim());
+    setLastApplied(null);
     const local: Plan = {
       ...planCommand(input, { project, assets: refs, playhead, selectedClipId: project.ui.selectedClipId, outputId: project.ui.activeOutputId }),
       source: 'kural',
@@ -162,6 +167,7 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
       toast('Kişisel altyazı stilinize kaydedildi');
     }
     setHistory((h) => [{ text, summary: active.summary, ok: true }, ...h].slice(0, 12));
+    setLastApplied(active.summary);
     setPreviewing(false);
     setPlan(null);
     setChosen(null);
@@ -279,6 +285,43 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
             </div>
           ) : null}
           {chosen ? <p className="small">{chosen.summary}</p> : null}
+          {asked ? (
+            <p className="small muted asked">
+              Algılanan talep: <q>{asked}</q>
+            </p>
+          ) : null}
+          {active && active.ops.length ? (
+            <ul className="impact" aria-label="Önerilen işlemler">
+              {describeImpact(project, refs, active.ops).map((im, i) => (
+                <li key={i}>
+                  <span className="impact-op">{im.label}</span>
+                  <span className="impact-meta">
+                    {im.clips.length ? (
+                      <span title={im.clips.map((c) => c.name).join(', ')}>
+                        {im.clips.length === 1 ? `Klip ${im.clips[0].index} · ${im.clips[0].name}` : `Klip ${im.clips.map((c) => c.index).join(', ')}`}
+                      </span>
+                    ) : null}
+                    {im.range ? (
+                      <button className="link small mono" onClick={() => seekRef.current?.(toFrames(im.range!.start))} title="Bu ana git">
+                        {im.range.start === im.range.end ? formatTime(im.range.start) : `${formatTime(im.range.start)}–${formatTime(im.range.end)}`}
+                      </button>
+                    ) : null}
+                    <span className={`scope ${im.scope}`}>{im.scopeLabel}</span>
+                  </span>
+                  {im.warnings?.map((w) => (
+                    <span key={w} className="impact-warn">
+                      ⚠ {w}
+                    </span>
+                  ))}
+                </li>
+              ))}
+              {plan.note ? (
+                <li>
+                  <span className="impact-op">Proje notu: {plan.note}</span>
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
           {!plan.understood ? (
             <div className="row-wrap">
               {!aiReady ? (
@@ -304,6 +347,27 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
           </div>
           )}
           {previewing ? <p className="hint small">Önizleme: değişiklik henüz kaydedilmedi. Beğenirseniz “Uygula”.</p> : null}
+        </div>
+      ) : lastApplied ? (
+        <div className="plan applied">
+          <p className="small">
+            <Check size={13} /> Uygulandı: {lastApplied}
+          </p>
+          <div className="row-wrap">
+            <button
+              className="btn tiny"
+              onClick={() => {
+                undo();
+                setLastApplied(null);
+              }}
+              title="Bu komutu geri al (⌘Z)"
+            >
+              <Undo2 size={13} /> Geri al
+            </button>
+            <button className="btn tiny ghost" onClick={() => setLastApplied(null)}>
+              Tamam
+            </button>
+          </div>
         </div>
       ) : (
         <div className="examples">

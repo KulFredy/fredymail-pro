@@ -159,6 +159,40 @@ const main = async () => {
     await page.getByRole('button', { name: 'Sağ paneli aç' }).click();
     check('Sağ panel kapanınca önizleme genişliyor', w1 > w0 + 200, `${w0.toFixed(0)} → ${w1.toFixed(0)} px`);
 
+    // 6) Komut: hedef klip + aralık görünür; Önizle → Vazgeç → Uygula → Geri al (yerel anlayıcı, Claude kapalı)
+    const total0 = (await state()).total;
+    await page.locator('[data-sid] .tr-time').first().click(); // imleç ilk cümlede
+    const ph = (await state()).playhead;
+    const box = page.getByPlaceholder(/Yazın veya mikrofona söyleyin/);
+    await box.fill('Buradan sonraki iki saniyeyi kes');
+    await box.press('Enter');
+    await page.waitForSelector('.impact li');
+    const impact = await page.locator('.impact li').first().innerText();
+    const expRange = `${fmt(ph)}–${fmt(ph + 2)}`;
+    check('Komut önerisi hedef klibi, aralığı ve kapsamı gösteriyor', impact.includes('Klip 1 · konusma.mp4') && impact.includes(expRange) && impact.includes('Tüm proje') && impact.includes('“Hafta sonu” yazısı da silinir'), impact.replace(/\n+/g, ' · '));
+    const hl = await page.locator('.tl-highlight.delete').count();
+    check('Etkilenen aralık zaman çizelgesinde işaretli', hl === 1);
+    await page.getByRole('button', { name: /Önizle/ }).click();
+    await page.waitForTimeout(600);
+    const tPrev = (await state()).total;
+    const apiPrev = (await api('GET', `/api/projects/${pid}`)).project;
+    check('Önizleme kurguyu kısaltıyor ama kaydetmiyor', tPrev !== total0 && JSON.stringify(apiPrev.clips) === JSON.stringify(before.clips), `${total0} → ${tPrev}`);
+    await page.getByRole('button', { name: 'Vazgeç' }).click();
+    await page.waitForTimeout(600);
+    check('Vazgeç: önizleme geri döndü', (await state()).total === total0);
+    await box.fill('Buradan sonraki iki saniyeyi kes');
+    await box.press('Enter');
+    await page.waitForSelector('.impact li');
+    await page.getByRole('button', { name: 'Uygula' }).click();
+    await page.waitForTimeout(800);
+    const applied = (await api('GET', `/api/projects/${pid}`)).project;
+    const lenApplied = applied.clips.reduce((x: number, c: any) => x + c.out - c.in, 0);
+    check('Uygula: kaydedildi (2 sn kısaldı)', Math.abs(lenBefore - lenApplied - 2) < 0.05, `${lenBefore.toFixed(2)} → ${lenApplied.toFixed(2)} sn`);
+    await page.locator('.plan.applied').getByRole('button', { name: 'Geri al' }).click();
+    await page.waitForTimeout(800);
+    const back = (await api('GET', `/api/projects/${pid}`)).project;
+    check('Komut panelinden Geri al: kurgu eski haline döndü', JSON.stringify(back.clips) === JSON.stringify(before.clips));
+
     if (process.env.FABRIKA_UI_SHOT) await page.screenshot({ path: process.env.FABRIKA_UI_SHOT });
     check('Sayfada hata yok', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {

@@ -435,6 +435,19 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .tr-empty { padding: 4px 0; }
 .icon-btn.sm { width: 26px; height: 26px; }
 
+/* Komut etkisi */
+.asked q { color: var(--text); }
+.impact { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.impact li { display: flex; flex-direction: column; gap: 3px; padding: 7px 8px; background: var(--card); border-radius: 8px; border-left: 3px solid var(--warn); }
+.impact-op { font-size: 13px; font-weight: 600; }
+.impact-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); align-items: center; }
+.impact-warn { font-size: 12px; color: var(--warn); }
+.scope { padding: 1px 7px; border-radius: 999px; background: var(--card2); color: var(--muted); font-size: 11px; }
+.scope.output { background: rgba(80,150,255,.18); color: #b9d6ff; }
+.scope.track { background: rgba(143,107,255,.2); color: #d6c9ff; }
+.plan.applied { border-color: rgba(79,209,139,.5); }
+.plan.applied p { color: var(--ok); display: flex; gap: 6px; align-items: center; }
+
 /* ---------- Oran ekle menüsü ---------- */
 .add-format { position: relative; }
 .preview-tabs .add { border: 1px dashed var(--line); background: transparent; color: var(--accent2); border-radius: 8px; padding: 5px 9px; font-size: 12px; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }

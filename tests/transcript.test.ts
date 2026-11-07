@@ -157,3 +157,28 @@ describe('altyazıyı düzelt', () => {
     expect(Object.keys(back.captions.edits).filter((k) => back.captions.edits[k] !== undefined && k.startsWith('kon:'))).toEqual([]);
   });
 });
+
+describe('komut etkisi', async () => {
+  const { describeImpact } = await import('../src/core/impact');
+  it('kesme: etkilenen klip ve aralık; kadraj: yalnız o çıktı; renk: tüm proje', () => {
+    let p = base();
+    p = applyOps(p, [{ type: 'output.add', format: 'story' }], ctx);
+    const story = p.outputs.find((o) => o.format === 'story')!;
+    const kon = p.clips[1];
+    const im = describeImpact(p, assets, [
+      { type: 'timeline.deleteRange', start: 8.9, end: 10.7 },
+      { type: 'output.setFraming', outputId: story.id, clipId: kon.id, framing: { x: 0.3 } },
+      { type: 'look.set', look: { preset: 'sicak' } },
+      { type: 'overlay.add', assetId: 'foto', at: 2, duration: 2 },
+    ]);
+    expect(im[0]).toMatchObject({ clips: [{ id: kon.id, index: 2, name: 'konusma.mp4' }], range: { start: 8.9, end: 10.7 }, scope: 'project' });
+    expect(im[1]).toMatchObject({ scope: 'output', scopeLabel: 'Yalnız Story 9:16 çıktısı', range: { start: 3, end: 15 } });
+    expect(im[2].scope).toBe('project');
+    expect(im[3]).toMatchObject({ scope: 'track', range: { start: 2, end: 4 } });
+    expect(im[3].clips.map((c) => c.index)).toEqual([1, 2]);
+    // Yan etkiler: aralıktaki yazı silinir, dış ses çakışması bildirilir
+    const q = applyOps(p, [{ type: 'text.add', text: { text: 'Başlık', start: 1.5, end: 3 } }], ctx);
+    const w = describeImpact(q, assets, [{ type: 'timeline.deleteRange', start: 1, end: 2 }])[0].warnings;
+    expect(w).toEqual(['“Başlık” yazısı da silinir', 'Dış ses bu aralıkla çakışıyor; dış ses kesilmez, yerinde kalır']);
+  });
+});
