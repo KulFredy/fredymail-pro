@@ -5,7 +5,7 @@
 - **Faz 3 · Yerel Stüdyo ve ince kurgu — tamam (8 Kasım, kullanıcının Mac'inde gerçek videoyla doğrulandı: transkript senkronu, altyazı düzeltme + cümle kesme + geri al, çevrimdışı teslim).** Transkript paneli, sağda Komut/Seçili öğe, komut etkisi (klip, aralık, kapsam, yan etkiler), ses dalgası, I/O kesim, S bölme, yumuşak ses geçişleri, internetsiz çalışma testi.
 - **Faz 2 · Kurgu Stüdyosu — tamam.** Çok izli zaman çizelgesi (görüntü, üst iz, dış ses, müzik, altyazı, yazı; iz adlarında "+"), sekmeli sol panel (Komut · Medya · Seçili öğe), mikrofon/yazı ile Türkçe komut → plan → önizle/uygula, adaylar zaman koduyla, talimat ≠ dış ses, kişisel stil vs proje notu, tam ekran, render çözünürlüğü.
 - **Claude ile komut (isteğe bağlı):** Ayarlar'da "Her komutta" (varsayılan) veya "Yalnız kalıplar anlamazsa"; model Opus 5.5 / Sonnet 5.5 / Haiku 5.5; komut başına maliyet gösterilir; ulaşılamazsa yerel anlayıcı.
-- **Testler (son çalıştırma):** birim 50/50 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 21/21.
+- **Testler (son çalıştırma):** birim 63/63 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 29/29 · `npm run e2e:lut` 16/16.
 - **Kullanıcının Mac'i:** kurulum yapıldı (`scripts/setup-mac.sh`), güncelleme `bash scripts/guncelle.sh`. Gerçek Türkçe altyazı Mac'te çalıştı. Render için Chrome indirilemediğinde sistem Google Chrome'u kullanılıyor.
 
 ## Doğrulanmayanlar (kullanıcıyla kontrol et)
@@ -14,6 +14,7 @@ Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
 - **4K video render'ı** (4K fotoğraf test edildi).
 - **Gerçek Android telefondan Wi-Fi ile yükleme** (QR).
 - Mac'te sesli komutların gerçek kullanımda doğruluğu.
+- **Gerçek LUT'larla** (Photoshop .3DL dahil) toplu içe aktarma ve görünüm; bulutta yalnız üretilmiş test LUT'ları kullanıldı.
 
 ### Mac'te test listesi (Faz 3, ~15 dk)
 Önce güncelle: `bash scripts/guncelle.sh claude/kind-davinci-9kuqyj` (eski betik varsayılan olarak eski dalı indiriyordu; bir kez dal adıyla çalıştırınca yeni betik gelir, sonrasında `bash scripts/guncelle.sh` yeter). Açık uygulamayı Ctrl+C ile kapatıp `npm run fabrika` ile yeniden başlat, tarayıcıda ⌘R.
@@ -36,7 +37,13 @@ Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). **Faz 3 · Yerel Stüdyo v
 6. ✅ Zaman çizelgesi: ses dalgası (klip + dış ses), I/O ile kare hassasiyetinde aralık silme, S / ⌘B ile imleçte bölme, klip ve dış seste ayarlanabilir yumuşak ses girişi/çıkışı (`edgeGain`).
 7. ✅ Konuşmalı içerikte uçtan uca deneme (bulutta sentetik ses) + Mac/Android test listesi (yukarıda).
 
-**Sıradaki somut iş:** Faz 4'ün ilk adımı: LUT Kütüphanem sekmesi (toplu `.cube` içe aktarma, arama, etiket, favori, aynı karede önce/sonra).
+**Faz 4 · Referanslar, LUT ve hareket** (sürüyor):
+1. ✅ LUT Kütüphanem (`src/core/lutlib.ts`, `web/src/LutPanel.tsx`): toplu içe aktarma (.cube, .3dl → .cube, .zip; klasör seçimi; sürükle-bırak), dosya başına rapor, aynı içerik tekrar eklenmez, dosya adından görünüm/teknik + giriş tahmini, etiket/favori/ad düzenleme, silme (kullanım sayısıyla uyarı), küçük önizlemeler (kamera dönüşümü dahil, yaklaşık), ana önizlemede kaydetmeden deneme, yoğunluk, seçili klip / tüm kurgu, önce/sonra + 4'e kadar karşılaştırma, teknik LUT uyuşmazlık uyarıları ve tek tıkla düzeltme. Testler: `e2e:lut`, `e2e:ui`. Kullanıcının LUT kaynakları: Photoshop 3DLUTs (.cube + .3DL), Magic Bullet LUTs, DaVinci Resolve LUT (çoğu teknik).
+2. Referans görsel/video: kare ve zaman bilgisi çıkarma, yaklaşık renk/kontrast eşleme (önizle/onayla).
+3. Başlık ve logo öğeleri; dikey/yatay güvenli alan.
+4. Yakınlaşma ve kesim ritmi önerileri; storyboard ve görsel komut sözlüğü (gerçek senaryolara göre).
+
+**Sıradaki somut iş:** kullanıcı kendi LUT klasörünü (~/Desktop/LUTlarim) Mac'te içe aktarıp dener; ardından Faz 4.2 referanstan renk eşleme.
 
 Sonra: Faz 4 (Referanslar, LUT Kütüphanem, hareket) → Faz 5 (Bağlantılar) → Faz 6 (Marka, kampanya) → Faz 7/8 isteğe bağlı.
 Küçükler (uygun fazda): RAW fotoğraf (LibRaw), kaynak oranında çıktı (ör. 4:3), Premiere'e aktarım (OpenTimelineIO / FCP XML), telefonda düzenleme ekranı, depoyu `main` dalına birleştirme.

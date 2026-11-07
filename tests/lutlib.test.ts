@@ -79,3 +79,30 @@ describe('.3dl okuma', () => {
     expect(() => parse3dl('0 512 1023\n1 2 3\n4 5 6\n')).toThrow(/küp/);
   });
 });
+
+describe('LUT uyarıları', async () => {
+  const { lutWarnings } = await import('../src/core/lutlib');
+  const look = { kind: 'gorunum' as const, input: null };
+  const slog3 = { kind: 'teknik' as const, input: 'sony-slog3-sgamut3cine' };
+  it('görünüm LUT\'u: normal videoda ve dönüşümü açık log klipte sorun yok', () => {
+    expect(lutWarnings(look, null, null)).toEqual([]);
+    expect(lutWarnings(look, 'sony-slog3-sgamut3', 'sony-slog3-sgamut3')).toEqual([]);
+  });
+  it('görünüm LUT\'u, dönüşümü kapalı log klipte: dönüşümü aç önerisi', () => {
+    const w = lutWarnings(look, null, 'sony-slog3-sgamut3');
+    expect(w[0].fix?.camera).toBe('auto');
+  });
+  it('log LUT\'u normal videoda uyarır', () => {
+    expect(lutWarnings(slog3, null, null)[0].text).toMatch(/normal video/);
+  });
+  it('aynı log için kamera dönüşümü açıksa çift dönüşüm uyarısı ve kapatma önerisi', () => {
+    const w = lutWarnings(slog3, 'sony-slog3-sgamut3', 'sony-slog3-sgamut3');
+    expect(w[0].text).toMatch(/çift dönüşüm/);
+    expect(w[0].fix?.camera).toBe('none');
+  });
+  it('dönüşüm kapalı ve doğru log: uyarı yok; farklı log: uyarı', () => {
+    expect(lutWarnings(slog3, null, 'sony-slog3-sgamut3')).toEqual([]);
+    expect(lutWarnings(slog3, null, 'panasonic-vlog')[0].text).toMatch(/V-Log/);
+    expect(lutWarnings({ kind: 'teknik', input: 'hdr' }, null, null)[0].text).toMatch(/HDR/);
+  });
+});

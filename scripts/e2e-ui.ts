@@ -248,6 +248,59 @@ const main = async () => {
     const on = (await api('GET', `/api/projects/${empty.project.id}`)).project.captions.enabled;
     check('Altyazı “+” ile kapanıp aynı yerden tekrar açılabiliyor', off === false && offVisible && on === true);
 
+    // 10) LUT'larım: dosyadan içe aktar (bir bozuk), küçük önizlemeler, ana önizlemede dene, uyarı, uygula, geri al, karşılaştır
+    await page.goto(`${base}/#/studyo/${pid}`);
+    await page.getByRole('tab', { name: "LUT'larım" }).click();
+    const cubeTxt = (f: (r: number, g: number, b: number) => number[]) => {
+      const l = ['LUT_3D_SIZE 2'];
+      for (let b = 0; b < 2; b++) for (let g = 0; g < 2; g++) for (let r = 0; r < 2; r++) l.push(f(r, g, b).join(' '));
+      return Buffer.from(l.join('\n'));
+    };
+    await page.locator('input[type=file][accept*=".cube"]').first().setInputFiles([
+      { name: 'Ters.cube', mimeType: 'text/plain', buffer: cubeTxt((r, g, b) => [1 - r, 1 - g, 1 - b]) },
+      { name: 'Sony SLog 3.cube', mimeType: 'text/plain', buffer: cubeTxt((r, g, b) => [r, g * 0.9, b]) },
+      { name: 'Crisp_Warm.look', mimeType: 'text/plain', buffer: Buffer.from('<look/>') },
+    ]);
+    await page.waitForSelector('.lut-card');
+    const repText = await page.locator('.lut-report summary').innerText();
+    check('LUT içe aktarma raporu (2 eklendi, 1 okunamadı)', /2 eklendi/.test(repText) && /1 okunamadı/.test(repText), repText);
+    await page.waitForTimeout(1500);
+    const thumbOk = await page.evaluate(() => {
+      const c = document.querySelector<HTMLCanvasElement>('[data-lut="Ters"] canvas');
+      if (!c || !c.width) return false;
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+      let s = 0;
+      for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2];
+      return s > 0;
+    });
+    check('LUT küçük önizlemesi çizildi', thumbOk);
+    await page.locator('[data-lut="Sony SLog 3"]').click();
+    await page.waitForTimeout(400);
+    const warn = await page.locator('.lut-active .impact-warn').first().innerText().catch(() => '');
+    check('Log LUT\'u normal videoda uyarı veriyor', /normal video/.test(warn), warn);
+    await page.locator('[data-lut="Ters"]').click();
+    await page.waitForTimeout(500);
+    const pv = (await api('GET', `/api/projects/${pid}`)).project;
+    check('LUT denemesi (önizleme) kaydetmiyor', JSON.stringify(pv.clips) === JSON.stringify(before.clips) && pv.look.lut === before.look.lut);
+    await page.locator('.lut-active').getByRole('button', { name: 'Uygula' }).click();
+    await page.waitForTimeout(800);
+    const ap = (await api('GET', `/api/projects/${pid}`)).project;
+    check('Uygula: seçili klibe LUT kaydedildi', ap.clips.some((c: any) => c.look?.lut === 'kullanici:Ters.cube' && c.look?.lutIntensity === 1), ap.clips.map((c: any) => c.look?.lut ?? '—').join(', '));
+    const inUse = await page.locator('[data-lut="Ters"].inuse').count();
+    check('“kullanımda” işareti', inUse === 1);
+    await page.locator('.lut-active').getByRole('button', { name: 'Karşılaştır' }).click();
+    await page.waitForSelector('.cmp-split canvas');
+    await page.waitForTimeout(1200);
+    const cmp = await page.evaluate(() => document.querySelectorAll('.cmp-split canvas').length + document.querySelectorAll('.cmp-cell').length);
+    check('Karşılaştırma penceresi (önce/sonra + hücre)', cmp >= 3, `${cmp} tuval`);
+    await page.locator('.modal-actions').getByRole('button', { name: 'Kapat' }).click();
+    await page.waitForTimeout(300);
+    await page.locator('.studio-center').click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(800);
+    const un = (await api('GET', `/api/projects/${pid}`)).project;
+    check('⌘Z: LUT geri alındı', JSON.stringify(un.clips) === JSON.stringify(before.clips));
+
     if (process.env.FABRIKA_UI_SHOT) await page.screenshot({ path: process.env.FABRIKA_UI_SHOT });
     check('Sayfada hata yok', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {

@@ -183,3 +183,35 @@ export const applyLutToPixels = (px: Uint8ClampedArray, lut: Lut3D, amount = 1, 
   }
   return out;
 };
+
+export type LutWarning = { text: string; fix?: { label: string; camera: 'none' | 'auto' } };
+
+/**
+ * LUT ile klibin görüntü türü uyuşuyor mu?
+ * camera: klibin etkin kamera dönüşümü (null = yok) · detected: içe aktarmada algılanan log türü (null = normal video)
+ */
+export const lutWarnings = (meta: Pick<LutMeta, 'kind' | 'input'>, camera: string | null, detected: string | null): LutWarning[] => {
+  const w: LutWarning[] = [];
+  if (meta.kind === 'teknik') {
+    const inp = meta.input;
+    if (inp === 'hdr' || inp === 'linear' || inp === 'diger')
+      w.push({ text: `Bu LUT ${inputLabel(inp)} için bir dönüşüm; Instagram videosunda genelde gerekmez.` });
+    else if (camera && (sameInput(camera, inp) || inp === 'log' || inp === 'cineon'))
+      w.push({
+        text: `Bu klipte kamera dönüşümü (${inputLabel(camera)}) zaten açık; bu LUT da log görüntüyü dönüştürür. İkisi birlikte çift dönüşüm yapar.`,
+        fix: { label: 'Kamera dönüşümünü kapat', camera: 'none' },
+      });
+    else if (camera && inp && !sameInput(camera, inp))
+      w.push({ text: `Bu LUT ${inputLabel(inp)} bekliyor, klip ise ${inputLabel(camera)}. Sonuç yanlış renkte olabilir.` });
+    else if (!camera && !detected)
+      w.push({ text: `Bu LUT ${inputLabel(inp)} bekliyor; bu klip normal video görünüyor. Sonuç fazla kontrastlı veya renkli olabilir.` });
+    else if (!camera && detected && inp && !sameInput(detected, inp) && inp !== 'log' && inp !== 'cineon')
+      w.push({ text: `Bu LUT ${inputLabel(inp)} bekliyor, klip ise ${inputLabel(detected)} olarak algılandı.` });
+  } else if (!camera && detected) {
+    w.push({
+      text: `Bu klip ${inputLabel(detected)} log görüntü; görünüm LUT'ları normal video bekler. Önce kamera dönüşümünü açın.`,
+      fix: { label: 'Kamera dönüşümünü aç', camera: 'auto' },
+    });
+  }
+  return w;
+};

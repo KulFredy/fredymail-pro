@@ -57,7 +57,10 @@ export const api = {
   state: () => req<{ lastProjectId: string | null; projects: ProjectSummary[]; style: any }>('GET', '/api/state'),
   saveStyle: (style: unknown) => req('PUT', '/api/style', style),
   library: () => req<Asset[]>('GET', '/api/library'),
-  luts: () => req<LutInfo[]>('GET', '/api/luts'),
+  luts: (withUses = false) => req<LutInfo[]>('GET', `/api/luts${withUses ? '?kullanim=1' : ''}`),
+  updateLut: (id: string, patch: Partial<{ name: string; kind: 'gorunum' | 'teknik'; input: string | null; tags: string[]; favorite: boolean }>) =>
+    req<{ luts: LutInfo[] }>('PATCH', `/api/luts/${encodeURIComponent(id)}`, patch),
+  deleteLut: (id: string) => req<{ luts: LutInfo[] }>('DELETE', `/api/luts/${encodeURIComponent(id)}`),
   jobs: () => req<Job[]>('GET', '/api/jobs'),
   createProject: (name: string, formats: { format: string; kind?: string }[]) => req<ProjectState>('POST', '/api/projects', { name, formats }),
   project: (id: string) => req<ProjectState>('GET', `/api/projects/${id}`),

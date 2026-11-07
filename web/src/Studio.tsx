@@ -14,6 +14,7 @@ import { useApp, useProject } from './state';
 import { ExportStep } from './steps/ExportStep';
 import { Timeline, type Marks, type Selection } from './Timeline';
 import { TranscriptPanel } from './TranscriptPanel';
+import { LutPanel } from './LutPanel';
 import { Modal, Segmented, Slider, fmtDb, fmtSec } from './ui';
 
 type HistoryItem = { text: string; summary: string; ok: boolean };
@@ -681,7 +682,7 @@ export const Studio: React.FC = () => {
   const [selection, setSelection] = useState<Selection>(project.ui.selectedClipId ? { kind: 'clip', id: project.ui.selectedClipId } : null);
   const [exporting, setExporting] = useState(false);
   const [name, setName] = useState(project.name);
-  const [leftTab, setLeftTab] = useState<'medya' | 'transkript'>(() => readPref('fabrika.studyo.sol', 'transkript'));
+  const [leftTab, setLeftTab] = useState<'medya' | 'transkript' | 'luts'>(() => readPref('fabrika.studyo.sol', 'transkript'));
   const [rightTab, setRightTab] = useState<'komut' | 'secili'>('komut');
   const [rightOpen, setRightOpen] = useState<boolean>(() => readPref('fabrika.studyo.sag', '1') === '1');
   React.useEffect(() => writePref('fabrika.studyo.sol', leftTab), [leftTab]);
@@ -807,6 +808,7 @@ export const Studio: React.FC = () => {
             [
               ['medya', 'Medya'],
               ['transkript', 'Transkript'],
+              ['luts', "LUT'larım"],
             ] as const
           ).map(([k, l]) => (
             <button key={k} role="tab" aria-selected={leftTab === k} className={leftTab === k ? 'on' : ''} onClick={() => setLeftTab(k)}>
@@ -817,6 +819,7 @@ export const Studio: React.FC = () => {
         <div className="tab-body">
           {leftTab === 'medya' ? <MediaBin /> : null}
           {leftTab === 'transkript' ? <TranscriptPanel onSelect={setSelection} /> : null}
+          {leftTab === 'luts' ? <LutPanel selection={selection} /> : null}
         </div>
       </aside>
       <main className="studio-center">

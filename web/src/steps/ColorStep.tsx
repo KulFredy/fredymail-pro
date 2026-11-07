@@ -125,15 +125,15 @@ export const ColorStep: React.FC = () => {
         title="LUT"
         aside={
           <button className="btn tiny" onClick={() => lutInput.current?.click()}>
-            <Upload size={13} /> .cube yükle
+            <Upload size={13} /> LUT yükle
           </button>
         }
-        hint="Lightroom/Premiere/Resolve'da kullandığınız 3B .cube LUT'larını yükleyin; tüm projelerde kullanılabilir."
+        hint="Premiere/Resolve/Photoshop'ta kullandığınız .cube veya .3dl LUT'larını (ya da zip paketini) yükleyin; tüm projelerde kullanılabilir. Toplu düzenleme için Stüdyo'da “LUT'larım”."
       >
         <input
           ref={lutInput}
           type="file"
-          accept=".cube"
+          accept=".cube,.3dl,.zip,.CUBE,.3DL"
           hidden
           onChange={async (e) => {
             const files = [...(e.target.files ?? [])];
@@ -142,7 +142,8 @@ export const ColorStep: React.FC = () => {
               const r = await upload('/api/luts', files, () => undefined);
               await refreshLuts();
               if (r.added?.[0]) setLook({ lut: r.added[0].id, lutIntensity: 1 });
-              toast('LUT eklendi');
+              const bad = (r.report ?? []).filter((x: { status: string }) => x.status === 'hata');
+              toast(bad.length ? `${r.added.length} LUT eklendi · okunamadı: ${bad.map((x: { file: string; reason: string }) => `${x.file} (${x.reason})`).join(', ')}` : `${r.added.length} LUT eklendi`, bad.length && !r.added.length ? 'error' : 'ok');
             } catch (err) {
               toast((err as Error).message, 'error');
             }

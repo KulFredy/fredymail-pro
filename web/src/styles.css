@@ -449,6 +449,51 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .tl-marks-info { display: inline-flex; gap: 10px; align-items: center; margin-left: 14px; font-size: 12px; color: #9fe3ff; }
 .tl-keys { margin-left: 14px; }
 
+/* LUT'larım */
+.lutp { display: flex; flex-direction: column; gap: 10px; }
+.lutp .studio-left .tabs button { font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip.tag { font-size: 11px; }
+.lut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
+.lut-card { position: relative; background: var(--card); border: 2px solid transparent; border-radius: 9px; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; }
+.lut-card:hover { border-color: var(--line); }
+.lut-card.sel { border-color: var(--accent); }
+.lut-card.inuse:not(.sel) { border-color: rgba(143,107,255,.6); }
+.lut-thumb { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block; background: #050608; }
+.lut-meta { display: flex; align-items: center; gap: 4px; padding: 4px 6px; font-size: 12px; min-width: 0; }
+.lut-meta .ellipsis { flex: 1; min-width: 0; }
+.star { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 2px; display: grid; place-items: center; }
+.star.on { color: var(--warn); }
+.star.on svg { fill: var(--warn); }
+.lut-badges { position: absolute; top: 4px; left: 4px; display: flex; gap: 3px; flex-wrap: wrap; }
+.lut-badges .scope { font-size: 10px; backdrop-filter: blur(4px); }
+.lut-active { position: sticky; top: 50px; z-index: 2; box-shadow: 0 8px 18px rgba(0,0,0,.45); background: var(--card); border: 1px solid var(--accent); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.lut-actions { gap: 6px; flex-wrap: nowrap; }
+.lut-active .slider, .lut-active .field { margin: 0; }
+.lut-edit { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+.lut-report { font-size: 12px; background: var(--card); border-radius: 8px; padding: 6px 8px; }
+.lut-report summary { cursor: pointer; }
+.rep-hata { color: #ffb3bb; }
+.rep-vardi { color: var(--muted); }
+.lut-empty { border: 1px dashed var(--line); border-radius: 10px; padding: 14px; }
+.tiny-note { font-size: 11px; margin: 0; }
+.cmp-split { position: relative; width: 100%; height: min(42vh, 480px); background: #050608; border-radius: 10px; overflow: hidden; }
+.cmp-split canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.cmp-before { clip-path: inset(0 calc(100% - var(--split)) 0 0); }
+.cmp-split::after { content: ''; position: absolute; top: 0; bottom: 0; left: var(--split); width: 2px; background: #fff; pointer-events: none; }
+.cmp-label { position: absolute; top: 8px; font-size: 12px; background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 999px; }
+.cmp-label.left { left: 8px; }
+.cmp-label.right { right: 8px; }
+.cmp-range { position: absolute; left: 0; right: 0; bottom: 8px; width: calc(100% - 16px); margin: 0 8px; }
+.cmp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-top: 8px; }
+.cmp-cell { position: relative; border: 2px solid transparent; background: var(--card); border-radius: 8px; padding: 0 0 4px; cursor: pointer; color: var(--text); display: flex; flex-direction: column; gap: 4px; font-size: 12px; overflow: hidden; }
+.cmp-cell canvas { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.cmp-cell.sel { border-color: var(--accent); }
+.cmp-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.6); border-radius: 999px; width: 20px; height: 20px; display: grid; place-items: center; }
+.cmp-add { margin-top: 8px; }
+.cmp-add .chips { max-height: 84px; overflow: auto; padding: 4px 0; }
+.cmp-grid { max-height: 26vh; overflow: auto; }
+
 /* Komut etkisi */
 .asked q { color: var(--text); }
 .impact { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

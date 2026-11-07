@@ -6,7 +6,7 @@ import type { Look } from '../core/schema';
 import { Grader } from './gl';
 
 const lutCache = new Map<string, Promise<Lut3D>>();
-const loadLut = (url: string) => {
+export const loadLut = (url: string) => {
   let p = lutCache.get(url);
   if (!p) {
     p = fetch(url).then(async (r) => {
