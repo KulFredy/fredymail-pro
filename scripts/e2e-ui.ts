@@ -45,7 +45,7 @@ const main = async () => {
   await rm(work, { recursive: true, force: true });
   await mkdir(work, { recursive: true });
   await cp(path.join(ROOT, 'tests', 'fixtures', 'eski-ev'), home, { recursive: true });
-  await runOk('npx', ['vite', 'build', '--config', 'web/vite.config.ts', '--logLevel', 'error'], { cwd: ROOT });
+  await runOk('npx', ['vite', 'build', '--config', 'web/vite.config.ts', '--logLevel', 'error']);
 
   process.env.FABRIKA_HOME = home;
   process.env.FABRIKA_PORT = process.env.FABRIKA_PORT ?? '4852';
@@ -68,7 +68,9 @@ const main = async () => {
     await page.waitForSelector('.tr-sen');
 
     /** Ekrandaki durum: imleç zamanı, önizleme saati, seçili klip */
-    const state = () =>
+    type Sen = { id: string; start: number | null; text: string };
+    type UiState = { playhead: number; clipId: string | null; clipStart: number; clipWidth: number; time: string; total: string; sentences: Sen[]; previewW: number };
+    const state = (): Promise<UiState> =>
       page.evaluate(() => {
         const ph = document.querySelector<HTMLElement>('.tl-playhead');
         const sel = document.querySelector<HTMLElement>('.tl-item.clip.sel');
