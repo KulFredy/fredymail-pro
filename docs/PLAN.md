@@ -224,6 +224,8 @@ Otomatik karşılığı: aynı senaryolar, üretilmiş test medyasıyla (`npm te
 
 ## 5. Sonraki fazlar (özet)
 
+> **Güncel değil:** Faz 3 ve sonrası için sıralama artık `docs/FAZLAR.md` dosyasındadır (Faz 3 = yerel Stüdyo ve ince kurgu; motion/marka Faz 4 ve 6'ya, yayın Faz 7'ye kaydı). Aşağıdaki tablo tarihçe olarak duruyor.
+
 | Faz | İçerik | Bitiş ölçütü | Çalışma anı maliyeti |
 |---|---|---|---|
 | 2 · Konuşarak kurgu | Stüdyo izleri, mikrofon (yerel Whisper) → komut → işlem planı; etkilenecek aralığı çizelgede göster, belirsizlikte iki aday zaman koduyla; geri al / sürüme dön; kişisel stil vs proje talimatı ayrımı; dış ses kaydı komuttan ayrı | Yatay videoda iki sesli revizyon + geri alma | Komut yorumlama için LLM: **MCP üzerinden Claude aboneliğinle ek ücretsiz**, uygulama içi bağımsız kullanımda Claude API anahtarı (komut başına çok düşük) |

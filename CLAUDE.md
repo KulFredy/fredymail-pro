@@ -2,7 +2,7 @@
 
 Türkçe, Mac'te yerel çalışan içerik üretim ve video kurgu uygulaması. Kullanıcı Türkçe konuşur, yazılım uzmanı değildir (CapCut/Premiere/Lightroom kullanır); açıklamaları sade Türkçe yap, komutları kopyalanabilir ver. Ürün ileride SaaS olacak şekilde tasarlanıyor.
 
-Durum, sıradaki işler ve doğrulanmayanlar: `docs/DEVAM.md`. Ürün planı: `docs/PLAN.md`. Kullanım: `README.md`.
+Durum, sıradaki işler ve doğrulanmayanlar: `docs/DEVAM.md`. Faz sırası (Faz 3–8, esas): `docs/FAZLAR.md`. İlk ürün planı ve mimari: `docs/PLAN.md`. Kullanım: `README.md`.
 
 ## Mimari (tek kural: her değişiklik bir işlem)
 - `src/core` — saf TS, tarayıcı ve sunucu ortak: `schema.ts` (zod), `ops.ts` (`applyOp`: proje + işlem → yeni proje), `timeline.ts` (yerleşim, kadraj `computeBox`/`scaleFraming`, altyazı sayfaları, müzik eğrisi `musicGainAt`), `commands.ts` (Türkçe kural tabanlı komut → `Plan`), `formats.ts`, `looks.ts`, `lut.ts`, `refs.ts`.

@@ -13,16 +13,28 @@
 - Telefondan Wi-Fi ile gerçek yükleme.
 - Mac'te sesli komutların gerçek kullanımda doğruluğu.
 
-## Sıradaki işler (öneri sırası)
-1. Kullanıcı geri bildirimi: Claude ile sesli komutlar, arayüzde "içime sinmedi" dediği noktalar.
-2. **Faz 3 · Hareketli grafik ve görsel:** marka klasörü (logo, yazı tipi, renkler), logo/başlık animasyonu (müzik vuruşu algılama), çok sahneli ürün tanıtımında storyboard; ardından `/ISOMETRIC`, `/XRAY`, `/EXPLODEDVIEW`, `/CUTAWAY`, `/MINIATURE`, `/PRODUCTSHOT`, `/3DBILLBOARD`, `/BLUEPRINT`, `/MACRO`, `/CLAY`, `/DRONEVIEW`, `/4K` sözlüğü — her komut için gerekli girdi / üretim yöntemi / bu kurulumda kullanılabilir mi tablosu; ekran görüntüsünden komut okuma; ücretli üretimde önce önizleme + maliyet. Kabul: ürün görselinden sabit post + kısa animasyon; aynı istek ekran görüntüsünden.
-3. **Faz 4 · Doğrudan Instagram yayını:** resmi Meta API, hesap türü/izinler resmi belgelerden doğrulanır, idempotent yayın, yayın kimliği.
-4. Küçükler: RAW fotoğraf (LibRaw), kaynak oranında çıktı (ör. 4:3), Premiere'e aktarım (OpenTimelineIO / FCP XML), telefonda düzenleme ekranı, depoyu `main` dalına birleştirme.
+## Sıradaki işler
+Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). Şu an **Faz 3 · Yerel Stüdyo ve ince kurgu** sürüyor:
+0. ✅ Belgelerde yeni faz sırası.
+1. Çevrimdışı kabul testi (`npm run e2e:offline`), eski proje örnekleri, dış sesin çıktıda duyulduğunun ölçümü.
+2. Çekirdekte kaynak ↔ kurgu zaman eşlemesi ve cümle gruplama.
+3. Yerleşim: solda Medya + Transkript, ortada geniş önizleme, sağda Komut + Seçili öğe (kapanabilir).
+4. Transkript paneli: arama, cümleye git, "Cümleyi kes" ≠ "Altyazıyı düzelt".
+5. Komut paneli: hedef klip, aralık, çıktı oranı etiketi; Önizle / Uygula / Vazgeç / Geri Al.
+6. Zaman çizelgesi: ses dalgası, kare hassasiyeti, ses geçişleri.
+7. Konuşmalı içerikte uçtan uca deneme + Mac/Android test listesi.
+
+Sonra: Faz 4 (Referanslar, LUT Kütüphanem, hareket) → Faz 5 (Bağlantılar) → Faz 6 (Marka, kampanya) → Faz 7/8 isteğe bağlı.
+Küçükler (uygun fazda): RAW fotoğraf (LibRaw), kaynak oranında çıktı (ör. 4:3), Premiere'e aktarım (OpenTimelineIO / FCP XML), telefonda düzenleme ekranı, depoyu `main` dalına birleştirme.
+
+## Bulut oturumu notları
+- Çalışma dalı adı oturuma göre değişebilir (ör. `claude/kind-davinci-9kuqyj`); içerik `claude/hopeful-thompson-lgey2c` üzerinden devam eder.
+- `npm run e2e` için `espeak-ng` gerekir (`apt-get update && apt-get install -y espeak-ng`); yoksa test sesi bip olur ve "Story süresi ≈15 sn" kontrolü düşer (11.8 sn).
 
 ## Yeni oturum için başlangıç komutu
 ```
 İçerik Fabrikası projesine devam ediyoruz. Önce CLAUDE.md, docs/DEVAM.md ve README.md'yi oku;
-çalışma dalı claude/hopeful-thompson-lgey2c (main'e birleştirilmediyse bu daldan devam et).
+son çalışma dalı claude/kind-davinci-9kuqyj (main'e birleştirilmediyse bu daldan devam et).
 Bulut ortamındaysan npm install yap, testleri çalıştır (npm test, sonra gerekirse npm run e2e)
 ve durumu bana 5 satırda özetle. Sonra [BURAYA BU OTURUMDA İSTEDİĞİNİ YAZ] ile devam edelim.
 Kodu değiştirmeden önce kısa bir plan göster; her adımı test edip commit/push et.
