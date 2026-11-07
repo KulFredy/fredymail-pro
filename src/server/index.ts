@@ -11,7 +11,7 @@ import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { readFile, writeFile } from 'node:fs/promises';
 import { planCommand } from '../core/commands';
-import { DEFAULT_AI_MODEL, planWithClaude } from './ai';
+import { AI_MODELS, DEFAULT_AI_MODEL, planWithClaude } from './ai';
 import { FORMATS, outputLabel } from '../core/formats';
 import { buildRefs } from '../core/refs';
 import { OpError, OpSchema, patchOf } from '../core/ops';
@@ -157,7 +157,7 @@ export const createServer = async (home = defaultHome()) => {
 
   // ---------- Ayarlar (Claude ile anlama, isteğe bağlı) ----------
   const settingsFile = store.p('ayarlar.json');
-  const readSettings = async (): Promise<{ anthropicApiKey?: string; aiModel?: string }> => {
+  const readSettings = async (): Promise<{ anthropicApiKey?: string; aiModel?: string; aiMode?: 'always' | 'fallback' }> => {
     try {
       return JSON.parse(await readFile(settingsFile, 'utf8'));
     } catch {
@@ -171,16 +171,26 @@ export const createServer = async (home = defaultHome()) => {
       aiConfigured: !!(st.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
       keySource: st.anthropicApiKey ? 'uygulama' : process.env.ANTHROPIC_API_KEY ? 'ortam' : null,
       aiModel: st.aiModel || DEFAULT_AI_MODEL,
+      /** always: her komut Claude'a gider · fallback: yalnız kurallar anlamazsa */
+      aiMode: st.aiMode ?? 'always',
+      models: AI_MODELS,
     };
   });
   app.put('/api/settings', async (req) => {
-    const body = z.object({ anthropicApiKey: z.string().trim().nullable().optional(), aiModel: z.string().trim().optional() }).parse(req.body);
+    const body = z
+      .object({
+        anthropicApiKey: z.string().trim().nullable().optional(),
+        aiModel: z.enum(AI_MODELS.map((m) => m.id) as [string, ...string[]]).optional(),
+        aiMode: z.enum(['always', 'fallback']).optional(),
+      })
+      .parse(req.body);
     const st = await readSettings();
     if (body.anthropicApiKey !== undefined) {
       if (body.anthropicApiKey) st.anthropicApiKey = body.anthropicApiKey;
       else delete st.anthropicApiKey;
     }
     if (body.aiModel) st.aiModel = body.aiModel;
+    if (body.aiMode) st.aiMode = body.aiMode;
     await writeFile(settingsFile, JSON.stringify(st, null, 2), { mode: 0o600 });
     return { ok: true, aiConfigured: !!(st.anthropicApiKey || process.env.ANTHROPIC_API_KEY) };
   });

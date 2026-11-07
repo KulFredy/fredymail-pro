@@ -10,6 +10,7 @@ import { formatTime, layoutClips, sentences, timelineWords, totalDuration } from
  */
 
 export const DEFAULT_AI_MODEL = 'claude-opus-5-5';
+export type AiUsage = { model: string; input: number; output: number; usd: number };
 
 const OPS_DOC = `İşlemler (JSON). Zamanlar saniye. "timeline" = zaman çizelgesi zamanı, "kaynak" = klibin kendi dosyasındaki zaman.
 - {"type":"timeline.deleteRange","start":T,"end":T}  zaman çizelgesinden aralığı çıkarır, sonrası kayar (kesme için bunu kullan)
@@ -19,6 +20,11 @@ const OPS_DOC = `İşlemler (JSON). Zamanlar saniye. "timeline" = zaman çizelge
 - {"type":"clip.update","clipId":ID,"patch":{"gainDb":dB,"muted":bool,"musicMuted":bool}}
 - {"type":"overlay.add","assetId":ID,"at":T,"duration":S}  üst iz (B-roll), ana ses devam eder
 - {"type":"overlay.update","id":ID,"patch":{"at":T,"in":K,"out":K}} · {"type":"overlay.remove","id":ID}
+- {"type":"output.setFraming","outputId":ID,"clipId":KLIP_VEYA_UST_IZ_ID,"framing":{"mode":"fill|fit-blur|fit","zoom":0.1..4,"x":0..1,"y":0..1}}
+    kadraj, çıktı (oran) başına: fill = ekranı kaplar (zoom 1), fit-blur = tamamı görünür + bulanık arka plan, fit = tamamı görünür + siyah.
+    zoom 0.5 = yarı boyut. Görüntü kareden küçükse x/y karedeki yeridir (0 sol/üst, 0.5 orta, 1 sağ/alt; sağ alt köşe ≈ x 0.94, y 0.92);
+    büyükse kaynaktaki odak noktasıdır. "Küçült" için genellikle mode "fit-blur" ve zoom<1 kullan; "tam ekran / doldur" = mode "fill", zoom 1, x/y 0.5.
+- {"type":"output.add","format":"story|reel|post|square|landscape","kind":"video|image"} · {"type":"output.update","outputId":ID,"patch":{"resolution":"720|1080|1440|2160"}}
 - {"type":"look.set","look":{"preset":"dogal|sicak|soguk|canli|film|sb","intensity":0..1,"adjust":{"exposure":-3..3,"contrast":-1..1,"highlights":-1..1,"shadows":-1..1,"temp":-1..1,"tint":-1..1,"vibrance":-1..1,"saturation":-1..1,"sharpen":0..1,"vignette":0..1,"fade":0..1}}}
 - {"type":"clip.setLook","clipId":ID,"look":{...aynı alanlar}}
 - {"type":"music.set","music":{"mode":"bed|duck|fixed","gainDb":dB,"bedDb":dB,"duckDb":dB,"start":K}} veya {"type":"music.set","music":null}
@@ -37,6 +43,8 @@ Kurallar:
 - Konuşmaya dayalı yerleri cümle/kelime zamanlarından bul.
 - Talimat birden çok yere uyabiliyorsa ops'u boş bırak, her olası yer için bir aday ver (en çok 4), etiketlerde zaman kodu yaz.
 - "Bundan sonra / her zaman / artık" ile gelen altyazı tercihlerini ayrıca personal.captionStyle olarak da ver. "Bu sefer / bu videoda" ile gelen talimat için note yaz.
+- Kadraj komutlarını (küçült, büyüt, köşeye al, doldur) etkin çıktıya (aktif_cikti) ve aksi söylenmedikçe imlecin üstündeki ya da seçili klibe uygula; mevcut kadraj değerlerini (kadraj) dikkate al.
+- "Geri al" / "yinele" isteklerinde ops boş, action "undo" veya "redo" ver.
 - Yapamayacağın şeyi (ör. yeni görüntü üretmek) yapıyormuş gibi gösterme: understood=false ve kısa bir açıklama ver.
 - summary ve etiketler kısa, doğal Türkçe olsun; zamanları 0:12,4 biçiminde yaz.
 - ranges: değişen zaman aralıkları (kind: delete | overlay | change).`;
@@ -57,6 +65,7 @@ const TOOL: Anthropic.Beta.BetaTool = {
       },
       personal: { type: 'object', properties: { captionStyle: { type: 'object' } } },
       note: { type: 'string' },
+      action: { type: 'string', enum: ['undo', 'redo'] },
     },
     required: ['understood', 'summary', 'ops'],
   },
@@ -70,7 +79,8 @@ export const buildContext = (project: Project, assets: Record<string, AssetRef>,
     imlec_sn: Number(playhead.toFixed(2)),
     toplam_sn: Number(totalDuration(project).toFixed(2)),
     secili_klip: selectedClipId,
-    ciktilar: project.outputs.map((o) => `${o.format}:${o.kind}`),
+    ciktilar: project.outputs.map((o) => ({ id: o.id, bicim: o.format, tur: o.kind, cozunurluk: o.resolution })),
+    aktif_cikti: project.ui.activeOutputId ?? project.outputs[0]?.id ?? null,
     klipler: layoutClips(project).map((l, i) => ({
       sira: i + 1,
       id: l.clip.id,
@@ -78,8 +88,10 @@ export const buildContext = (project: Project, assets: Record<string, AssetRef>,
       tur: assets[l.clip.assetId]?.kind,
       zaman: [Number(l.start.toFixed(2)), Number(l.end.toFixed(2))],
       kaynak_aralik: [l.clip.in, l.clip.out],
+      olcu: assets[l.clip.assetId] ? `${assets[l.clip.assetId].width}x${assets[l.clip.assetId].height}` : null,
       ses_db: l.clip.gainDb,
       sessiz: l.clip.muted,
+      kadraj: (project.outputs.find((o) => o.id === project.ui.activeOutputId) ?? project.outputs[0])?.framing[l.clip.id] ?? { mode: 'fill', zoom: 1, x: 0.5, y: 0.5 },
     })),
     ust_iz: project.overlays.map((o) => ({ id: o.id, kaynak: assets[o.assetId]?.name, at: o.at, sure: o.out - o.in })),
     dis_ses: project.voice.map((v) => ({ id: v.id, at: v.at, sure: v.out - v.in })),
@@ -121,10 +133,10 @@ export const planWithClaude = async (opts: {
   playhead: number;
   selectedClipId: string | null;
   opCtx: OpContext;
-}): Promise<Plan & { source: 'claude' }> => {
+}): Promise<Plan & { source: 'claude'; usage?: AiUsage }> => {
   const client = new Anthropic({ apiKey: opts.apiKey, timeout: 60_000, maxRetries: 1 });
   const context = buildContext(opts.project, opts.assets, opts.playhead, opts.selectedClipId);
-  const fail = (summary: string, hint?: string): Plan & { source: 'claude' } => ({ understood: false, summary, ops: [], ranges: [], candidates: [], hint, source: 'claude' });
+  const fail = (summary: string, hint?: string): Plan & { source: 'claude'; usage?: AiUsage } => ({ understood: false, summary, ops: [], ranges: [], candidates: [], hint, source: 'claude' });
   const base = {
     model: opts.model,
     max_tokens: 8000,
@@ -139,8 +151,12 @@ export const planWithClaude = async (opts: {
     ],
   };
   // Hesapta açık olmayan bir özellik 400 verirse daha sade istekle yeniden dene
+  // Sunucu tarafı yedek (ret durumunda başka modelle sürdürme) Haiku'da yok
+  const withFallback = !opts.model.startsWith('claude-haiku');
   const attempts: (() => Promise<Anthropic.Beta.BetaMessage>)[] = [
-    () => client.beta.messages.create({ ...base, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default', output_config: { effort: 'low' } }),
+    ...(withFallback
+      ? [() => client.beta.messages.create({ ...base, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default', output_config: { effort: 'low' } })]
+      : []),
     () => client.beta.messages.create({ ...base, output_config: { effort: 'low' } }),
     () => client.beta.messages.create({ ...base }),
   ];
@@ -183,8 +199,12 @@ export const planWithClaude = async (opts: {
     candidates?: { label: string; summary?: string; ops: unknown[]; ranges?: PlanRange[] }[];
     personal?: Plan['personal'];
     note?: string;
+    action?: 'undo' | 'redo';
   };
-  if (!input.understood) return fail(input.summary || 'Claude talimatı anlayamadı.');
+  const usage = { model: response.model, input: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0), output: response.usage.output_tokens, usd: costUsd(response.model, response.usage) };
+  if (input.action === 'undo' || input.action === 'redo')
+    return { understood: true, summary: input.summary || (input.action === 'undo' ? 'Geri alınacak.' : 'Yinelenecek.'), ops: [], ranges: [], candidates: [], action: input.action, source: 'claude', usage };
+  if (!input.understood) return { ...fail(input.summary || 'Claude talimatı anlayamadı.'), usage };
   const main = validOps(input.ops ?? [], opts.project, opts.opCtx);
   const candidates: PlanCandidate[] = [];
   for (const c of input.candidates ?? []) {
@@ -202,5 +222,24 @@ export const planWithClaude = async (opts: {
     personal: input.personal?.captionStyle ? { captionStyle: input.personal.captionStyle } : undefined,
     note: input.note || undefined,
     source: 'claude',
+    usage,
   };
+};
+
+/** Yaklaşık maliyet (USD) — 1M token başına liste fiyatları */
+const PRICES: Record<string, { in: number; out: number; cacheRead: number }> = {
+  'claude-opus-5-5': { in: 4, out: 20, cacheRead: 0.2 },
+  'claude-sonnet-5-5': { in: 2, out: 10, cacheRead: 0.2 },
+  'claude-haiku-5-5': { in: 0.1, out: 0.5, cacheRead: 0.01 },
+};
+export const AI_MODELS = [
+  { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 — en iyi anlama', approx: 'komut başına ≈ 3–5 sent' },
+  { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 — hızlı, yarı fiyat', approx: 'komut başına ≈ 1,5–2,5 sent' },
+  { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 — en ucuz', approx: 'komut başına ≈ 0,1 sent' },
+];
+const costUsd = (model: string, u: Anthropic.Beta.BetaUsage) => {
+  const key = Object.keys(PRICES).find((k) => model.startsWith(k)) ?? DEFAULT_AI_MODEL;
+  const p = PRICES[key];
+  const cacheWrite = (u.cache_creation_input_tokens ?? 0) * p.in * 1.25;
+  return (u.input_tokens * p.in + (u.cache_read_input_tokens ?? 0) * p.cacheRead + cacheWrite + u.output_tokens * p.out) / 1e6;
 };

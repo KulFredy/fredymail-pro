@@ -26,6 +26,8 @@ export type Plan = {
   /** Kurgu dışı eylem: geri al / yinele */
   action?: 'undo' | 'redo';
   source?: 'kural' | 'claude';
+  /** Claude kullanıldıysa token ve yaklaşık maliyet */
+  usage?: { model: string; input: number; output: number; usd: number };
 };
 
 export type CommandContext = {

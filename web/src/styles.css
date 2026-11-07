@@ -412,3 +412,8 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .insp-group summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 .insp-group[open] summary { margin-bottom: 8px; }
 .framing .segmented { align-self: flex-start; }
+.model-list { display: flex; flex-direction: column; gap: 6px; }
+.model { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; background: var(--bg2); }
+.model.on { border-color: var(--accent); background: #22160f; }
+.model span { display: flex; flex-direction: column; gap: 2px; }
+.model input { margin-top: 3px; accent-color: var(--accent); }

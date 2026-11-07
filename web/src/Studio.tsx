@@ -46,10 +46,17 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
   const { project, refs, frame, apply, preview, reload, setHighlights, seekRef, playRef, undo, redo } = useProject();
   const { toast } = useApp();
   const [aiReady, setAiReady] = useState(false);
+  const [aiAlways, setAiAlways] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showExamples, setShowExamples] = useState(false);
   React.useEffect(() => {
-    api.settings().then((st) => setAiReady(st.aiConfigured)).catch(() => undefined);
+    api
+      .settings()
+      .then((st) => {
+        setAiReady(st.aiConfigured);
+        setAiAlways(st.aiMode === 'always');
+      })
+      .catch(() => undefined);
   }, [settingsOpen]);
   const [text, setText] = useState('');
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -71,10 +78,24 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
   const run = async (input: string) => {
     if (previewing) await reload();
     setPreviewing(false);
-    let p: Plan = {
+    const local: Plan = {
       ...planCommand(input, { project, assets: refs, playhead, selectedClipId: project.ui.selectedClipId, outputId: project.ui.activeOutputId }),
       source: 'kural',
     };
+    let p = local;
+    // Her komut Claude'a: yalnız anlık "geri al / yinele" yerelde kalır
+    if (aiReady && aiAlways && !local.action) {
+      setBusy('Claude komutu yorumluyor…');
+      try {
+        const c = await api.aiCommand(project.id, input, playhead, project.ui.selectedClipId);
+        // Claude'a ulaşılamadıysa (internet, kredi) yerel anlayıcıyla devam
+        p = c.understood || c.action || !local.understood ? c : { ...local, hint: `Claude kullanılamadı (${c.summary}); yerel anlayıcıyla yapıldı.` };
+      } catch (e) {
+        p = local.understood ? { ...local, hint: `Claude'a ulaşılamadı; yerel anlayıcıyla yapıldı.` } : { ...local, hint: (e as Error).message };
+      } finally {
+        setBusy(null);
+      }
+    }
     if (p.action) {
       if (p.action === 'undo') undo();
       else redo();
@@ -84,7 +105,7 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
       toast(p.summary);
       return;
     }
-    if (!p.understood && aiReady) {
+    if (!p.understood && aiReady && !aiAlways) {
       setBusy('Claude komutu yorumluyor…');
       try {
         p = await api.aiCommand(project.id, input, playhead, project.ui.selectedClipId);
@@ -181,7 +202,7 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
           ]}
         />
         <button className={`chip ${aiReady ? 'on' : ''}`} onClick={() => setSettingsOpen(true)} title="Serbest Türkçe komutları Claude ile anla (isteğe bağlı)">
-          <Wand2 size={13} /> Claude {aiReady ? 'açık' : 'kapalı'}
+          <Wand2 size={13} /> Claude {aiReady ? (aiAlways ? 'her komutta' : 'yedek') : 'kapalı'}
         </button>
       </div>
       <div className="cmd-input">
@@ -216,6 +237,11 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
           <p>
             {plan.summary} {plan.source === 'claude' ? <span className="badge">Claude</span> : null}
           </p>
+          {plan.usage ? (
+            <small className="muted">
+              {plan.usage.input + plan.usage.output} token · ≈ {(plan.usage.usd * 100).toFixed(2).replace('.', ',')} sent
+            </small>
+          ) : null}
           {plan.hint ? <p className="hint">{plan.hint}</p> : null}
           {plan.candidates.length ? (
             <div className="cands">
@@ -291,46 +317,79 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
 
 const AiSettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { toast } = useApp();
-  const [st, setSt] = useState<{ aiConfigured: boolean; keySource: string | null; aiModel: string } | null>(null);
+  const [st, setSt] = useState<Awaited<ReturnType<typeof api.settings>> | null>(null);
   const [key, setKey] = useState('');
+  const [model, setModel] = useState('');
+  const [mode, setModeSetting] = useState<'always' | 'fallback'>('always');
   React.useEffect(() => {
-    api.settings().then(setSt).catch(() => undefined);
+    api
+      .settings()
+      .then((x) => {
+        setSt(x);
+        setModel(x.aiModel);
+        setModeSetting(x.aiMode);
+      })
+      .catch(() => undefined);
   }, []);
-  const save = async (k: string | null) => {
-    await api.saveSettings({ anthropicApiKey: k });
-    toast(k ? 'Claude anahtarı kaydedildi' : 'Claude anahtarı silindi');
+  const save = async () => {
+    await api.saveSettings({ ...(key.trim() ? { anthropicApiKey: key.trim() } : {}), aiModel: model, aiMode: mode });
+    toast('Claude ayarları kaydedildi');
+    onClose();
+  };
+  const removeKey = async () => {
+    await api.saveSettings({ anthropicApiKey: null });
+    toast('Claude anahtarı silindi');
     onClose();
   };
   return (
-    <Modal title="Claude ile serbest komut (isteğe bağlı)" onClose={onClose} width={520}>
-      <p>
-        Uygulama örnek kalıplardaki komutları kendi başına, ücretsiz anlar. Anlamadığı serbest Türkçe cümleleri (ör. “videonun altındaki altyazıları biraz yukarı kaydır, son
-        sahneyi de kısalt”) Claude'a sorabilir.
-      </p>
-      <ul className="steps-list">
-        <li>Bunun için Anthropic API anahtarı gerekir: console.anthropic.com → API Keys.</li>
-        <li>
-          Ücret komut başına yaklaşık birkaç kuruştur (model: <code>{st?.aiModel ?? '…'}</code>); yalnız kurallar anlamadığında kullanılır.
-        </li>
-        <li>Anahtar yalnız bu Mac'te, İçerik Fabrikası klasöründe saklanır; başka yere gönderilmez.</li>
-      </ul>
+    <Modal title="Komutları Claude ile anla" onClose={onClose} width={560}>
       <p className="hint">
-        Durum: {st ? (st.aiConfigured ? `açık (${st.keySource === 'ortam' ? 'ortam değişkeninden' : 'uygulamada kayıtlı'})` : 'kapalı') : '…'}
+        Claude açıkken söylediğiniz veya yazdığınız her komutu Claude yorumlar; kayıtlı kalıplara bağlı kalmazsınız. Claude önerir, uygulama her değişikliği kendi kurallarıyla
+        doğrular; önizleyip “Uygula” ile onaylarsınız. İnternet veya kredi sorunu olursa yerel anlayıcı devreye girer.
       </p>
+      <div className="field">
+        <span>Ne zaman kullanılsın?</span>
+        <Segmented
+          value={mode}
+          onChange={setModeSetting}
+          options={[
+            { value: 'always', label: 'Her komutta' },
+            { value: 'fallback', label: 'Yalnız kayıtlı kalıplar anlamazsa' },
+          ]}
+        />
+      </div>
+      <div className="field">
+        <span>Model</span>
+        <div className="model-list">
+          {(st?.models ?? []).map((m) => (
+            <label key={m.id} className={`model ${model === m.id ? 'on' : ''}`}>
+              <input type="radio" name="model" checked={model === m.id} onChange={() => setModel(m.id)} />
+              <span>
+                <b>{m.label}</b>
+                <small className="muted">{m.approx}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+        <small className="muted">Maliyet videonun uzunluğuna (konuşma metni) göre değişir; her komutun gerçek maliyeti komutun altında gösterilir.</small>
+      </div>
       <label className="field">
-        <span>API anahtarı</span>
-        <input type="password" placeholder="sk-ant-…" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
+        <span>
+          API anahtarı {st ? (st.aiConfigured ? `· kayıtlı (${st.keySource === 'ortam' ? 'ortam değişkeni' : 'bu Mac'})` : '· yok') : ''}
+        </span>
+        <input type="password" placeholder={st?.aiConfigured ? 'Değiştirmek için yeni anahtar yapıştırın' : 'sk-ant-…'} value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
+        <small className="muted">console.anthropic.com → API Keys. Anahtar yalnız bu Mac'te saklanır. Hesapta kredi olmalı (Billing).</small>
       </label>
       <div className="modal-actions">
         {st?.keySource === 'uygulama' ? (
-          <button className="btn ghost danger" onClick={() => save(null)}>
+          <button className="btn ghost danger" onClick={removeKey}>
             Anahtarı sil
           </button>
         ) : null}
         <button className="btn ghost" onClick={onClose}>
           Vazgeç
         </button>
-        <button className="btn primary" disabled={!key.trim()} onClick={() => save(key.trim())}>
+        <button className="btn primary" disabled={!st?.aiConfigured && !key.trim()} onClick={save}>
           Kaydet
         </button>
       </div>
