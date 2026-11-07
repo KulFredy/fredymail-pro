@@ -11,7 +11,8 @@
     "mcp": "tsx src/mcp/server.ts",
     "test": "vitest run",
     "e2e": "tsx scripts/e2e.ts",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "e2e:studio": "tsx scripts/e2e-studio.ts"
   },
   "engines": {
     "node": ">=20"

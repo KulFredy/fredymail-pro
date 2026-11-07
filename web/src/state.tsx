@@ -106,6 +106,11 @@ type ProjectCtx = {
   reload: () => Promise<void>;
   frame: number;
   setFrame: (f: number) => void;
+  playing: boolean;
+  setPlaying: (v: boolean) => void;
+  /** Komut önizlemesinde vurgulanan aralıklar */
+  highlights: { start: number; end: number; kind: 'delete' | 'overlay' | 'change' }[];
+  setHighlights: (h: { start: number; end: number; kind: 'delete' | 'overlay' | 'change' }[]) => void;
   seekRef: React.MutableRefObject<((f: number) => void) | null>;
   playRef: React.MutableRefObject<{ play: () => void; pause: () => void } | null>;
 };
@@ -124,6 +129,8 @@ export const ProjectProvider: React.FC<{ id: string; children: React.ReactNode }
   const [state, setState] = useState<ProjectState | null>(null);
   const [draft, setDraft] = useState<Project | null>(null);
   const [frame, setFrame] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [highlights, setHighlights] = useState<ProjectCtx['highlights']>([]);
   const [saving, setSaving] = useState(false);
   const pending = useRef(0);
   const debounced = useRef(new Map<string, { ops: OpInput[]; label?: string; timer: number }>());
@@ -268,6 +275,10 @@ export const ProjectProvider: React.FC<{ id: string; children: React.ReactNode }
     reload,
     frame,
     setFrame,
+    playing,
+    setPlaying,
+    highlights,
+    setHighlights,
     seekRef,
     playRef,
   };

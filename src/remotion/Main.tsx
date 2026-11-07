@@ -182,6 +182,30 @@ const VideoView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
           <ClipLayer item={item} output={output} props={props} />
         </Sequence>
       ))}
+      {project.overlays.map((o) => (
+        <Sequence key={o.id} from={toFrames(o.at)} durationInFrames={Math.max(1, toFrames(o.out - o.in))} name="Üst iz">
+          <ClipLayer
+            item={{
+              clip: { id: o.id, assetId: o.assetId, in: o.in, out: o.out, camera: o.camera, look: null, gainDb: 0, muted: true, musicMuted: false },
+              start: o.at,
+              end: o.at + (o.out - o.in),
+              duration: o.out - o.in,
+            }}
+            output={output}
+            props={props}
+          />
+        </Sequence>
+      ))}
+      {project.voice.map((v) => {
+        const a = props.assets[v.assetId];
+        if (!a?.url) return null;
+        const g = dbToGain(v.gainDb);
+        return (
+          <Sequence key={v.id} from={toFrames(v.at)} durationInFrames={Math.max(1, toFrames(v.out - v.in))} name="Dış ses">
+            <Audio src={a.url} trimBefore={toFrames(v.in)} volume={g} />
+          </Sequence>
+        );
+      })}
       {music && musicAsset?.url && props.variant === 'full' && total > 0 ? (
         <Sequence durationInFrames={Math.max(1, toFrames(total))} name="Müzik">
           <Audio

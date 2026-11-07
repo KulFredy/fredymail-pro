@@ -71,7 +71,6 @@ export const Home: React.FC = () => {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [last, setLast] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [studioInfo, setStudioInfo] = useState(false);
   const { health, library } = useApp();
   const load = () =>
     api.state().then((s) => {
@@ -116,12 +115,16 @@ export const Home: React.FC = () => {
           <h3>Instagram Hızlı Edit</h3>
           <p>Story · Reel · Post. Sürükle, kadrajla, renk ver, müzik ve Türkçe altyazı ekle, teslim et.</p>
         </button>
-        <button className="tile tile-studio" onClick={() => setStudioInfo(true)}>
+        <button
+          className="tile tile-studio"
+          onClick={async () => {
+            const st = await api.createProject(`Stüdyo · ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`, [{ format: 'landscape', kind: 'video' }]);
+            location.hash = `#/studyo/${st.project.id}`;
+          }}
+        >
           <Clapperboard size={30} />
-          <h3>
-            Kurgu Stüdyosu <span className="badge">Faz 2</span>
-          </h3>
-          <p>16:9 ve kaynak oranında çok izli kurgu, konuşarak revizyon. Hızlı Edit projeleri burada açılacak.</p>
+          <h3>Kurgu Stüdyosu</h3>
+          <p>Yatay video, çok izli zaman çizelgesi. Mikrofona veya yazarak Türkçe kurgu: “Buradan sonraki üç saniyeyi kes”.</p>
         </button>
       </div>
 
@@ -133,7 +136,7 @@ export const Home: React.FC = () => {
       ) : (
         <div className="project-grid">
           {projects.map((p) => (
-            <a key={p.id} className="project-card" href={`#/proje/${p.id}`}>
+            <a key={p.id} className="project-card" href={`#/${p.outputs.length === 1 && p.outputs[0] === 'landscape:video' ? 'studyo' : 'proje'}/${p.id}`}>
               <div className="poster" style={{ backgroundImage: p.poster ? `url(${fileHref(p.poster)})` : undefined }} />
               <div className="meta">
                 <b>{p.name}</b>
@@ -176,15 +179,6 @@ export const Home: React.FC = () => {
       </footer>
 
       {creating ? <NewProjectModal onClose={() => setCreating(false)} /> : null}
-      {studioInfo ? (
-        <Modal title="Kurgu Stüdyosu · Faz 2" onClose={() => setStudioInfo(false)}>
-          <p>
-            Stüdyo, Hızlı Edit'in kullandığı aynı zaman çizelgesini çok izli olarak açacak: kesmeler, müzik, konuşma ve altyazı ayrı izlerde.
-            Mikrofonla ve yazıyla Türkçe kurgu talimatları da burada gelecek.
-          </p>
-          <p className="muted">Şimdilik tüm projeleriniz Hızlı Edit'te düzenlenebilir; Faz 2'de aynı projeler Stüdyo'da açılır.</p>
-        </Modal>
-      ) : null}
     </div>
   );
 };

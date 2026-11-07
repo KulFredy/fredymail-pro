@@ -129,6 +129,30 @@ export const TextOverlaySchema = z.object({
 });
 export type TextOverlay = z.infer<typeof TextOverlaySchema>;
 
+/** Üst iz (B-roll): ana görüntünün üstünde gösterilir, ana ses devam eder */
+export const OverlaySchema = z.object({
+  id: z.string(),
+  assetId: z.string(),
+  /** Zaman çizelgesinde başlangıç (sn) */
+  at: z.number().min(0),
+  /** Kaynakta giriş/çıkış (sn); fotoğrafta in=0, out=süre */
+  in: z.number().min(0).default(0),
+  out: z.number().positive(),
+  camera: z.string().default('auto'),
+});
+export type Overlay = z.infer<typeof OverlaySchema>;
+
+/** Dış ses izi: videoda kullanılacak ses kaydı (kurgu talimatından ayrı) */
+export const VoiceSchema = z.object({
+  id: z.string(),
+  assetId: z.string(),
+  at: z.number().min(0),
+  in: z.number().min(0).default(0),
+  out: z.number().positive(),
+  gainDb: z.number().min(-40).max(12).default(0),
+});
+export type Voice = z.infer<typeof VoiceSchema>;
+
 export const UiStateSchema = z.object({
   step: z.string().default('ekle'),
   selectedClipId: z.string().nullable().default(null),
@@ -150,6 +174,8 @@ export const ProjectSchema = z.object({
   music: MusicSchema.nullable().default(null),
   captions: CaptionsSchema.default(CaptionsSchema.parse({})),
   texts: z.array(TextOverlaySchema).default([]),
+  overlays: z.array(OverlaySchema).default([]),
+  voice: z.array(VoiceSchema).default([]),
   look: LookSchema.default(DEFAULT_LOOK),
   /** Instagram açıklama metni */
   description: z.string().default(''),
@@ -182,6 +208,8 @@ export const AssetSchema = z.object({
   id: z.string(),
   sha256: z.string(),
   kind: z.enum(['video', 'image', 'audio']),
+  /** media: normal kaynak · voiceover: uygulamada kaydedilen dış ses */
+  role: z.enum(['media', 'voiceover']).default('media'),
   name: z.string(),
   ext: z.string(),
   size: z.number(),
@@ -220,6 +248,7 @@ export type Asset = z.infer<typeof AssetSchema>;
 export type AssetRef = {
   id: string;
   kind: Asset['kind'];
+  importedAt?: string;
   name: string;
   url: string;
   width: number;

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import {
-  ArrowLeft, Plus, RectangleVertical, Scissors, Crop, Palette, Music2, Captions, Send, Undo2, Redo2, Smartphone, Loader2, Check, AlertTriangle,
+  ArrowLeft, Clapperboard, Plus, RectangleVertical, Scissors, Crop, Palette, Music2, Captions, Send, Undo2, Redo2, Smartphone, Loader2, Check, AlertTriangle,
 } from 'lucide-react';
 import { useApp, useProject } from './state';
 import { Preview } from './Preview';
-import { ClipStrip } from './ClipStrip';
+import { Timeline } from './Timeline';
 import { MobileModal } from './MobileModal';
 import { AddStep } from './steps/AddStep';
 import { FormatStep } from './steps/FormatStep';
@@ -101,6 +101,9 @@ export const QuickEdit: React.FC = () => {
           <Redo2 size={18} />
         </button>
         <JobsIndicator />
+        <a className="btn ghost" href={`#/studyo/${project.id}`} title="Aynı projeyi çok izli Stüdyo'da aç: kesmeler, ses ve altyazı ayrı izlerde">
+          <Clapperboard size={16} /> Stüdyoda aç
+        </a>
         <button className="btn soft" onClick={() => setMobile(true)}>
           <Smartphone size={16} /> Telefondan ekle
         </button>
@@ -146,7 +149,7 @@ export const QuickEdit: React.FC = () => {
       </aside>
 
       <footer className="strip-row">
-        <ClipStrip />
+        <Timeline compact />
       </footer>
 
       {mobile ? <MobileModal page="upload" onClose={() => setMobile(false)} /> : null}

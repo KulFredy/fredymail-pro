@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FORMATS } from './formats';
+import { layoutClips } from './timeline';
 import {
   AdjustSchema,
   CaptionStyleSchema,
@@ -10,6 +11,8 @@ import {
   MusicSchema,
   ProjectSchema,
   TextOverlaySchema,
+  OverlaySchema,
+  VoiceSchema,
   type Look,
   type Output,
   type Project,
@@ -80,6 +83,16 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text.add'), text: TextOverlaySchema.omit({ id: true }).partial().extend({ text: z.string().min(1) }) }), // eklemede varsayılanlar istenir
   z.object({ type: z.literal('text.update'), id: z.string(), patch: patchOf(TextOverlaySchema.omit({ id: true })) }),
   z.object({ type: z.literal('text.remove'), id: z.string() }),
+  /** Klibi zaman çizelgesindeki bir anda ikiye böler */
+  z.object({ type: z.literal('clip.split'), clipId: z.string(), at: z.number().min(0) }),
+  /** Zaman çizelgesinden bir aralığı çıkarır, sonrası kayar (ripple) */
+  z.object({ type: z.literal('timeline.deleteRange'), start: z.number().min(0), end: z.number().positive() }),
+  z.object({ type: z.literal('overlay.add'), assetId: z.string(), at: z.number().min(0), duration: z.number().positive(), in: z.number().min(0).optional() }),
+  z.object({ type: z.literal('overlay.update'), id: z.string(), patch: patchOf(OverlaySchema.omit({ id: true, assetId: true })) }),
+  z.object({ type: z.literal('overlay.remove'), id: z.string() }),
+  z.object({ type: z.literal('voice.add'), assetId: z.string(), at: z.number().min(0) }),
+  z.object({ type: z.literal('voice.update'), id: z.string(), patch: patchOf(VoiceSchema.omit({ id: true, assetId: true })) }),
+  z.object({ type: z.literal('voice.remove'), id: z.string() }),
 ]);
 export type Op = z.infer<typeof OpSchema>;
 export type OpInput = z.input<typeof OpSchema>;
@@ -265,6 +278,95 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
     case 'text.remove':
       p.texts = p.texts.filter((t) => t.id !== op.id);
       break;
+    case 'clip.split': {
+      const item = layoutClips(p).find((l) => l.clip.id === op.clipId);
+      if (!item) throw new OpError(`Klip bulunamadı: ${op.clipId}`);
+      const off = op.at - item.start;
+      if (off < 0.1 || off > item.duration - 0.1) throw new OpError('Bölme noktası klibin içinde olmalı');
+      const a = item.clip;
+      const kind = ctx.assets[a.assetId]?.kind;
+      const second = { ...structuredClone(a), id: ctx.newId('c'), in: kind === 'image' ? 0 : a.in + off, out: kind === 'image' ? a.out - a.in - off : a.out };
+      const first = { ...a, out: a.in + off };
+      const i = p.clips.findIndex((c) => c.id === a.id);
+      p.clips.splice(i, 1, first, second);
+      p.outputs = p.outputs.map((o) => (o.framing[a.id] ? { ...o, framing: { ...o.framing, [second.id]: o.framing[a.id] } } : o));
+      break;
+    }
+    case 'timeline.deleteRange': {
+      const s0 = op.start;
+      const e0 = op.end;
+      if (e0 - s0 < 0.05) throw new OpError('Silinecek aralık çok kısa');
+      const len = e0 - s0;
+      const kept: typeof p.clips = [];
+      const extra: Record<string, string> = {};
+      for (const item of layoutClips(p)) {
+        const c = item.clip;
+        const kind = ctx.assets[c.assetId]?.kind;
+        const os = Math.max(s0, item.start);
+        const oe = Math.min(e0, item.end);
+        if (oe - os <= 0.001) {
+          kept.push(c);
+          continue;
+        }
+        const before = os - item.start; // korunacak baş (sn)
+        const after = item.end - oe; // korunacak son (sn)
+        const mk = (srcIn: number, dur: number, id: string) =>
+          kind === 'image' ? { ...c, id, in: 0, out: dur } : { ...c, id, in: srcIn, out: srcIn + dur };
+        if (before >= 0.05) kept.push(mk(c.in, before, c.id));
+        if (after >= 0.05) {
+          const id = before >= 0.05 ? ctx.newId('c') : c.id;
+          if (id !== c.id) extra[id] = c.id;
+          kept.push(mk(kind === 'image' ? 0 : c.out - after, after, id));
+        }
+      }
+      p.clips = kept;
+      p.outputs = p.outputs.map((o) => {
+        const framing = { ...o.framing };
+        for (const [n, from] of Object.entries(extra)) if (framing[from]) framing[n] = framing[from];
+        return { ...o, framing };
+      });
+      const shift = <T extends { at: number }>(x: T) => (x.at >= e0 ? { ...x, at: x.at - len } : x);
+      p.overlays = p.overlays.filter((o) => o.at < s0 || o.at >= e0).map(shift);
+      p.voice = p.voice.map(shift);
+      p.texts = p.texts
+        .filter((t) => t.start < s0 || t.start >= e0)
+        .map((t) => (t.start >= e0 ? { ...t, start: t.start - len, end: t.end - len } : t));
+      p = ensureStills(p, ctx);
+      if (!p.clips.some((c) => c.id === p.ui.selectedClipId)) p.ui.selectedClipId = p.clips[0]?.id ?? null;
+      break;
+    }
+    case 'overlay.add': {
+      const a = ctx.assets[op.assetId];
+      if (!a || a.kind === 'audio') throw new OpError('Üst ize görüntü veya fotoğraf eklenebilir');
+      const inT = a.kind === 'image' ? 0 : Math.min(op.in ?? 0, Math.max(0, a.duration - 0.1));
+      const dur = a.kind === 'image' ? op.duration : Math.min(op.duration, a.duration - inT);
+      p.overlays = [...p.overlays, OverlaySchema.parse({ id: ctx.newId('v'), assetId: op.assetId, at: op.at, in: inT, out: inT + Math.max(0.1, dur) })];
+      break;
+    }
+    case 'overlay.update': {
+      const o = p.overlays.find((x) => x.id === op.id);
+      if (!o) throw new OpError(`Üst iz öğesi bulunamadı: ${op.id}`);
+      Object.assign(o, OverlaySchema.parse({ ...o, ...op.patch }));
+      break;
+    }
+    case 'overlay.remove':
+      p.overlays = p.overlays.filter((o) => o.id !== op.id);
+      break;
+    case 'voice.add': {
+      const a = ctx.assets[op.assetId];
+      if (!a || a.kind === 'image') throw new OpError('Dış ses için ses kaydı gerekli');
+      p.voice = [...p.voice, VoiceSchema.parse({ id: ctx.newId('s'), assetId: op.assetId, at: op.at, in: 0, out: Math.max(0.1, a.duration) })];
+      break;
+    }
+    case 'voice.update': {
+      const v = p.voice.find((x) => x.id === op.id);
+      if (!v) throw new OpError(`Dış ses bulunamadı: ${op.id}`);
+      Object.assign(v, VoiceSchema.parse({ ...v, ...op.patch }));
+      break;
+    }
+    case 'voice.remove':
+      p.voice = p.voice.filter((v) => v.id !== op.id);
+      break;
   }
   p.updatedAt = ctx.now();
   return ProjectSchema.parse(p);
@@ -299,5 +401,13 @@ export const describeOp = (op: OpInput): string => {
     case 'text.add': return 'Yazı eklendi';
     case 'text.update': return 'Yazı düzenlendi';
     case 'text.remove': return 'Yazı silindi';
+    case 'clip.split': return 'Klip bölündü';
+    case 'timeline.deleteRange': return `${(op.end - op.start).toFixed(1)} sn kesildi`;
+    case 'overlay.add': return 'Üst ize görüntü eklendi';
+    case 'overlay.update': return 'Üst iz düzenlendi';
+    case 'overlay.remove': return 'Üst iz öğesi silindi';
+    case 'voice.add': return 'Dış ses eklendi';
+    case 'voice.update': return 'Dış ses düzenlendi';
+    case 'voice.remove': return 'Dış ses silindi';
   }
 };

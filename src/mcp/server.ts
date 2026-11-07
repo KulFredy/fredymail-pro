@@ -219,6 +219,35 @@ server.registerTool(
 );
 
 server.registerTool(
+  'komut',
+  {
+    title: 'Türkçe kurgu komutu',
+    description:
+      'Uygulamanın Türkçe komut anlayıcısıyla plan çıkarır; uygula=true ise uygular (tek geri alma adımı). Örnekler: "Buradan sonraki üç saniyeyi kes" (imlec saniyesi gerekir), "İkinci kez söylediğim cümleyi çıkar", "“Kahvemiz” dediğim yerde yakın planı iki saniye göster", "Bu sefer siyah beyaz yap", "Bundan sonra altyazılarımı beyaz ve iki satır yap". Birden çok aday dönerse aday=sıra ile seçin. Anlaşılmayan komutlar için islem_uygula ile doğrudan işlem gönderebilirsiniz.',
+    inputSchema: {
+      proje_id: z.string(),
+      metin: z.string(),
+      imlec: z.number().min(0).default(0).describe('Oynatma imleci (sn)'),
+      uygula: z.boolean().default(false),
+      aday: z.number().int().min(0).optional().describe('Adaylardan hangisi (0 ilk)'),
+    },
+  },
+  async ({ proje_id, metin, imlec, uygula, aday }) => {
+    const plan = await call('POST', `/api/projects/${proje_id}/command`, { text: metin, playhead: imlec });
+    const chosen = aday !== undefined ? plan.candidates?.[aday] : null;
+    const ops = chosen ? chosen.ops : plan.ops;
+    if (!uygula || !plan.understood || !ops?.length) return text({ plan, uygulandi: false });
+    if (plan.note) ops.push({ type: 'project.addNote', text: plan.note });
+    await call('POST', `/api/projects/${proje_id}/ops`, { ops, label: `Komut: ${metin.slice(0, 40)}`, source: 'mcp' });
+    if (plan.personal?.captionStyle) {
+      const st = await call('GET', '/api/state');
+      await call('PUT', '/api/style', { captionStyle: { ...(st.style?.captionStyle ?? {}), ...plan.personal.captionStyle } });
+    }
+    return text({ uygulandi: true, ozet: chosen?.summary ?? plan.summary, kisisel_stil: plan.personal ?? null });
+  },
+);
+
+server.registerTool(
   'altyazi_getir',
   { title: 'Altyazı kelimeleri', description: 'Zaman çizelgesindeki altyazı kelimelerini anahtar ve zamanlarıyla verir (düzeltmeler uygulanmış).', inputSchema: { proje_id: z.string() } },
   async ({ proje_id }) => {

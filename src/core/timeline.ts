@@ -93,7 +93,40 @@ export const timelineWords = (project: Project, assets: Record<string, AssetRef>
       });
     });
   }
-  return out;
+  // Dış ses izi: kayıttaki konuşma da altyazı ve müzik kısmada sayılır
+  for (const v of project.voice ?? []) {
+    const asset = assets[v.assetId];
+    if (!asset) continue;
+    asset.words.forEach((w: Word, i: number) => {
+      const mid = (w.t0 + w.t1) / 2;
+      if (mid < v.in || mid > v.out) return;
+      const key = `${asset.id}:${i}`;
+      const edited = project.captions.edits[key];
+      const text = edited !== undefined ? edited : w.text;
+      if (!text.trim()) return;
+      out.push({ key, text: text.trim(), t0: v.at + (w.t0 - v.in), t1: v.at + (w.t1 - v.in), clipId: v.id, p: w.p });
+    });
+  }
+  return out.sort((a, b) => a.t0 - b.t0);
+};
+
+/** Cümleler: noktalama veya uzun duraksamayla ayrılan kelime grupları (komutlar ve altyazı için) */
+export type Sentence = { words: TimedWord[]; start: number; end: number; text: string };
+export const sentences = (words: TimedWord[], gap = 0.7): Sentence[] => {
+  const res: Sentence[] = [];
+  let cur: TimedWord[] = [];
+  const flush = () => {
+    if (cur.length) res.push({ words: cur, start: cur[0].t0, end: cur[cur.length - 1].t1, text: cur.map((w) => w.text).join(' ') });
+    cur = [];
+  };
+  for (const w of words) {
+    const prev = cur[cur.length - 1];
+    if (prev && (w.t0 - prev.t1 > gap || prev.clipId !== w.clipId)) flush();
+    cur.push(w);
+    if (/[.!?…]$/.test(w.text)) flush();
+  }
+  flush();
+  return res;
 };
 
 /** Konuşma aralıkları (birbirine yakın kelimeler birleşir) */

@@ -6,6 +6,7 @@ import { FPS, type CompProps, type Framing } from '../../src/core/schema';
 import { computeBox, framingFor, layoutClips, outputFrames, outputSize, panFraming, toFrames } from '../../src/core/timeline';
 import { Main } from '../../src/remotion/Main';
 import { useProject } from './state';
+import { Transport } from './Transport';
 
 const SafeZones: React.FC<{ format: keyof typeof FORMATS; scale: number }> = ({ format, scale }) => {
   const f = FORMATS[format];
@@ -32,7 +33,7 @@ const SafeZones: React.FC<{ format: keyof typeof FORMATS; scale: number }> = ({ 
 };
 
 export const Preview: React.FC = () => {
-  const { project, refs, lutMap, setUi, apply, preview, frame, setFrame, seekRef, playRef } = useProject();
+  const { project, refs, lutMap, setUi, apply, preview, frame, setFrame, seekRef, playRef, setPlaying } = useProject();
   const player = useRef<PlayerRef>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 360, h: 640 });
@@ -80,6 +81,11 @@ export const Preview: React.FC = () => {
     };
     p.addEventListener('frameupdate', onFrame);
     p.addEventListener('seeked', onFrame);
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    p.addEventListener('play', onPlay);
+    p.addEventListener('pause', onPause);
+    p.addEventListener('ended', onPause);
     seekRef.current = (f) => {
       p.seekTo(Math.max(0, Math.min(duration - 1, f)));
       setFrame(f);
@@ -88,9 +94,12 @@ export const Preview: React.FC = () => {
     return () => {
       p.removeEventListener('frameupdate', onFrame);
       p.removeEventListener('seeked', onFrame);
+      p.removeEventListener('play', onPlay);
+      p.removeEventListener('pause', onPause);
+      p.removeEventListener('ended', onPause);
       clearTimeout(saveTimer);
     };
-  }, [duration, seekRef, playRef, setFrame, setUi, output?.id, readyKey, retry]);
+  }, [duration, seekRef, playRef, setFrame, setUi, output?.id, readyKey, retry, setPlaying]);
 
   // Kadrajda seçili klibi sürükleyerek kaydır
   const scale = box.w / size.width;
@@ -159,12 +168,11 @@ export const Preview: React.FC = () => {
             compositionWidth={size.width}
             compositionHeight={size.height}
             style={{ width: box.w, height: box.h }}
-            controls
-            alwaysShowControls
+            controls={false}
             loop
             initialFrame={Math.min(project.ui.frame, Math.max(0, duration - 1))}
             clickToPlay={!inFrame}
-            spaceKeyToPlayOrPause
+            spaceKeyToPlayOrPause={false}
             acknowledgeRemotionLicense
             errorFallback={({ error }) => (
               <div className="player-error">
@@ -200,13 +208,13 @@ export const Preview: React.FC = () => {
           ) : null}
         </div>
       </div>
+      <Transport duration={duration} isImage={output.kind === 'image'} />
       <div className="preview-foot">
         <button className="chip" onClick={() => setUi({ safeZones: !project.ui.safeZones })}>
           {project.ui.safeZones ? <Eye size={14} /> : <EyeOff size={14} />} Instagram alanları
         </button>
         <span className="muted mono">
           {size.width}×{size.height}
-          {output.kind === 'video' ? ` · ${(duration / FPS).toFixed(1).replace('.', ',')} sn` : ' · tek kare'}
         </span>
       </div>
     </div>

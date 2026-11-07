@@ -2,7 +2,11 @@
 
 Telefondan ve kameradan gelen çekimleri dakikalar içinde Instagram Story, Reel ve post olarak hazırlayan, Mac'te yerel çalışan Türkçe içerik üretim uygulaması.
 
-**Faz 1 · Instagram Hızlı Edit** hazır: içe aktar → biçim → sırala/kısalt → kadraj → renk & ışık (LUT dahil) → ses & müzik → Türkçe altyazı & yazı → teslim. Kurgu Stüdyosu (konuşarak kurgu), hareketli grafik ve doğrudan yayın sonraki fazlarda gelecek; plan: [docs/PLAN.md](docs/PLAN.md).
+- **Faz 1 · Instagram Hızlı Edit** hazır: içe aktar → biçim → sırala/kısalt → kadraj → renk & ışık (LUT dahil) → ses & müzik → Türkçe altyazı & yazı → teslim.
+- **Faz 2 · Kurgu Stüdyosu** hazır: yatay video, çok izli zaman çizelgesi, mikrofonla veya yazarak Türkçe kurgu komutları.
+- Hareketli grafik ve doğrudan yayın sonraki fazlarda; plan: [docs/PLAN.md](docs/PLAN.md).
+
+Güncellemek için (proje klasöründe): `bash scripts/guncelle.sh`
 
 ## Kurulum (Mac, Apple Silicon)
 
@@ -33,6 +37,33 @@ Tarayıcıda **http://localhost:4747** açılır. Veriler `~/İçerik Fabrikası
 
 Geri al / yinele: ⌘Z / ⇧⌘Z.
 
+## Kurgu Stüdyosu (konuşarak kurgu)
+
+Ana ekranda **Kurgu Stüdyosu** yeni bir yatay proje açar; Hızlı Edit'teki her proje de **Stüdyoda aç** ile aynı zaman çizelgesinde açılır.
+
+- **Zaman çizelgesi:** görüntü, üst iz (B-roll), dış ses, müzik, altyazı ve yazı ayrı izlerde. Cetvele tıklayıp sürükleyerek imleci taşıyın; klipleri sürükleyerek sıralayın.
+- **Komut:** solda mikrofona basıp konuşun (bitince tekrar basın) ya da yazıp Enter'a basın. Komut önce zaman çizelgesinde işaretlenir (kırmızı: kesilecek, mavi: eklenecek). **Önizle** ile kaydetmeden izleyin, **Uygula** ile kaydedin. İki olası yer varsa A/B seçenekleri zaman koduyla gelir.
+- **Talimat / Dış ses kaydı:** *Talimat* modunda söyledikleriniz yalnız komut olur, videoya girmez. *Dış ses kaydı* modunda kayıt oynatma imlecinden itibaren videoya ses olarak eklenir ve altyazısı çıkarılır.
+- **Kişisel stil / bu proje:** "Bundan sonra…", "her zaman…" ile başlayan altyazı tercihleri kişisel stilinize kaydedilir; "bu sefer…" yalnız bu projeye not olarak kalır.
+- Her komut tek bir geri alma adımıdır: ⌘Z, ya da Teslim'de kaydettiğiniz sürüme dönün.
+
+Anlaşılan komutlar (örnekler):
+
+| Söyleyin / yazın | Ne olur |
+|---|---|
+| Buradan sonraki üç saniyeyi kes | İmleçten sonraki 3 sn çıkar, sonrası kayar |
+| İlk iki saniyeyi kes · son 1,5 saniyeyi sil | Baştan / sondan keser |
+| İkinci kez söylediğim cümleyi çıkar | Tekrarlanan cümlenin ikincisini bulur ve çıkarır |
+| “Bu kahve çok güzel” cümlesini sil | Tırnaklı cümleyi bulur |
+| Ürünün adını söylediğim yerde yüklediğim yakın planı iki saniye göster, sesim devam etsin | Son yüklenen ve projede olmayan görüntüyü üst ize koyar; ürün adını bilmiyorsa adayları sunar |
+| “Kahvemiz” dediğim yerde yakın planı göster | Kelimenin geçtiği yere koyar |
+| Klibi buradan ikiye böl | İmleçte böler |
+| Bu sefer siyah beyaz yap · biraz sıcak yap · bu klibi film yap | Renk görünümü (projeye veya seçili klibe) |
+| Bundan sonra altyazılarımı beyaz ve iki satır yap | Altyazı stili + kişisel stile kaydet |
+| Müziği konuşurken kıs · müziği arka planda kısık yap · müziği kaldır | Müzik modu |
+
+Komut anlayıcı kural tabanlıdır ve tamamen yerel çalışır (ücretsiz). Anlamadığı cümlede örnek önerir. Daha serbest anlatım için Claude Code'dan MCP `komut` / `islem_uygula` araçlarını kullanabilirsiniz.
+
 ## Kendi dosyalarınızla kabul testi
 
 Telefondan bir fotoğraf, kısa bir yatay ortam videosu ve Türkçe konuştuğunuz dikey bir klip, bir de müzik dosyası seçin.
@@ -56,7 +87,7 @@ Aynı senaryonun otomatik sürümü: `npm run e2e` (üretilmiş test medyasıyla
 
 Bu klasörde Claude Code açıldığında `.mcp.json` sayesinde **icerik-fabrikasi** MCP sunucusu otomatik tanınır. Uygulama açıkken (`npm run fabrika`) Claude şunları yapabilir:
 
-`durum`, `proje_listele`, `proje_olustur`, `proje_ac`, `medya_ice_aktar`, `islem_uygula`, `klip_kirp`, `kadraj_ayarla`, `gorunum_ayarla`, `muzik_ayarla`, `altyazi_getir`, `altyazi_kelime_duzelt`, `geri_al`, `yinele`, `disa_aktar`, `is_durumu`, `ciktilari_listele`.
+`durum`, `proje_listele`, `proje_olustur`, `proje_ac`, `medya_ice_aktar`, `komut`, `islem_uygula`, `klip_kirp`, `kadraj_ayarla`, `gorunum_ayarla`, `muzik_ayarla`, `altyazi_getir`, `altyazi_kelime_duzelt`, `geri_al`, `yinele`, `disa_aktar`, `is_durumu`, `ciktilari_listele`.
 
 Örnek: *"Kafe Story projesinde rengi film görünümüne al, yoğunluk %50; müziği arka planda kısık yap ve Story'yi dışa aktar."* Değişiklikler açık olan arayüze anında yansır ve arayüzden geri alınabilir.
 
@@ -118,7 +149,8 @@ Arayüz (React)   MCP (Claude)   [Faz 2] ses/yazı komutu
 ```bash
 npm run dev        # API (4747) + Vite (5173), dosya değişince yenilenir
 npm test           # birim testleri
-npm run e2e        # uçtan uca kabul testi (test medyası üretir, render eder, doğrular)
+npm run e2e        # Faz 1 uçtan uca kabul testi (test medyası üretir, render eder, doğrular)
+npm run e2e:studio # Faz 2: mikrofon yolundan iki revizyon, render, geri alma
 npm run typecheck
 ```
 
@@ -127,6 +159,8 @@ Ortam değişkenleri: `FABRIKA_HOME` (veri klasörü), `FABRIKA_PORT` (4747), `F
 ## Faz 1 sınırları
 
 - RAW fotoğraf (CR3/ARW/NEF/DNG) yok; Lightroom'dan JPEG verin.
-- Kurgu Stüdyosu, serbest dil/mikrofonla komut, hareketli grafik, `/KOMUT` sözlüğü ve doğrudan Instagram yayını sonraki fazlarda.
+- Hareketli grafik, `/KOMUT` sözlüğü ve doğrudan Instagram yayını sonraki fazlarda.
+- Stüdyo komutları kural tabanlıdır: listedeki kalıplara yakın cümleleri anlar; serbest anlatım için Claude bağlantısı sonraki adım.
+- Kaynak oranında (ör. 4:3) çıktı ve Premiere'e aktarım henüz yok; Stüdyo 16:9, 9:16 ve 4:5 çıktı verir.
 - Instagram güvenli alan ölçüleri resmi değil, yaklaşıktır.
 - Remotion, en çok 3 kişilik ekiplere ücretsizdir; ekip büyürse şirket lisansı gerekir (plan: HyperFrames alternatifi).

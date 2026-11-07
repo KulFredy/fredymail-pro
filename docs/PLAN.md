@@ -1,6 +1,8 @@
 # İçerik Fabrikası · Ürün Planı v0.2
 
-> Durum: **onaylandı · Faz 1 geliştirildi** (kurulum ve kullanım: [README](../README.md)). Faz 2 onay bekliyor.
+> Durum: **Faz 1 ve Faz 2 geliştirildi** (kurulum ve kullanım: [README](../README.md)). Faz 3 (hareketli grafik ve /KOMUT sözlüğü) sırada.
+>
+> Faz 2 notu: komut anlayıcı kural tabanlı ve yerel (ücretsiz); Claude ile serbest dil anlama isteğe bağlı sonraki adım. Kabul testi: `npm run e2e:studio`.
 >
 > Faz 1'de plandan bilinçli sapmalar: kütüphane ve iş kuyruğu için SQLite yerine JSON dosyaları (tek kullanıcıda yeterli, yerel bağımlılık yok; SaaS'ta Postgres'e taşınır). Son render 4K orijinalden yapılır (Remotion yön ve HDR ton eşlemeyi uygular), önizleme 1080p kopyalardan. Kamera log LUT'ları 12 profil olarak hazır gelir ve klip başına seçilir; Sony log çekimleri dosya üst verisinden otomatik algılanır.
 >

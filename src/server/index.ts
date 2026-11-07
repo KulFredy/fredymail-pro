@@ -7,7 +7,11 @@ import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
 import QRCode from 'qrcode';
 import { z } from 'zod';
+import { createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { planCommand } from '../core/commands';
 import { FORMATS, outputLabel } from '../core/formats';
+import { buildRefs } from '../core/refs';
 import { OpError, OpSchema, patchOf } from '../core/ops';
 import { UiStateSchema } from '../core/schema';
 import { getTools } from '../media/proc';
@@ -127,7 +131,36 @@ export const createServer = async (home = defaultHome()) => {
     return { assets, state };
   };
 
-  app.post('/api/import', async (req) => handleUpload(req, (req.query as { projectId?: string }).projectId));
+  app.post('/api/import', async (req) => {
+    const q = req.query as { projectId?: string; role?: string; at?: string };
+    if (q.role === 'voiceover' && q.projectId) {
+      const r = await handleUpload(req, undefined);
+      let state = null;
+      for (const a of r.assets) state = await svc.addVoiceover(q.projectId, a, Number(q.at ?? 0) || 0);
+      return { assets: r.assets, state };
+    }
+    return handleUpload(req, q.projectId);
+  });
+
+  // Kurgu talimatı (mikrofon): yazıya çevir, kaydetme
+  app.post('/api/stt', async (req) => {
+    for await (const part of req.parts()) {
+      if (part.type !== 'file') continue;
+      const tmp = store.p('tmp', `komut-${Date.now()}${path.extname(part.filename || '.webm') || '.webm'}`);
+      await pipeline(part.file, createWriteStream(tmp));
+      return svc.speechToText(tmp);
+    }
+    return { text: '', status: 'error', message: 'Ses gelmedi' };
+  });
+
+  // Yazılı/sesli komut → işlem planı (arayüz aynı planı yerelde de hesaplar; MCP ve testler için)
+  app.post('/api/projects/:id/command', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = z.object({ text: z.string(), playhead: z.number().default(0), selectedClipId: z.string().nullable().optional() }).parse(req.body);
+    const project = await store.getProject(id);
+    const assets = buildRefs(store.library.values(), '', 'preview');
+    return planCommand(body.text, { project, assets, playhead: body.playhead, selectedClipId: body.selectedClipId ?? project.ui.selectedClipId });
+  });
 
   app.post('/api/import/paths', async (req) => {
     const body = z.object({ paths: z.array(z.string()).min(1), projectId: z.string().optional() }).parse(req.body);

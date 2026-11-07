@@ -141,7 +141,8 @@ export class Service {
           height: r.height,
         });
         const cur = this.store.library.get(id)!;
-        if (cur.kind === 'video' && cur.hasAudio && cur.transcript.status !== 'done') this.enqueueTranscribe(id);
+        const wantsWords = (cur.kind === 'video' && cur.hasAudio) || cur.role === 'voiceover';
+        if (wantsWords && cur.transcript.status !== 'done') this.enqueueTranscribe(id);
       } catch (e) {
         await this.store.patchAsset(id, { status: 'error', error: (e as Error).message });
         throw e;
@@ -151,7 +152,7 @@ export class Service {
 
   enqueueTranscribe(id: string) {
     const a = this.store.library.get(id);
-    if (!a || a.kind !== 'video') return;
+    if (!a || (a.kind !== 'video' && a.role !== 'voiceover')) return;
     void this.store.patchAsset(id, { transcript: { ...a.transcript, status: 'pending', message: 'Sırada' } });
     this.jobs.add('transcribe', `Türkçe konuşma çözülüyor: ${a.name}`, { assetId: id }, async (update) => {
       const cur = this.store.library.get(id)!;
@@ -166,6 +167,27 @@ export class Service {
         throw e;
       }
     });
+  }
+
+  /** Kurgu talimatı: sesi yazıya çevirir. Kayıt kütüphaneye girmez, dış sesten ayrıdır. */
+  async speechToText(tmpFile: string): Promise<{ text: string; status: string; message: string }> {
+    try {
+      if (this.whisper.mode === 'fixture') {
+        const dir = process.env.FABRIKA_FIXTURES ?? '';
+        const text = process.env.FABRIKA_STT_FIXTURE ?? (await readFile(path.join(dir, 'komut.txt'), 'utf8').catch(() => ''));
+        return { text: text.trim(), status: 'done', message: '' };
+      }
+      const r = await transcribe(tmpFile, 'komut', this.whisper);
+      return { text: r.words.map((w) => w.text).join(' ').trim(), status: r.status, message: r.message };
+    } finally {
+      await rm(tmpFile, { force: true });
+    }
+  }
+
+  /** Dış ses kaydı: kütüphaneye "voiceover" olarak girer, projede oynatma imlecine yerleşir */
+  async addVoiceover(projectId: string, asset: Asset, at: number) {
+    await this.store.patchAsset(asset.id, { role: 'voiceover' });
+    return this.store.applyOps(projectId, [{ type: 'voice.add', assetId: asset.id, at }], 'ui', 'Dış ses kaydı eklendi');
   }
 
   /** Telefondan/sürükle-bırakla gelen dosyaları projeye ekler (seçim sırasıyla) */
