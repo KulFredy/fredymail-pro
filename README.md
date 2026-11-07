@@ -166,6 +166,7 @@ npm run e2e        # Faz 1 uçtan uca kabul testi (test medyası üretir, render
 npm run e2e:studio # Faz 2: mikrofon yolundan iki revizyon, render, geri alma
 npm run e2e:offline # Faz 3: internetsiz — eski projeyi aç, düzenle, yeniden aç, MP4 + JPEG, dış ses ölçümü
 npm run e2e:ui     # Faz 3–4: tarayıcıda transkript/önizleme/zaman çizelgesi senkronu, komut akışı, LUT paneli (Playwright gerekir)
+npm run lut-ekle -- ~/Desktop/LUTlarim   # bir klasördeki bütün LUT'ları (alt klasörler dahil) açık uygulamaya ekler
 npm run e2e:lut    # Faz 4: LUT toplu içe aktarma (.cube/.3dl/zip/bozuk), tür tahmini, render'da piksel ölçümü
 npm run typecheck
 ```
