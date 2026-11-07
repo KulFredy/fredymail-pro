@@ -12,7 +12,7 @@ import { OpError, OpSchema, patchOf } from '../core/ops';
 import { UiStateSchema } from '../core/schema';
 import { getTools } from '../media/proc';
 import { MOBILE_TOKEN, downloadsPage, lanAddress, uploadPage } from './mobile';
-import { warmUp } from './render';
+import { handleStrayError, warmUp } from './render';
 import { ROOT, Service } from './service';
 import { defaultHome } from './store';
 
@@ -278,6 +278,11 @@ export const createServer = async (home = defaultHome()) => {
 const isMain = process.argv[1] && path.resolve(process.argv[1]).endsWith(path.join('src', 'server', 'index.ts'));
 if (isMain) {
   const { app } = await createServer();
+  // Beklenmeyen bir hata (ör. ağ kesintisi) uygulamayı kapatmasın: Terminal'e yaz, çalışmaya devam et
+  process.on('uncaughtException', (e) => {
+    if (!handleStrayError(e)) console.error('[hata]', e.message);
+  });
+  process.on('unhandledRejection', (e) => console.error('[hata]', (e as Error)?.message ?? e));
   // Ctrl+C her durumda kapatsın (render sürüyor olsa bile)
   for (const sig of ['SIGINT', 'SIGTERM'] as const)
     process.on(sig, () => {

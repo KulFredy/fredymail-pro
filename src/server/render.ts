@@ -23,37 +23,61 @@ const prep = {
 
 let bundlePromise: Promise<string> | null = null;
 let browserPromise: Promise<unknown> | null = null;
+let browserReject: ((e: Error) => void) | null = null;
+let downloading = false;
 
 const browserExecutable = () => process.env.FABRIKA_BROWSER ?? null;
+
+/**
+ * Remotion'ın tarayıcı indirmesi ağ hatasında yakalanamayan bir hata fırlatabiliyor.
+ * Sunucunun genel hata yakalayıcısı bunu buraya iletir: indirme başarısız sayılır, sunucu açık kalır.
+ */
+export const handleStrayError = (e: Error) => {
+  if (downloading && browserReject) {
+    browserReject(e);
+    return true;
+  }
+  return false;
+};
 
 const ensureBrowserOnce = () => {
   if (!browserPromise) {
     let lastPct = -1;
-    browserPromise = ensureBrowser({
-      browserExecutable: browserExecutable(),
-      onBrowserDownload: () => {
-        log('Render tarayıcısı indiriliyor (yalnız ilk sefer, ~100 MB)…');
-        return {
-          version: null,
-          onProgress: ({ percent }) => {
-            const pct = Math.round(percent * 100);
-            if (pct !== lastPct) {
-              lastPct = pct;
-              prep.emit(0.02 + percent * 0.06, `Render tarayıcısı indiriliyor (ilk sefer) %${pct}`);
-              if (pct % 10 === 0) log(`Tarayıcı indirme %${pct}`);
-            }
-          },
-        };
-      },
+    browserPromise = new Promise((resolve, reject) => {
+      browserReject = reject;
+      ensureBrowser({
+        browserExecutable: browserExecutable(),
+        onBrowserDownload: () => {
+          downloading = true;
+          log('Render tarayıcısı indiriliyor (yalnız ilk sefer, ~100 MB)…');
+          return {
+            version: null,
+            onProgress: ({ percent }) => {
+              const pct = Math.round(percent * 100);
+              if (pct !== lastPct) {
+                lastPct = pct;
+                prep.emit(0.02 + percent * 0.06, `Render tarayıcısı indiriliyor (ilk sefer) %${pct}`);
+                if (pct % 10 === 0) log(`Tarayıcı indirme %${pct}`);
+              }
+            },
+          };
+        },
+      }).then(resolve, reject);
     })
       .then((s) => {
         log('Render tarayıcısı hazır');
         return s;
       })
-      .catch((e) => {
+      .catch((e: Error) => {
         browserPromise = null;
-        log(`Tarayıcı hazırlanamadı: ${e.message}`);
-        throw new Error(`Render tarayıcısı indirilemedi (internet bağlantısını kontrol edin): ${e.message}`);
+        log(`Render tarayıcısı indirilemedi: ${e.message}`);
+        throw new Error(
+          `Render tarayıcısı indirilemedi (${e.message}). İnternet bağlantınızı kontrol edip “Dışa aktar”a yeniden basın; indirme kaldığı yerden tekrar denenir.`,
+        );
+      })
+      .finally(() => {
+        downloading = false;
+        browserReject = null;
       });
   }
   return browserPromise;
