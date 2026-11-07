@@ -26,7 +26,7 @@ Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
 7. **Android:** Mac ile aynı Wi-Fi'de, "Telefondan ekle" QR'ını Android kamerayla okut, bir video yükle; Medya'ya geldi mi?
 
 ## Sıradaki işler
-Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). Şu an **Faz 3 · Yerel Stüdyo ve ince kurgu** sürüyor:
+Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). **Faz 3 · Yerel Stüdyo ve ince kurgu** (tamamlandı):
 0. ✅ Belgelerde yeni faz sırası.
 1. ✅ Çevrimdışı kabul testi (`npm run e2e:offline`, 12/12; Linux'ta ağsız ad alanında, Mac'te Wi-Fi kapalıyken), gerçek eski projeler (`tests/fixtures/eski-ev`, Faz 1 + Faz 2 koduyla üretildi; `scripts/eski-proje-uret.ts`), dış sesin çıktıda duyulduğunun ölçümü.
 2. ✅ Çekirdekte kaynak ↔ kurgu zaman eşlemesi, transkript, "cümleyi kes" ve "altyazıyı düzelt" işlemleri (`src/core/transcript.ts`).
