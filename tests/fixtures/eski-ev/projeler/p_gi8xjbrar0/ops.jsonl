@@ -1,0 +1,2 @@
+{"at":"2026-11-07T21:03:58.287Z","source":"mcp","ops":[{"type":"clips.add","assetIds":["0a43577b2918","df59f0c9b847"]}]}
+{"at":"2026-11-07T21:03:59.315Z","source":"ui","ops":[{"type":"clip.trim","clipId":"c_4dq2m5xcyx","in":0,"out":2},{"type":"look.set","look":{"preset":"sicak","intensity":0.4}},{"type":"output.setFraming","outputId":"o_n1mm08x1c2","clipId":"c_4dq2m5xcyx","framing":{"mode":"fill","x":0.4}},{"type":"captions.editWord","key":"df59f0c9b847:1","text":"BUGÜN"}]}

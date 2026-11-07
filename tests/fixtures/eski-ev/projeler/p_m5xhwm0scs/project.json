@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "id": "p_m5xhwm0scs",
+  "name": "Eski Faz 2 projesi",
+  "mode": "quick",
+  "createdAt": "2026-11-07T21:04:00.826Z",
+  "updatedAt": "2026-11-07T21:04:01.522Z",
+  "clips": [
+    {
+      "id": "c_mxyhmn33w2",
+      "assetId": "df59f0c9b847",
+      "in": 0,
+      "out": 7,
+      "camera": "auto",
+      "look": null,
+      "gainDb": -12,
+      "muted": false,
+      "musicMuted": false
+    }
+  ],
+  "outputs": [
+    {
+      "id": "o_4y0ga1f5bm",
+      "format": "landscape",
+      "kind": "video",
+      "framing": {},
+      "still": null,
+      "resolution": "1080"
+    }
+  ],
+  "music": null,
+  "captions": {
+    "enabled": true,
+    "style": {
+      "font": "Inter",
+      "size": 64,
+      "color": "#FFFFFF",
+      "highlight": "#FFD60A",
+      "outline": true,
+      "box": false,
+      "uppercase": false,
+      "maxLines": 2,
+      "position": "bottom",
+      "offset": 0
+    },
+    "edits": {}
+  },
+  "texts": [
+    {
+      "id": "t_1g9hn57upw",
+      "text": "Hafta sonu",
+      "start": 0.5,
+      "end": 2.5,
+      "x": 0.5,
+      "y": 0.25,
+      "size": 84,
+      "color": "#FFFFFF",
+      "font": "Montserrat",
+      "style": "shadow"
+    }
+  ],
+  "overlays": [],
+  "voice": [
+    {
+      "id": "s_rbnzmtkpt1",
+      "assetId": "b39f0b7e703b",
+      "at": 0.2,
+      "in": 0,
+      "out": 3.249,
+      "gainDb": 0
+    }
+  ],
+  "look": {
+    "preset": "dogal",
+    "intensity": 1,
+    "adjust": {
+      "exposure": 0,
+      "contrast": 0,
+      "highlights": 0,
+      "shadows": 0,
+      "temp": 0,
+      "tint": 0,
+      "vibrance": 0,
+      "saturation": 0,
+      "sharpen": 0,
+      "vignette": 0,
+      "fade": 0
+    },
+    "lut": null,
+    "lutIntensity": 1
+  },
+  "description": "",
+  "notes": [],
+  "ui": {
+    "step": "ekle",
+    "selectedClipId": "c_mxyhmn33w2",
+    "activeOutputId": "o_4y0ga1f5bm",
+    "frame": 0,
+    "safeZones": true
+  }
+}

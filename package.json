@@ -12,7 +12,8 @@
     "test": "vitest run",
     "e2e": "tsx scripts/e2e.ts",
     "typecheck": "tsc --noEmit -p .",
-    "e2e:studio": "tsx scripts/e2e-studio.ts"
+    "e2e:studio": "tsx scripts/e2e-studio.ts",
+    "e2e:offline": "tsx scripts/e2e-offline.ts"
   },
   "engines": {
     "node": ">=20"

@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "id": "p_gi8xjbrar0",
+  "name": "Eski Faz 1 projesi",
+  "mode": "quick",
+  "createdAt": "2026-11-07T21:03:58.073Z",
+  "updatedAt": "2026-11-07T21:03:59.313Z",
+  "clips": [
+    {
+      "id": "c_4dq2m5xcyx",
+      "assetId": "0a43577b2918",
+      "in": 0,
+      "out": 2,
+      "camera": "auto",
+      "look": null,
+      "gainDb": 0,
+      "muted": false,
+      "musicMuted": false
+    },
+    {
+      "id": "c_wbt9u1vbut",
+      "assetId": "df59f0c9b847",
+      "in": 0,
+      "out": 7,
+      "camera": "auto",
+      "look": null,
+      "gainDb": 0,
+      "muted": false,
+      "musicMuted": false
+    }
+  ],
+  "outputs": [
+    {
+      "id": "o_n1mm08x1c2",
+      "format": "story",
+      "kind": "video",
+      "framing": {
+        "c_4dq2m5xcyx": {
+          "mode": "fill",
+          "x": 0.4,
+          "y": 0.5,
+          "zoom": 1
+        }
+      },
+      "still": null
+    },
+    {
+      "id": "o_10cf3uuff5",
+      "format": "post",
+      "kind": "image",
+      "framing": {},
+      "still": {
+        "clipId": "c_4dq2m5xcyx",
+        "at": 0
+      }
+    }
+  ],
+  "music": null,
+  "captions": {
+    "enabled": true,
+    "style": {
+      "font": "Inter",
+      "size": 64,
+      "color": "#FFFFFF",
+      "highlight": "#FFD60A",
+      "outline": true,
+      "box": false,
+      "uppercase": false,
+      "maxLines": 2,
+      "position": "bottom"
+    },
+    "edits": {
+      "df59f0c9b847:1": "BUGÜN"
+    }
+  },
+  "texts": [],
+  "look": {
+    "preset": "sicak",
+    "intensity": 0.4,
+    "adjust": {
+      "exposure": 0,
+      "contrast": 0,
+      "highlights": 0,
+      "shadows": 0,
+      "temp": 0,
+      "tint": 0,
+      "vibrance": 0,
+      "saturation": 0,
+      "sharpen": 0,
+      "vignette": 0,
+      "fade": 0
+    },
+    "lut": null,
+    "lutIntensity": 1
+  },
+  "description": "",
+  "notes": [],
+  "ui": {
+    "step": "altyazi",
+    "selectedClipId": "c_wbt9u1vbut",
+    "activeOutputId": "o_n1mm08x1c2",
+    "frame": 0,
+    "safeZones": true
+  }
+}

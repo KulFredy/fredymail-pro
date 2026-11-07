@@ -1,0 +1,187 @@
+{
+  "0a43577b2918": {
+    "id": "0a43577b2918",
+    "sha256": "0a43577b29184cdd65e59489cb4b90c14616ee2afaba03dffb12a22c0038f57c",
+    "kind": "image",
+    "role": "media",
+    "name": "foto.jpg",
+    "ext": ".jpg",
+    "size": 37023,
+    "importedAt": "2026-11-07T21:03:58.223Z",
+    "status": "ready",
+    "error": "",
+    "original": "kutuphane/originals/0a43577b2918.jpg",
+    "preview": "kutuphane/cache/0a43577b2918/preview.jpg",
+    "render": "kutuphane/cache/0a43577b2918/render.jpg",
+    "poster": "kutuphane/cache/0a43577b2918/poster.jpg",
+    "waveform": null,
+    "width": 960,
+    "height": 720,
+    "duration": 0,
+    "fps": 25,
+    "hasAudio": false,
+    "hdr": false,
+    "bitDepth": 8,
+    "codec": "mjpeg",
+    "rotation": 0,
+    "camera": {
+      "detected": null,
+      "make": "",
+      "model": "",
+      "reason": ""
+    },
+    "transcript": {
+      "status": "none",
+      "words": [],
+      "language": "tr",
+      "engine": "",
+      "message": ""
+    }
+  },
+  "df59f0c9b847": {
+    "id": "df59f0c9b847",
+    "sha256": "df59f0c9b847735d4695216a7d8cdbb614ec64041a52b5fc71f7daf6a4c85a02",
+    "kind": "video",
+    "role": "media",
+    "name": "konusma.mp4",
+    "ext": ".mp4",
+    "size": 85103,
+    "importedAt": "2026-11-07T21:03:58.280Z",
+    "status": "ready",
+    "error": "",
+    "original": "kutuphane/originals/df59f0c9b847.mp4",
+    "preview": "kutuphane/cache/df59f0c9b847/preview.mp4",
+    "render": "kutuphane/originals/df59f0c9b847.mp4",
+    "poster": "kutuphane/cache/df59f0c9b847/poster.jpg",
+    "waveform": "kutuphane/cache/df59f0c9b847/waveform.json",
+    "width": 540,
+    "height": 960,
+    "duration": 7,
+    "fps": 30,
+    "hasAudio": true,
+    "hdr": false,
+    "bitDepth": 8,
+    "codec": "h264",
+    "rotation": 0,
+    "camera": {
+      "detected": null,
+      "make": "",
+      "model": "",
+      "reason": ""
+    },
+    "transcript": {
+      "status": "done",
+      "words": [
+        {
+          "t0": 0.5,
+          "t1": 1.194,
+          "text": "Merhaba,",
+          "p": 1
+        },
+        {
+          "t0": 1.274,
+          "t1": 1.746,
+          "text": "bugün",
+          "p": 1
+        },
+        {
+          "t0": 1.826,
+          "t1": 2.809,
+          "text": "kafemizdeyiz.",
+          "p": 1
+        },
+        {
+          "t0": 3.309,
+          "t1": 3.73,
+          "text": "Yeni",
+          "p": 1
+        },
+        {
+          "t0": 3.81,
+          "t1": 4.519,
+          "text": "kahvemiz",
+          "p": 1
+        },
+        {
+          "t0": 4.599,
+          "t1": 4.91,
+          "text": "çok",
+          "p": 1
+        },
+        {
+          "t0": 4.99,
+          "t1": 5.471,
+          "text": "güzel.",
+          "p": 1
+        }
+      ],
+      "language": "tr",
+      "engine": "test",
+      "message": ""
+    }
+  },
+  "b39f0b7e703b": {
+    "id": "b39f0b7e703b",
+    "sha256": "b39f0b7e703b9186c8e1a096cad66aaac58260bf03ebb9cd6e2084417f4e9ff4",
+    "kind": "audio",
+    "role": "voiceover",
+    "name": "dis-ses.m4a",
+    "ext": ".m4a",
+    "size": 25331,
+    "importedAt": "2026-11-07T21:04:00.995Z",
+    "status": "ready",
+    "error": "",
+    "original": "kutuphane/originals/b39f0b7e703b.m4a",
+    "preview": "kutuphane/originals/b39f0b7e703b.m4a",
+    "render": "kutuphane/originals/b39f0b7e703b.m4a",
+    "poster": null,
+    "waveform": "kutuphane/cache/b39f0b7e703b/waveform.json",
+    "width": 0,
+    "height": 0,
+    "duration": 3.249,
+    "fps": 0,
+    "hasAudio": true,
+    "hdr": false,
+    "bitDepth": 8,
+    "codec": "aac",
+    "rotation": 0,
+    "camera": {
+      "detected": null,
+      "make": "",
+      "model": "",
+      "reason": ""
+    },
+    "transcript": {
+      "status": "done",
+      "words": [
+        {
+          "t0": 0.5,
+          "t1": 0.748,
+          "text": "Bu",
+          "p": 1
+        },
+        {
+          "t0": 0.828,
+          "t1": 1.322,
+          "text": "hafta",
+          "p": 1
+        },
+        {
+          "t0": 1.402,
+          "t1": 1.845,
+          "text": "sonu",
+          "p": 1
+        },
+        {
+          "t0": 1.925,
+          "t1": 2.749,
+          "text": "bekliyoruz.",
+          "p": 1
+        }
+      ],
+      "language": "tr",
+      "engine": "test",
+      "message": ""
+    }
+  }
+}
