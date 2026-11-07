@@ -69,7 +69,7 @@ export class Jobs extends EventEmitter {
           job.status = 'error';
           job.error = e.message;
           job.message = 'Hata';
-          console.error(`[iş:${job.type}] ${job.title}:`, e.message);
+          console.error(`[iş:${job.type}] ${job.title}:`, e.message, process.env.FABRIKA_DEBUG ? e.stack : '');
         })
         .finally(() => {
           job.finishedAt = new Date().toISOString();

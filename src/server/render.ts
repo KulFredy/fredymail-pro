@@ -1,3 +1,4 @@
+import { existsSync, readdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,7 +27,26 @@ let browserPromise: Promise<unknown> | null = null;
 let browserReject: ((e: Error) => void) | null = null;
 let downloading = false;
 
-const browserExecutable = () => process.env.FABRIKA_BROWSER ?? null;
+type ChromeMode = 'headless-shell' | 'chrome-for-testing';
+/** Kullanılan render tarayıcısı: Remotion'ın indirdiği ya da bilgisayardaki Google Chrome */
+let browser: { executable: string | null; mode: ChromeMode } = {
+  executable: process.env.FABRIKA_BROWSER ?? null,
+  mode: (process.env.FABRIKA_CHROME_MODE as ChromeMode) ?? 'headless-shell',
+};
+const browserOpts = () => ({ browserExecutable: browser.executable, chromeMode: browser.mode });
+
+const SYSTEM_CHROMES =
+  process.platform === 'darwin'
+    ? [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        path.join(os.homedir(), 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      ]
+    : process.platform === 'win32'
+      ? ['C:/Program Files/Google/Chrome/Application/chrome.exe']
+      : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+
+const findSystemChrome = () => SYSTEM_CHROMES.find((p) => existsSync(p)) ?? null;
 
 /**
  * Remotion'ın tarayıcı indirmesi ağ hatasında yakalanamayan bir hata fırlatabiliyor.
@@ -40,45 +60,88 @@ export const handleStrayError = (e: Error) => {
   return false;
 };
 
+const errText = (e: unknown) => {
+  const err = e as Error & { code?: string; errors?: Error[] };
+  return err?.message || err?.code || err?.errors?.map((x) => x.message).join(', ') || String(e) || 'bağlantı kurulamadı';
+};
+
+const downloadRemotionBrowser = () =>
+  new Promise((resolve, reject) => {
+    let lastPct = -1;
+    browserReject = reject;
+    ensureBrowser({
+      browserExecutable: null,
+      onBrowserDownload: () => {
+        downloading = true;
+        log('Render tarayıcısı indiriliyor (yalnız ilk sefer, ~100 MB)…');
+        return {
+          version: null,
+          onProgress: ({ percent }) => {
+            const pct = Math.round(percent * 100);
+            if (pct !== lastPct) {
+              lastPct = pct;
+              prep.emit(0.02 + percent * 0.06, `Render tarayıcısı indiriliyor (ilk sefer) %${pct}`);
+              if (pct % 10 === 0) log(`Tarayıcı indirme %${pct}`);
+            }
+          },
+        };
+      },
+    }).then(resolve, reject);
+  }).finally(() => {
+    downloading = false;
+    browserReject = null;
+  });
+
+/** Remotion'ın kendi tarayıcısı daha önce indirilmiş mi? (indirme denemesi yapmadan bakar) */
+const remotionBrowserPresent = () => {
+  const dir = path.join(ROOT, 'node_modules', '.remotion', 'chrome-headless-shell');
+  try {
+    return readdirSync(dir).some((f) => !f.startsWith('.') && !f.endsWith('.lock') && !f.endsWith('.zip') && f !== 'VERSION');
+  } catch {
+    return false;
+  }
+};
+
+/** Remotion başarısız bir indirmeden sonra aynı süreçte yeniden denemiyor: bunu hatırla */
+let downloadFailed: string | null = null;
+
 const ensureBrowserOnce = () => {
   if (!browserPromise) {
-    let lastPct = -1;
-    browserPromise = new Promise((resolve, reject) => {
-      browserReject = reject;
-      ensureBrowser({
-        browserExecutable: browserExecutable(),
-        onBrowserDownload: () => {
-          downloading = true;
-          log('Render tarayıcısı indiriliyor (yalnız ilk sefer, ~100 MB)…');
-          return {
-            version: null,
-            onProgress: ({ percent }) => {
-              const pct = Math.round(percent * 100);
-              if (pct !== lastPct) {
-                lastPct = pct;
-                prep.emit(0.02 + percent * 0.06, `Render tarayıcısı indiriliyor (ilk sefer) %${pct}`);
-                if (pct % 10 === 0) log(`Tarayıcı indirme %${pct}`);
-              }
-            },
-          };
-        },
-      }).then(resolve, reject);
-    })
-      .then((s) => {
+    browserPromise = (async () => {
+      if (browser.executable) {
+        log(`Render tarayıcısı: ${browser.executable}`);
+        return;
+      }
+      if (remotionBrowserPresent()) {
+        await downloadRemotionBrowser(); // zaten var: indirme yapılmaz, yalnız doğrulanır
         log('Render tarayıcısı hazır');
-        return s;
-      })
-      .catch((e: Error) => {
-        browserPromise = null;
-        log(`Render tarayıcısı indirilemedi: ${e.message}`);
+        return;
+      }
+      // İndirme gerekmeden bilgisayardaki Google Chrome kullanılabiliyorsa onu tercih et
+      const chrome = findSystemChrome();
+      if (chrome) {
+        browser = { executable: chrome, mode: 'chrome-for-testing' };
+        log(`Render için bilgisayardaki Google Chrome kullanılıyor: ${chrome}`);
+        return;
+      }
+      if (downloadFailed)
         throw new Error(
-          `Render tarayıcısı indirilemedi (${e.message}). İnternet bağlantınızı kontrol edip “Dışa aktar”a yeniden basın; indirme kaldığı yerden tekrar denenir.`,
+          `Render tarayıcısı indirilemedi (${downloadFailed}). Google Chrome'u kurun (google.com/chrome), ardından uygulamayı Terminal'de Ctrl+C ile kapatıp “npm run fabrika” ile yeniden açın.`,
         );
-      })
-      .finally(() => {
-        downloading = false;
-        browserReject = null;
-      });
+      try {
+        await downloadRemotionBrowser();
+        log('Render tarayıcısı hazır');
+      } catch (e) {
+        downloadFailed = errText(e);
+        log(`Render tarayıcısı indirilemedi: ${downloadFailed}`);
+        throw new Error(
+          `Render tarayıcısı indirilemedi (${downloadFailed}). Google Chrome'u kurun (google.com/chrome), ardından uygulamayı Terminal'de Ctrl+C ile kapatıp “npm run fabrika” ile yeniden açın.`,
+        );
+      }
+    })().catch((e) => {
+      browserPromise = null;
+      throw e;
+    });
   }
   return browserPromise;
 };
@@ -146,7 +209,7 @@ export const renderOutput = async ({ props, outFile, kind, onProgress }: RenderR
     id: 'Fabrika',
     inputProps,
     chromiumOptions: chromiumOptions(),
-    browserExecutable: browserExecutable(),
+    ...browserOpts(),
     logLevel: 'error',
   });
   log(`${path.basename(outFile)}: ${composition.width}×${composition.height}, ${composition.durationInFrames} kare`);
@@ -161,7 +224,7 @@ export const renderOutput = async ({ props, outFile, kind, onProgress }: RenderR
       imageFormat: 'jpeg',
       jpegQuality: 93,
       chromiumOptions: chromiumOptions(),
-      browserExecutable: browserExecutable(),
+      ...browserOpts(),
       timeoutInMilliseconds: 120_000,
       logLevel: 'error',
     });
@@ -187,7 +250,7 @@ export const renderOutput = async ({ props, outFile, kind, onProgress }: RenderR
     outputLocation: outFile,
     inputProps,
     chromiumOptions: chromiumOptions(),
-    browserExecutable: browserExecutable(),
+    ...browserOpts(),
     concurrency: Math.max(1, Math.min(6, Math.floor(os.cpus().length / 2))),
     timeoutInMilliseconds: 120_000,
     logLevel: 'error',
