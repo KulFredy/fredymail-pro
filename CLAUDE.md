@@ -1,0 +1,40 @@
+# İçerik Fabrikası · Claude Code notları
+
+Türkçe, Mac'te yerel çalışan içerik üretim ve video kurgu uygulaması. Kullanıcı Türkçe konuşur, yazılım uzmanı değildir (CapCut/Premiere/Lightroom kullanır); açıklamaları sade Türkçe yap, komutları kopyalanabilir ver. Ürün ileride SaaS olacak şekilde tasarlanıyor.
+
+Durum, sıradaki işler ve doğrulanmayanlar: `docs/DEVAM.md`. Ürün planı: `docs/PLAN.md`. Kullanım: `README.md`.
+
+## Mimari (tek kural: her değişiklik bir işlem)
+- `src/core` — saf TS, tarayıcı ve sunucu ortak: `schema.ts` (zod), `ops.ts` (`applyOp`: proje + işlem → yeni proje), `timeline.ts` (yerleşim, kadraj `computeBox`/`scaleFraming`, altyazı sayfaları, müzik eğrisi `musicGainAt`), `commands.ts` (Türkçe kural tabanlı komut → `Plan`), `formats.ts`, `looks.ts`, `lut.ts`, `refs.ts`.
+- `src/remotion` — tek kompozisyon (`Main.tsx`): önizleme (Player) ve render aynı kod. Renk: `gl.ts` WebGL2 gölgelendirici (kamera LUT → ayarlar → görünüm → yaratıcı LUT). `GradedMedia.tsx` video/fotoğrafı tuvale çizer.
+- `src/media` — ffprobe/ffmpeg içe aktarma (`ingest.ts`), kamera log algılama, `whisper.ts` (whisper.cpp), `verify.ts`.
+- `src/server` — Fastify: `index.ts` (rotalar), `store.ts` (JSON proje + geçmiş), `service.ts` (içe aktarma/render işleri), `render.ts` (Remotion; Chrome indirilemezse sistem Chrome'u), `ai.ts` (isteğe bağlı Claude komut planlayıcı, `@anthropic-ai/sdk`), `mobile.ts` (QR telefon sayfaları).
+- `src/mcp/server.ts` — MCP araçları (`.mcp.json`), uygulamanın HTTP API'sini çağırır.
+- `web/` — Vite + React arayüz: `QuickEdit.tsx` (8 adım), `Studio.tsx` (komut paneli, medya, seçili öğe), `Timeline.tsx`, `Preview.tsx`, `steps/*`.
+
+Veri: `~/İçerik Fabrikası/` (`FABRIKA_HOME`): `kutuphane/` (salt-okunur orijinaller, önizleme kopyaları, library.json), `projeler/<id>/` (project.json, history.json, ops.jsonl, exports/), `modeller/`, `ayarlar.json` (Claude anahtarı, 600).
+
+## Kurallar ve tuzaklar
+- Yeni özellik = önce `core/schema.ts` + `core/ops.ts` işlemi + birim testi, sonra arayüz/MCP. Arayüz, MCP ve komutlar aynı işlemleri kullanır.
+- **zod v4'te `.partial()` varsayılanları doldurur** → kısmi güncellemelerde `patchOf(...)` kullan (`core/ops.ts`), asla `.partial()` değil.
+- Kompozisyon 1080 tabanlı tasarlanır; çözünürlük render'da `scale` ile (720/1080/1440/2160). Önizlemede DPR kullanma (yalnız `getRemotionEnvironment().isRendering`).
+- Remotion Player'a boş `src` verme (çöker); hazır olmayan kaynakta yer tutucu göster.
+- Arayüz metinleri Türkçe; commit mesajları Türkçe; `Co-Authored-By` satırları korunur.
+- Claude API kodu: varsayılan model `claude-opus-5-5`, kullanıcı ayarlardan Sonnet/Haiku seçebilir; zorunlu `tool_choice` yok (auto); Haiku'da `fallbacks` gönderme.
+- Remotion lisansı: ≤3 kişilik ekip ücretsiz; büyürse şirket lisansı (alternatif: HyperFrames).
+
+## Komutlar
+```
+npm run fabrika        # derle + başlat → http://localhost:4747
+npm run dev            # API 4747 + Vite 5173
+npm test               # vitest (core, komutlar)
+npm run typecheck
+npm run e2e            # Faz 1 kabul testi (gerçek render + ölçüm)
+npm run e2e:studio     # Faz 2 kabul testi
+```
+
+## Bulut oturumunda (Linux konteyner) test
+- Konuşma modeli indirilemeyebilir: `FABRIKA_TRANSCRIBER=fixture FABRIKA_FIXTURES=<medya klasörü>` (kelime zamanları `<dosya>.words.json`). Gerçek Whisper için "fredymail-pro" ortamı Hugging Face erişimli.
+- Render tarayıcısı: `FABRIKA_BROWSER=/opt/pw-browsers/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell` (veya sistem `google-chrome` otomatik bulunur). GL: `swangle` (Linux varsayılanı).
+- Türkçe test sesi: `espeak-ng` (apt). Arayüz ekran görüntüsü: Playwright (`require('playwright')`, `--use-angle=swiftshader`).
+- Port 4747'de eski süreç kalırsa: `lsof -ti tcp:4747 | xargs kill -9`.
