@@ -194,7 +194,8 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .drag-hint { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.65); padding: 4px 10px; border-radius: 999px; font-size: 11px; display: inline-flex; gap: 5px; align-items: center; pointer-events: none; }
 .preview-foot { display: flex; justify-content: space-between; align-items: center; }
 .preview-empty { margin: auto; color: var(--muted); }
-.player-error { color: var(--bad); padding: 20px; }
+.player-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; color: #ffc9ce; font-size: 15px; background: #15161b; }
+.player-error small { color: var(--muted); font-size: 12px; }
 
 /* Klip şeridi */
 .strip { display: flex; height: 100%; gap: 12px; padding: 10px 14px; align-items: stretch; }

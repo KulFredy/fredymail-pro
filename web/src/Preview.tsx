@@ -55,6 +55,9 @@ export const Preview: React.FC = () => {
     return () => ro.disconnect();
   }, [size.width, size.height]);
 
+  // Hata ekranı kalıcı olmasın: kaynaklar hazır oldukça veya "Yeniden dene" ile oynatıcı yenilenir
+  const [retry, setRetry] = useState(0);
+  const readyKey = project.clips.map((c) => (refs[c.assetId]?.url ? '1' : '0')).join('') + (project.music && refs[project.music.assetId]?.url ? 'm' : '');
   const props: CompProps = useMemo(
     () => ({ project, assets: refs, outputId: output?.id ?? '', variant: 'full', target: 'preview', luts: lutMap }),
     [project, refs, output?.id, lutMap],
@@ -87,7 +90,7 @@ export const Preview: React.FC = () => {
       p.removeEventListener('seeked', onFrame);
       clearTimeout(saveTimer);
     };
-  }, [duration, seekRef, playRef, setFrame, setUi, output?.id]);
+  }, [duration, seekRef, playRef, setFrame, setUi, output?.id, readyKey, retry]);
 
   // Kadrajda seçili klibi sürükleyerek kaydır
   const scale = box.w / size.width;
@@ -147,6 +150,7 @@ export const Preview: React.FC = () => {
       <div className="player-wrap" ref={wrap}>
         <div className="phone" style={{ width: box.w }}>
           <Player
+            key={`${readyKey}:${retry}:${output?.id}`}
             ref={player}
             component={Main}
             inputProps={props}
@@ -156,12 +160,21 @@ export const Preview: React.FC = () => {
             compositionHeight={size.height}
             style={{ width: box.w, height: box.h }}
             controls
+            alwaysShowControls
             loop
             initialFrame={Math.min(project.ui.frame, Math.max(0, duration - 1))}
             clickToPlay={!inFrame}
             spaceKeyToPlayOrPause
             acknowledgeRemotionLicense
-            errorFallback={({ error }) => <div className="player-error">Önizleme hatası: {error.message}</div>}
+            errorFallback={({ error }) => (
+              <div className="player-error">
+                <b>Önizleme açılamadı</b>
+                <small>{error.message}</small>
+                <button className="btn tiny" onClick={() => setRetry((r) => r + 1)}>
+                  Yeniden dene
+                </button>
+              </div>
+            )}
           />
           {project.ui.safeZones ? (
             <div className="overlay" style={{ width: box.w, height: box.h }}>

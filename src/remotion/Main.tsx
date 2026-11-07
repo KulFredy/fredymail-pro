@@ -23,10 +23,13 @@ const ClipLayer: React.FC<{ item: LayoutItem; output: Output; props: CompProps }
   const { width: W, height: H } = useVideoConfig();
   const { clip } = item;
   const asset = props.assets[clip.assetId];
-  if (!asset) {
+  if (!asset || !asset.url) {
+    // Önizleme kopyası henüz hazır değil (telefondan yeni geldi) veya kaynak yok: çökmeden bilgi ver
     return (
-      <AbsoluteFill style={{ background: '#111', color: '#888', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>
-        Kaynak bulunamadı
+      <AbsoluteFill
+        style={{ background: '#111318', color: '#9aa1ad', alignItems: 'center', justifyContent: 'center', fontSize: 44, fontFamily: 'Inter', fontWeight: 600, textAlign: 'center', padding: 60, whiteSpace: 'pre-line' }}
+      >
+        {asset ? `${asset.name}\nhazırlanıyor…` : 'Kaynak bulunamadı'}
       </AbsoluteFill>
     );
   }
@@ -179,7 +182,7 @@ const VideoView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
           <ClipLayer item={item} output={output} props={props} />
         </Sequence>
       ))}
-      {music && musicAsset && props.variant === 'full' && total > 0 ? (
+      {music && musicAsset?.url && props.variant === 'full' && total > 0 ? (
         <Sequence durationInFrames={Math.max(1, toFrames(total))} name="Müzik">
           <Audio
             src={musicAsset.url}

@@ -12,7 +12,7 @@ import { OpError, OpSchema, patchOf } from '../core/ops';
 import { UiStateSchema } from '../core/schema';
 import { getTools } from '../media/proc';
 import { MOBILE_TOKEN, downloadsPage, lanAddress, uploadPage } from './mobile';
-import { ensureBundle } from './render';
+import { warmUp } from './render';
 import { ROOT, Service } from './service';
 import { defaultHome } from './store';
 
@@ -278,11 +278,26 @@ export const createServer = async (home = defaultHome()) => {
 const isMain = process.argv[1] && path.resolve(process.argv[1]).endsWith(path.join('src', 'server', 'index.ts'));
 if (isMain) {
   const { app } = await createServer();
-  await app.listen({ port: PORT, host: HOST });
+  // Ctrl+C her durumda kapatsın (render sürüyor olsa bile)
+  for (const sig of ['SIGINT', 'SIGTERM'] as const)
+    process.on(sig, () => {
+      console.log('\n  Kapatılıyor…');
+      setTimeout(() => process.exit(0), 1500).unref();
+      app.close().finally(() => process.exit(0));
+    });
+  try {
+    await app.listen({ port: PORT, host: HOST });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+      console.error(`\n  ${PORT} portu kullanımda: İçerik Fabrikası zaten açık olabilir → http://localhost:${PORT}\n  Kapatmak için açık olan Terminal penceresinde Ctrl+C'ye basın.\n`);
+      process.exit(1);
+    }
+    throw e;
+  }
   const lan = lanAddress();
   console.log(`\n  İçerik Fabrikası hazır →  http://localhost:${PORT}`);
   if (lan) console.log(`  Telefon (aynı Wi-Fi): uygulamadaki “Telefondan ekle” QR kodunu kullanın`);
   console.log(`  Veri klasörü: ${defaultHome()}\n`);
-  // Kompozisyonu arka planda paketle: ilk dışa aktarma hızlansın
-  ensureBundle().catch((e) => console.error('Remotion paketleme hatası:', e.message));
+  // Render tarayıcısı ve kompozisyonu arka planda hazırla: ilk dışa aktarma beklemesin
+  warmUp().catch(() => undefined);
 }
