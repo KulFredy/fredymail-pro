@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Loader2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
 import { captionPages, formatTime, layoutClips, timelineWords, toFrames, totalDuration } from '../../src/core/timeline';
 import { fileHref } from './api';
@@ -7,13 +7,27 @@ import { useApp, useProject } from './state';
 
 export type Selection = { kind: 'clip' | 'overlay' | 'voice' | 'text'; id: string } | null;
 
-const LABEL_W = 78;
+const LABEL_W = 92;
 
 /**
  * Çok izli zaman çizelgesi: cetvel, oynatma imleci, görüntü / üst iz / dış ses / müzik / altyazı / yazı izleri.
  * Hızlı Edit'te sade (compact), Stüdyo'da tam görünüm.
  */
-export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSelect?: (s: Selection) => void }> = ({ compact, selection, onSelect }) => {
+const LANE_ACTION: Record<string, string> = {
+  v1: 'Görüntü ekle',
+  v2: 'Üst ize görüntü ekle (B-roll)',
+  a2: 'Dış ses kaydet',
+  a1: 'Müzik ekle',
+  c: 'Altyazıyı aç/kapat',
+  t: 'Oynatma imlecine yazı ekle',
+};
+
+export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSelect?: (s: Selection) => void; onLaneAction?: (key: string) => void }> = ({
+  compact,
+  selection,
+  onSelect,
+  onLaneAction,
+}) => {
   const { project, refs, frame, seekRef, setUi, apply, highlights } = useProject();
   const { library } = useApp();
   const wrap = useRef<HTMLDivElement>(null);
@@ -89,11 +103,18 @@ export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSe
       <div className="tl-body">
         <div className="tl-labels" style={{ width: LABEL_W }}>
           <div className="tl-ruler-label" />
-          {lanes.filter((l) => l.show).map((l) => (
-            <div key={l.key} className={`tl-label lane-${l.key}`}>
-              {l.label}
-            </div>
-          ))}
+          {lanes.filter((l) => l.show).map((l) =>
+            onLaneAction ? (
+              <button key={l.key} className={`tl-label lane-${l.key} action`} title={LANE_ACTION[l.key]} onClick={() => onLaneAction(l.key)}>
+                <span>{l.label}</span>
+                <Plus size={12} />
+              </button>
+            ) : (
+              <div key={l.key} className={`tl-label lane-${l.key}`}>
+                {l.label}
+              </div>
+            ),
+          )}
         </div>
         <div className="tl-scroll">
           <div className="tl-content" style={{ width: contentW }}>

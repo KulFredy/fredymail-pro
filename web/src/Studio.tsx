@@ -41,15 +41,20 @@ const useRecorder = () => {
   return { recording: !!rec, start, stop };
 };
 
-const CommandPanel: React.FC = () => {
-  const { project, refs, frame, apply, preview, reload, setHighlights, seekRef, playRef } = useProject();
+const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat' | 'disses') => void }> = ({ mode, setMode }) => {
+  const { project, refs, frame, apply, preview, reload, setHighlights, seekRef, playRef, undo, redo } = useProject();
   const { toast } = useApp();
+  const [aiReady, setAiReady] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showExamples, setShowExamples] = useState(false);
+  React.useEffect(() => {
+    api.settings().then((st) => setAiReady(st.aiConfigured)).catch(() => undefined);
+  }, [settingsOpen]);
   const [text, setText] = useState('');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [chosen, setChosen] = useState<PlanCandidate | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [mode, setMode] = useState<'talimat' | 'disses'>('talimat');
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const recorder = useRecorder();
   const playhead = frame / FPS;
@@ -65,7 +70,26 @@ const CommandPanel: React.FC = () => {
   const run = async (input: string) => {
     if (previewing) await reload();
     setPreviewing(false);
-    const p = planCommand(input, { project, assets: refs, playhead, selectedClipId: project.ui.selectedClipId });
+    let p: Plan = { ...planCommand(input, { project, assets: refs, playhead, selectedClipId: project.ui.selectedClipId }), source: 'kural' };
+    if (p.action) {
+      if (p.action === 'undo') undo();
+      else redo();
+      setHistory((h) => [{ text: input, summary: p.summary, ok: true }, ...h].slice(0, 12));
+      setPlan(null);
+      setText('');
+      toast(p.summary);
+      return;
+    }
+    if (!p.understood && aiReady) {
+      setBusy('Claude komutu yorumluyor…');
+      try {
+        p = await api.aiCommand(project.id, input, playhead, project.ui.selectedClipId);
+      } catch (e) {
+        p = { ...p, hint: (e as Error).message };
+      } finally {
+        setBusy(null);
+      }
+    }
     setPlan(p);
     setChosen(null);
     setHighlights(p.ranges);
@@ -143,18 +167,18 @@ const CommandPanel: React.FC = () => {
   return (
     <div className="cmd">
       <div className="row-between">
-        <h4>
-          <Wand2 size={15} /> Konuşarak kurgu
-        </h4>
         <Segmented
           size="sm"
           value={mode}
           onChange={setMode}
           options={[
             { value: 'talimat', label: 'Talimat', hint: 'Söyledikleriniz kurgu komutu olur, videoya girmez' },
-            { value: 'disses', label: 'Dış ses kaydı', hint: 'Kayıt videoya ses olarak eklenir' },
+            { value: 'disses', label: 'Dış ses', hint: 'Kayıt videoya ses olarak eklenir' },
           ]}
         />
+        <button className={`chip ${aiReady ? 'on' : ''}`} onClick={() => setSettingsOpen(true)} title="Serbest Türkçe komutları Claude ile anla (isteğe bağlı)">
+          <Wand2 size={13} /> Claude {aiReady ? 'açık' : 'kapalı'}
+        </button>
       </div>
       <div className="cmd-input">
         <button className={`mic ${recorder.recording ? 'rec' : ''} ${mode}`} onClick={mic} disabled={!!busy} title={recorder.recording ? 'Bitir' : 'Konuşmaya başla'}>
@@ -185,7 +209,9 @@ const CommandPanel: React.FC = () => {
 
       {plan ? (
         <div className={`plan ${plan.understood ? '' : 'bad'}`}>
-          <p>{plan.summary}</p>
+          <p>
+            {plan.summary} {plan.source === 'claude' ? <span className="badge">Claude</span> : null}
+          </p>
           {plan.hint ? <p className="hint">{plan.hint}</p> : null}
           {plan.candidates.length ? (
             <div className="cands">
@@ -205,6 +231,18 @@ const CommandPanel: React.FC = () => {
             </div>
           ) : null}
           {chosen ? <p className="small">{chosen.summary}</p> : null}
+          {!plan.understood ? (
+            <div className="row-wrap">
+              {!aiReady ? (
+                <button className="btn tiny soft" onClick={() => setSettingsOpen(true)}>
+                  <Wand2 size={13} /> Serbest komutlar için Claude'u aç
+                </button>
+              ) : null}
+              <button className="btn tiny" onClick={clear}>
+                <X size={13} /> Kapat
+              </button>
+            </div>
+          ) : (
           <div className="row-wrap">
             <button className="btn soft tiny" disabled={!active} onClick={doPreview}>
               <Play size={13} /> {previewing ? 'Tekrar önizle' : 'Önizle'}
@@ -216,11 +254,15 @@ const CommandPanel: React.FC = () => {
               <X size={13} /> Vazgeç
             </button>
           </div>
+          )}
           {previewing ? <p className="hint small">Önizleme: değişiklik henüz kaydedilmedi. Beğenirseniz “Uygula”.</p> : null}
         </div>
       ) : (
         <div className="examples">
-          {COMMAND_EXAMPLES.map((ex) => (
+          <button className="link small" onClick={() => setShowExamples((v) => !v)}>
+            {showExamples ? 'Örnekleri gizle ▴' : 'Örnek komutlar ▾'}
+          </button>
+          {(showExamples ? COMMAND_EXAMPLES : []).map((ex) => (
             <button key={ex} className="example" onClick={() => setText(ex)}>
               {ex}
             </button>
@@ -238,7 +280,57 @@ const CommandPanel: React.FC = () => {
           ))}
         </div>
       ) : null}
+      {settingsOpen ? <AiSettings onClose={() => setSettingsOpen(false)} /> : null}
     </div>
+  );
+};
+
+const AiSettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const { toast } = useApp();
+  const [st, setSt] = useState<{ aiConfigured: boolean; keySource: string | null; aiModel: string } | null>(null);
+  const [key, setKey] = useState('');
+  React.useEffect(() => {
+    api.settings().then(setSt).catch(() => undefined);
+  }, []);
+  const save = async (k: string | null) => {
+    await api.saveSettings({ anthropicApiKey: k });
+    toast(k ? 'Claude anahtarı kaydedildi' : 'Claude anahtarı silindi');
+    onClose();
+  };
+  return (
+    <Modal title="Claude ile serbest komut (isteğe bağlı)" onClose={onClose} width={520}>
+      <p>
+        Uygulama örnek kalıplardaki komutları kendi başına, ücretsiz anlar. Anlamadığı serbest Türkçe cümleleri (ör. “videonun altındaki altyazıları biraz yukarı kaydır, son
+        sahneyi de kısalt”) Claude'a sorabilir.
+      </p>
+      <ul className="steps-list">
+        <li>Bunun için Anthropic API anahtarı gerekir: console.anthropic.com → API Keys.</li>
+        <li>
+          Ücret komut başına yaklaşık birkaç kuruştur (model: <code>{st?.aiModel ?? '…'}</code>); yalnız kurallar anlamadığında kullanılır.
+        </li>
+        <li>Anahtar yalnız bu Mac'te, İçerik Fabrikası klasöründe saklanır; başka yere gönderilmez.</li>
+      </ul>
+      <p className="hint">
+        Durum: {st ? (st.aiConfigured ? `açık (${st.keySource === 'ortam' ? 'ortam değişkeninden' : 'uygulamada kayıtlı'})` : 'kapalı') : '…'}
+      </p>
+      <label className="field">
+        <span>API anahtarı</span>
+        <input type="password" placeholder="sk-ant-…" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
+      </label>
+      <div className="modal-actions">
+        {st?.keySource === 'uygulama' ? (
+          <button className="btn ghost danger" onClick={() => save(null)}>
+            Anahtarı sil
+          </button>
+        ) : null}
+        <button className="btn ghost" onClick={onClose}>
+          Vazgeç
+        </button>
+        <button className="btn primary" disabled={!key.trim()} onClick={() => save(key.trim())}>
+          Kaydet
+        </button>
+      </div>
+    </Modal>
   );
 };
 
@@ -423,10 +515,41 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ se
 };
 
 export const Studio: React.FC = () => {
-  const { project, apply, undo, redo, canUndo, canRedo, undoLabel, redoLabel, saving } = useProject();
+  const { project, apply, undo, redo, canUndo, canRedo, undoLabel, redoLabel, saving, reload, frame } = useProject();
   const [selection, setSelection] = useState<Selection>(project.ui.selectedClipId ? { kind: 'clip', id: project.ui.selectedClipId } : null);
   const [exporting, setExporting] = useState(false);
   const [name, setName] = useState(project.name);
+  const [tab, setTab] = useState<'komut' | 'medya' | 'secili'>('komut');
+  const [cmdMode, setCmdMode] = useState<'talimat' | 'disses'>('talimat');
+  const musicInput = useRef<HTMLInputElement>(null);
+  const { toast } = useApp();
+  const addMusic = async (files: File[]) => {
+    if (!files.length) return;
+    try {
+      await upload(`/api/import?projectId=${project.id}`, files, () => undefined);
+      await reload();
+      toast('Müzik eklendi');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  };
+  /** Zaman çizelgesindeki iz adlarının “+” eylemleri */
+  const laneAction = (key: string) => {
+    if (key === 'v1' || key === 'v2') {
+      setTab('medya');
+      toast(key === 'v1' ? 'Medyada “Ana ize” ile ekleyin' : 'Medyada “Üst ize” ile oynatma imlecine ekleyin');
+    } else if (key === 'a2') {
+      setTab('komut');
+      setCmdMode('disses');
+      toast('Dış ses modu: mikrofona basıp konuşun');
+    } else if (key === 'a1') musicInput.current?.click();
+    else if (key === 'c') apply([{ type: 'captions.set', enabled: !project.captions.enabled }]);
+    else if (key === 't') {
+      const t = frame / FPS;
+      apply([{ type: 'text.add', text: { text: 'Yeni yazı', start: t, end: t + 3 } }]);
+      toast('Yazı eklendi; seçip düzenleyin');
+    }
+  };
 
   React.useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -471,19 +594,39 @@ export const Studio: React.FC = () => {
         </button>
       </header>
       <aside className="studio-left">
-        <CommandPanel />
-        <MediaBin />
+        <div className="tabs">
+          {(
+            [
+              ['komut', 'Komut'],
+              ['medya', 'Medya'],
+              ['secili', 'Seçili öğe'],
+            ] as const
+          ).map(([k, l]) => (
+            <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <div className="tab-body">
+          {tab === 'komut' ? <CommandPanel mode={cmdMode} setMode={setCmdMode} /> : null}
+          {tab === 'medya' ? <MediaBin /> : null}
+          {tab === 'secili' ? <Inspector selection={selection} onClear={() => setSelection(null)} /> : null}
+        </div>
       </aside>
       <main className="studio-center">
         <Preview />
       </main>
-      <aside className="studio-right">
-        <h4>Seçili öğe</h4>
-        <Inspector selection={selection} onClear={() => setSelection(null)} />
-      </aside>
       <footer className="studio-timeline">
-        <Timeline selection={selection} onSelect={setSelection} />
+        <Timeline
+          selection={selection}
+          onSelect={(sel) => {
+            setSelection(sel);
+            if (sel) setTab('secili');
+          }}
+          onLaneAction={laneAction}
+        />
       </footer>
+      <input ref={musicInput} type="file" accept="audio/*" hidden onChange={(e) => void addMusic([...(e.target.files ?? [])])} />
       {exporting ? (
         <Modal title="Dışa aktar" onClose={() => setExporting(false)} width={640}>
           <ExportStep />

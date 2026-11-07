@@ -9,7 +9,9 @@ import QRCode from 'qrcode';
 import { z } from 'zod';
 import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { planCommand } from '../core/commands';
+import { DEFAULT_AI_MODEL, planWithClaude } from './ai';
 import { FORMATS, outputLabel } from '../core/formats';
 import { buildRefs } from '../core/refs';
 import { OpError, OpSchema, patchOf } from '../core/ops';
@@ -151,6 +153,53 @@ export const createServer = async (home = defaultHome()) => {
       return svc.speechToText(tmp);
     }
     return { text: '', status: 'error', message: 'Ses gelmedi' };
+  });
+
+  // ---------- Ayarlar (Claude ile anlama, isteğe bağlı) ----------
+  const settingsFile = store.p('ayarlar.json');
+  const readSettings = async (): Promise<{ anthropicApiKey?: string; aiModel?: string }> => {
+    try {
+      return JSON.parse(await readFile(settingsFile, 'utf8'));
+    } catch {
+      return {};
+    }
+  };
+  const aiKey = async () => (await readSettings()).anthropicApiKey || process.env.ANTHROPIC_API_KEY || null;
+  app.get('/api/settings', async () => {
+    const st = await readSettings();
+    return {
+      aiConfigured: !!(st.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
+      keySource: st.anthropicApiKey ? 'uygulama' : process.env.ANTHROPIC_API_KEY ? 'ortam' : null,
+      aiModel: st.aiModel || DEFAULT_AI_MODEL,
+    };
+  });
+  app.put('/api/settings', async (req) => {
+    const body = z.object({ anthropicApiKey: z.string().trim().nullable().optional(), aiModel: z.string().trim().optional() }).parse(req.body);
+    const st = await readSettings();
+    if (body.anthropicApiKey !== undefined) {
+      if (body.anthropicApiKey) st.anthropicApiKey = body.anthropicApiKey;
+      else delete st.anthropicApiKey;
+    }
+    if (body.aiModel) st.aiModel = body.aiModel;
+    await writeFile(settingsFile, JSON.stringify(st, null, 2), { mode: 0o600 });
+    return { ok: true, aiConfigured: !!(st.anthropicApiKey || process.env.ANTHROPIC_API_KEY) };
+  });
+  app.post('/api/projects/:id/command/ai', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = z.object({ text: z.string().min(1), playhead: z.number().default(0), selectedClipId: z.string().nullable().optional() }).parse(req.body);
+    const key = await aiKey();
+    if (!key) return { understood: false, summary: 'Claude ile anlama kapalı.', hint: 'Komut panelindeki “Claude” düğmesinden API anahtarı ekleyin.', ops: [], ranges: [], candidates: [] };
+    const project = await store.getProject(id);
+    return planWithClaude({
+      apiKey: key,
+      model: (await readSettings()).aiModel || DEFAULT_AI_MODEL,
+      text: body.text,
+      project,
+      assets: buildRefs(store.library.values(), '', 'preview'),
+      playhead: body.playhead,
+      selectedClipId: body.selectedClipId ?? project.ui.selectedClipId,
+      opCtx: store.opContext(),
+    });
   });
 
   // Yazılı/sesli komut → işlem planı (arayüz aynı planı yerelde de hesaplar; MCP ve testler için)

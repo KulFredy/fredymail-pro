@@ -149,7 +149,10 @@ export const QuickEdit: React.FC = () => {
       </aside>
 
       <footer className="strip-row">
-        <Timeline compact />
+        <Timeline
+          compact
+          onLaneAction={(k) => setUi({ step: k === 'a1' || k === 'a2' ? 'ses' : k === 'c' || k === 't' ? 'altyazi' : k === 'v1' ? 'ekle' : 'sirala' })}
+        />
       </footer>
 
       {mobile ? <MobileModal page="upload" onClose={() => setMobile(false)} /> : null}

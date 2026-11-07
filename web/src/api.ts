@@ -74,6 +74,10 @@ export const api = {
   reveal: (file: string) => req('POST', '/api/reveal', { file }),
   mobile: (projectId: string | null, page: 'upload' | 'indir') =>
     req<{ url: string | null; qr: string | null; reason?: string }>('GET', `/api/mobile?page=${page}${projectId ? `&projectId=${projectId}` : ''}`),
+  settings: () => req<{ aiConfigured: boolean; keySource: string | null; aiModel: string }>('GET', '/api/settings'),
+  saveSettings: (body: { anthropicApiKey?: string | null; aiModel?: string }) => req('PUT', '/api/settings', body),
+  aiCommand: (id: string, text: string, playhead: number, selectedClipId: string | null) =>
+    req<import('../../src/core/commands').Plan>('POST', `/api/projects/${id}/command/ai`, { text, playhead, selectedClipId }),
   transcribe: (assetId: string) => req('POST', `/api/assets/${assetId}/transcribe`),
 };
 

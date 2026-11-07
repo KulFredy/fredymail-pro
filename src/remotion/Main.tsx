@@ -83,12 +83,13 @@ const Captions: React.FC<{ props: CompProps; output: Output }> = ({ props, outpu
   const outline = style.outline
     ? `0 0 ${style.size * 0.09}px rgba(0,0,0,0.85), 0 ${style.size * 0.04}px ${style.size * 0.12}px rgba(0,0,0,0.6)`
     : 'none';
+  const off = style.offset ?? 0;
   const pos: React.CSSProperties =
     style.position === 'bottom'
-      ? { bottom: safe.bottom + 30 }
+      ? { bottom: safe.bottom + 30 + off }
       : style.position === 'top'
-        ? { top: safe.top + 30 }
-        : { top: H / 2, transform: 'translateY(-50%)' };
+        ? { top: safe.top + 30 - off }
+        : { top: H / 2 - off, transform: 'translateY(-50%)' };
   return (
     <div
       style={{

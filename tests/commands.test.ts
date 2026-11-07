@@ -142,4 +142,21 @@ describe('Türkçe komutlar', () => {
     expect(layoutClips(p1)[0].clip.in).toBeCloseTo(2);
     expect(totalDuration(p0)).toBeCloseTo(30);
   });
+
+  it('altyazıyı kaydırma: yön yoksa seçenek sunar (kullanıcının sesli komutu)', () => {
+    const r = plan(base(), 'Videonun altındaki altyazıları kaydır.');
+    expect(r.understood).toBe(true);
+    expect(r.candidates.map((c) => c.label)).toEqual(['Yukarı taşı', 'Aşağı taşı', 'Ortaya al', 'En üste al']);
+    const up = plan(base(), 'altyazıları biraz yukarı kaydır');
+    expect(up.ops[0]).toEqual({ type: 'captions.set', style: { offset: 60 } });
+    const p = applyOps(base(), up.ops, ctx);
+    expect(p.captions.style.offset).toBe(60);
+    expect(p.captions.style.color).toBe('#FFFFFF');
+  });
+
+  it('“geri al” ve “yinele” eylem olarak döner', () => {
+    expect(plan(base(), 'Geri al.').action).toBe('undo');
+    expect(plan(base(), 'son işlemi geri al').action).toBe('undo');
+    expect(plan(base(), 'yinele').action).toBe('redo');
+  });
 });

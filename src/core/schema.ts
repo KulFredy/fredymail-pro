@@ -104,6 +104,8 @@ export const CaptionStyleSchema = z.object({
   uppercase: z.boolean().default(false),
   maxLines: z.number().int().min(1).max(3).default(2),
   position: z.enum(['bottom', 'middle', 'top']).default('bottom'),
+  /** İnce konum ayarı (px, + yukarı) */
+  offset: z.number().min(-600).max(600).default(0),
 });
 export type CaptionStyle = z.infer<typeof CaptionStyleSchema>;
 

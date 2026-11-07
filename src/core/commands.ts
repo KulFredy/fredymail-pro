@@ -22,6 +22,9 @@ export type Plan = {
   /** "Bu sefer…" → proje notu */
   note?: string;
   hint?: string;
+  /** Kurgu dışı eylem: geri al / yinele */
+  action?: 'undo' | 'redo';
+  source?: 'kural' | 'claude';
 };
 
 export type CommandContext = {
@@ -339,7 +342,39 @@ const ruleSplit = (_raw: string, t: string, ctx: CommandContext): Plan | null =>
   };
 };
 
-const RULES = [ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
+const ruleUndo = (_raw: string, t: string): Plan | null => {
+  if (/^(geri al|son (işlemi|değişikliği) geri al|bunu geri al|vazgeç|iptal et)$/.test(t) || /(geri al)$/.test(t))
+    return { understood: true, summary: 'Son değişiklik geri alınacak.', ops: [], ranges: [], candidates: [], action: 'undo' };
+  if (/^(yinele|ileri al|tekrar uygula|geri aldığımı geri getir)$/.test(t))
+    return { understood: true, summary: 'Geri alınan değişiklik yeniden uygulanacak.', ops: [], ranges: [], candidates: [], action: 'redo' };
+  return null;
+};
+
+/** "Altyazıları yukarı kaydır", "altyazıyı biraz aşağı al", "altyazıları kaydır" (yön yoksa sorar) */
+const ruleCaptionMove = (_raw: string, t: string, ctx: CommandContext): Plan | null => {
+  if (!/altyazı/.test(t) || !/(kaydır|taşı|al|çek|it|götür|yerleştir)/.test(t)) return null;
+  if (/(satır|renk|beyaz|sarı|siyah|büyük harf|küçük harf|kapat|aç|kaldır|gizle)/.test(t)) return null;
+  const cur = ctx.project.captions.style.offset ?? 0;
+  const step = /(biraz|az|hafif)/.test(t) ? 60 : /(çok|epey|iyice)/.test(t) ? 220 : 120;
+  const mk = (label: string, style: Record<string, unknown>, summary: string): PlanCandidate => ({
+    label,
+    summary,
+    ops: [{ type: 'captions.set', style }],
+    ranges: [],
+  });
+  const up = mk('Yukarı taşı', { offset: Math.min(600, cur + step) }, `Altyazı ${step} px yukarı taşınacak.`);
+  const down = mk('Aşağı taşı', { offset: Math.max(-600, cur - step) }, `Altyazı ${step} px aşağı taşınacak.`);
+  const mid = mk('Ortaya al', { position: 'middle', offset: 0 }, 'Altyazı ekranın ortasına alınacak.');
+  const top = mk('En üste al', { position: 'top', offset: 0 }, 'Altyazı ekranın üstüne alınacak.');
+  const one = (c: PlanCandidate): Plan => ({ understood: true, summary: c.summary, ops: c.ops, ranges: [], candidates: [] });
+  if (/(yukarı|yukarıya|üste doğru|yükselt)/.test(t)) return one(up);
+  if (/(aşağı|aşağıya|alta doğru|indir)/.test(t)) return one(down);
+  if (/(ortaya|ortada|merkez)/.test(t)) return one(mid);
+  if (/(en üste|tepeye)/.test(t)) return one(top);
+  return { understood: true, summary: 'Altyazıyı nereye taşıyayım?', ops: [], ranges: [], candidates: [up, down, mid, top] };
+};
+
+const RULES = [ruleUndo, ruleCaptionMove, ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
 
 export const planCommand = (raw: string, ctx: CommandContext): Plan => {
   const t = normalizeTr(raw);

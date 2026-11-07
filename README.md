@@ -41,7 +41,8 @@ Geri al / yinele: ⌘Z / ⇧⌘Z.
 
 Ana ekranda **Kurgu Stüdyosu** yeni bir yatay proje açar; Hızlı Edit'teki her proje de **Stüdyoda aç** ile aynı zaman çizelgesinde açılır.
 
-- **Zaman çizelgesi:** görüntü, üst iz (B-roll), dış ses, müzik, altyazı ve yazı ayrı izlerde. Cetvele tıklayıp sürükleyerek imleci taşıyın; klipleri sürükleyerek sıralayın.
+- **Zaman çizelgesi:** görüntü, üst iz (B-roll), dış ses, müzik, altyazı ve yazı ayrı izlerde. Cetvele tıklayıp sürükleyerek imleci taşıyın; klipleri sürükleyerek sıralayın. Soldaki iz adlarındaki **+** ile o ize ekleme yapılır (müzik ekle, dış ses kaydet, yazı ekle…).
+- **Sol panel:** Komut · Medya · Seçili öğe sekmeleri; zaman çizelgesinde bir öğeye tıklayınca ayarları açılır.
 - **Komut:** solda mikrofona basıp konuşun (bitince tekrar basın) ya da yazıp Enter'a basın. Komut önce zaman çizelgesinde işaretlenir (kırmızı: kesilecek, mavi: eklenecek). **Önizle** ile kaydetmeden izleyin, **Uygula** ile kaydedin. İki olası yer varsa A/B seçenekleri zaman koduyla gelir.
 - **Talimat / Dış ses kaydı:** *Talimat* modunda söyledikleriniz yalnız komut olur, videoya girmez. *Dış ses kaydı* modunda kayıt oynatma imlecinden itibaren videoya ses olarak eklenir ve altyazısı çıkarılır.
 - **Kişisel stil / bu proje:** "Bundan sonra…", "her zaman…" ile başlayan altyazı tercihleri kişisel stilinize kaydedilir; "bu sefer…" yalnız bu projeye not olarak kalır.
@@ -60,9 +61,13 @@ Anlaşılan komutlar (örnekler):
 | Klibi buradan ikiye böl | İmleçte böler |
 | Bu sefer siyah beyaz yap · biraz sıcak yap · bu klibi film yap | Renk görünümü (projeye veya seçili klibe) |
 | Bundan sonra altyazılarımı beyaz ve iki satır yap | Altyazı stili + kişisel stile kaydet |
+| Altyazıları biraz yukarı kaydır · altyazıyı ortaya al · altyazıları kaydır | Altyazı konumu (yön yoksa seçenek sunar) |
+| Geri al · yinele | Son değişikliği geri alır / yeniden uygular |
 | Müziği konuşurken kıs · müziği arka planda kısık yap · müziği kaldır | Müzik modu |
 
-Komut anlayıcı kural tabanlıdır ve tamamen yerel çalışır (ücretsiz). Anlamadığı cümlede örnek önerir. Daha serbest anlatım için Claude Code'dan MCP `komut` / `islem_uygula` araçlarını kullanabilirsiniz.
+Komut anlayıcı önce kendi kurallarıyla, tamamen yerel ve ücretsiz çalışır. Yön belirtmediğiniz komutlarda (ör. "altyazıları kaydır") seçenek sunar. "Geri al" / "yinele" de sesle çalışır.
+
+**Claude ile serbest komut (isteğe bağlı):** Kuralların anlamadığı serbest cümleleri Claude'a sorabilir. Komut panelindeki **Claude** düğmesinden Anthropic API anahtarınızı girin (console.anthropic.com → API Keys). Anahtar yalnız bu Mac'te `~/İçerik Fabrikası/ayarlar.json` dosyasında saklanır. Ücret yalnız kurallar anlamadığında, komut başına birkaç kuruştur (model: Claude Opus 5.5, düşük düşünme seviyesi; reddedilen isteklerde sunucu tarafı yedek model açıktır). Claude yalnız plan önerir; her işlem uygulanmadan önce uygulamanın kendi kurallarıyla doğrulanır, önizlenir ve onayınızla uygulanır. Claude Code kullanıyorsanız MCP `komut` / `islem_uygula` araçları da aynı işi aboneliğinizle yapar.
 
 ## Kendi dosyalarınızla kabul testi
 
