@@ -5,7 +5,7 @@
 - **Faz 3 · Yerel Stüdyo ve ince kurgu — bulutta tamam, Mac doğrulaması bekliyor.** Transkript paneli, sağda Komut/Seçili öğe, komut etkisi (klip, aralık, kapsam, yan etkiler), ses dalgası, I/O kesim, S bölme, yumuşak ses geçişleri, internetsiz çalışma testi.
 - **Faz 2 · Kurgu Stüdyosu — tamam.** Çok izli zaman çizelgesi (görüntü, üst iz, dış ses, müzik, altyazı, yazı; iz adlarında "+"), sekmeli sol panel (Komut · Medya · Seçili öğe), mikrofon/yazı ile Türkçe komut → plan → önizle/uygula, adaylar zaman koduyla, talimat ≠ dış ses, kişisel stil vs proje notu, tam ekran, render çözünürlüğü.
 - **Claude ile komut (isteğe bağlı):** Ayarlar'da "Her komutta" (varsayılan) veya "Yalnız kalıplar anlamazsa"; model Opus 5.5 / Sonnet 5.5 / Haiku 5.5; komut başına maliyet gösterilir; ulaşılamazsa yerel anlayıcı.
-- **Testler (son çalıştırma):** birim 50/50 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 19/19.
+- **Testler (son çalıştırma):** birim 50/50 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 20/20.
 - **Kullanıcının Mac'i:** kurulum yapıldı (`scripts/setup-mac.sh`), güncelleme `bash scripts/guncelle.sh`. Gerçek Türkçe altyazı Mac'te çalıştı. Render için Chrome indirilemediğinde sistem Google Chrome'u kullanılıyor.
 
 ## Doğrulanmayanlar (kullanıcıyla kontrol et)
@@ -33,7 +33,7 @@ Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). Şu an **Faz 3 · Yerel St
 1. ✅ Çevrimdışı kabul testi (`npm run e2e:offline`, 12/12; Linux'ta ağsız ad alanında, Mac'te Wi-Fi kapalıyken), gerçek eski projeler (`tests/fixtures/eski-ev`, Faz 1 + Faz 2 koduyla üretildi; `scripts/eski-proje-uret.ts`), dış sesin çıktıda duyulduğunun ölçümü.
 2. ✅ Çekirdekte kaynak ↔ kurgu zaman eşlemesi, transkript, "cümleyi kes" ve "altyazıyı düzelt" işlemleri (`src/core/transcript.ts`).
 3. ✅ Yerleşim: solda Medya + Transkript, ortada geniş önizleme, sağda Komut + Seçili öğe (kapanabilir; tercih tarayıcıda hatırlanır).
-4. ✅ Transkript paneli (`web/src/TranscriptPanel.tsx`): arama, zaman etiketi → cümle başı, kelime → o kelime, oynatırken etkin cümle/kelime, kesilenler soluk, "Cümleyi kes" ≠ "Altyazıyı düzelt". Arayüz testi `npm run e2e:ui` 19/19 (Playwright gerekir; bulutta hazır).
+4. ✅ Transkript paneli (`web/src/TranscriptPanel.tsx`): arama, zaman etiketi → cümle başı, kelime → o kelime, oynatırken etkin cümle/kelime, kesilenler soluk, "Cümleyi kes" ≠ "Altyazıyı düzelt". Arayüz testi `npm run e2e:ui` 20/20 (Playwright gerekir; bulutta hazır).
 5. ✅ Komut paneli (`src/core/impact.ts`): algılanan talep, işlem listesi (klip no + ad, kurgu aralığı → tıklayınca o ana gider, kapsam: tüm proje / yalnız bir çıktı / ayrı iz), yan etki uyarıları (silinecek yazı/üst iz, dış ses çakışması); Önizle / Uygula / Vazgeç ve uygulandıktan sonra tek tıkla Geri al.
 6. ✅ Zaman çizelgesi: ses dalgası (klip + dış ses), I/O ile kare hassasiyetinde aralık silme, S / ⌘B ile imleçte bölme, klip ve dış seste ayarlanabilir yumuşak ses girişi/çıkışı (`edgeGain`).
 7. ✅ Konuşmalı içerikte uçtan uca deneme (bulutta sentetik ses) + Mac/Android test listesi (yukarıda).

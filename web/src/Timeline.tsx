@@ -99,13 +99,17 @@ export const Timeline: React.FC<{
   const total = Math.max(1, totalDuration(project));
   const layout = layoutClips(project);
 
+  // Boş projede çizelge yoktur; ilk klip gelince ölçmeye başla (yoksa genişlik 800 px'te kalır)
+  const hasClips = project.clips.length > 0;
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth - LABEL_W - 12));
+    const measure = () => setWidth(el.clientWidth - LABEL_W - 12);
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [hasClips]);
 
   const pps = (width / total) * zoom; // saniye başına piksel
   const x = (t: number) => t * pps;

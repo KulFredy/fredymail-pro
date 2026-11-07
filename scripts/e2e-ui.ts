@@ -222,6 +222,21 @@ const main = async () => {
     const waves = await page.locator('.tl-wave').count();
     check('Ses dalgası çiziliyor (klip ve dış ses)', waves >= 2, `${waves} dalga`);
 
+    // 8) Boş Stüdyo projesine sonradan klip eklenince zaman çizelgesi tüm genişliği kullanır
+    const empty = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Boş', formats: [{ format: 'landscape' }] }) })).json();
+    await page.goto(`${base}/#/studyo/${empty.project.id}`);
+    await page.waitForSelector('.strip-empty');
+    await page.getByRole('tab', { name: 'Medya' }).click();
+    await page.getByRole('button', { name: 'Ana ize' }).first().click();
+    await page.waitForSelector('.tl-item.clip');
+    await page.waitForTimeout(400);
+    const fill = await page.evaluate(() => {
+      const clip = document.querySelector('.tl-item.clip')!.getBoundingClientRect().width;
+      const area = document.querySelector('.tl-scroll')!.getBoundingClientRect().width;
+      return clip / area;
+    });
+    check('Boş projeye klip eklenince zaman çizelgesi tüm genişliği kullanıyor', fill > 0.9, `klip / alan = %${(fill * 100).toFixed(0)}`);
+
     if (process.env.FABRIKA_UI_SHOT) await page.screenshot({ path: process.env.FABRIKA_UI_SHOT });
     check('Sayfada hata yok', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {
