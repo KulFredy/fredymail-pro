@@ -76,7 +76,7 @@ const LANE_ACTION: Record<string, string> = {
   v2: 'Üst ize görüntü ekle (B-roll)',
   a2: 'Dış ses kaydet',
   a1: 'Müzik ekle',
-  c: 'Altyazıyı aç/kapat',
+  c: 'Altyazıyı aç / kapat (videoda görünür)',
   t: 'Oynatma imlecine yazı ekle',
 };
 
@@ -146,7 +146,8 @@ export const Timeline: React.FC<{
     { key: 'v2', label: 'Üst iz', show: !compact || project.overlays.length > 0 },
     { key: 'a2', label: 'Dış ses', show: !compact || project.voice.length > 0 },
     { key: 'a1', label: 'Müzik', show: true },
-    { key: 'c', label: 'Altyazı', show: project.captions.enabled && (!compact || pages.length > 0) },
+    // Stüdyo'da altyazı izi kapalıyken de görünür kalır: yoksa “+” ile kapatılan altyazı geri açılamaz
+    { key: 'c', label: 'Altyazı', show: compact ? project.captions.enabled && pages.length > 0 : true },
     { key: 't', label: 'Yazı', show: !compact || project.texts.length > 0 },
   ];
 
@@ -312,7 +313,9 @@ export const Timeline: React.FC<{
                             )
                           : <span className="tl-empty">Müzik yok</span>
                         : l.key === 'c'
-                          ? pages.map((p, i) => (
+                          ? !project.captions.enabled
+                            ? [<span key="off" className="tl-empty">Altyazı kapalı · açmak için soldaki +</span>]
+                            : pages.map((p, i) => (
                               <div key={i} className="tl-item caption" style={{ left: x(p.start), width: Math.max(2, x(p.end - p.start) - 1) }} title={p.lines.flat().map((w) => w.text).join(' ')}>
                                 <span className="tl-name">{p.lines.flat().map((w) => w.text).join(' ')}</span>
                               </div>

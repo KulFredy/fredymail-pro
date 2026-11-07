@@ -2,10 +2,10 @@
 
 ## Durum
 - **Faz 1 · Instagram Hızlı Edit — tamam.** 8 adım: Ekle (QR ile telefondan) · Biçim (9:16, 4:5, 1:1, 16:9; video/fotoğraf) · Sırala & kısalt · Kadraj (doldur/sığdır, %10–%400 boyut, köşeye) · Renk & ışık (görünümler, ayarlar, .cube LUT, 12 kamera log dönüşümü) · Ses & müzik (3 mod) · Yazı & altyazı (yerel Whisper, kelime düzeltme) · Teslim (720p–4K, doğrulama, müziksiz sürüm, telefona indir, sürümler).
-- **Faz 3 · Yerel Stüdyo ve ince kurgu — bulutta tamam, Mac doğrulaması bekliyor.** Transkript paneli, sağda Komut/Seçili öğe, komut etkisi (klip, aralık, kapsam, yan etkiler), ses dalgası, I/O kesim, S bölme, yumuşak ses geçişleri, internetsiz çalışma testi.
+- **Faz 3 · Yerel Stüdyo ve ince kurgu — tamam (8 Kasım, kullanıcının Mac'inde gerçek videoyla doğrulandı: transkript senkronu, altyazı düzeltme + cümle kesme + geri al, çevrimdışı teslim).** Transkript paneli, sağda Komut/Seçili öğe, komut etkisi (klip, aralık, kapsam, yan etkiler), ses dalgası, I/O kesim, S bölme, yumuşak ses geçişleri, internetsiz çalışma testi.
 - **Faz 2 · Kurgu Stüdyosu — tamam.** Çok izli zaman çizelgesi (görüntü, üst iz, dış ses, müzik, altyazı, yazı; iz adlarında "+"), sekmeli sol panel (Komut · Medya · Seçili öğe), mikrofon/yazı ile Türkçe komut → plan → önizle/uygula, adaylar zaman koduyla, talimat ≠ dış ses, kişisel stil vs proje notu, tam ekran, render çözünürlüğü.
 - **Claude ile komut (isteğe bağlı):** Ayarlar'da "Her komutta" (varsayılan) veya "Yalnız kalıplar anlamazsa"; model Opus 5.5 / Sonnet 5.5 / Haiku 5.5; komut başına maliyet gösterilir; ulaşılamazsa yerel anlayıcı.
-- **Testler (son çalıştırma):** birim 50/50 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 20/20.
+- **Testler (son çalıştırma):** birim 50/50 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 21/21.
 - **Kullanıcının Mac'i:** kurulum yapıldı (`scripts/setup-mac.sh`), güncelleme `bash scripts/guncelle.sh`. Gerçek Türkçe altyazı Mac'te çalıştı. Render için Chrome indirilemediğinde sistem Google Chrome'u kullanılıyor.
 
 ## Doğrulanmayanlar (kullanıcıyla kontrol et)
@@ -13,8 +13,6 @@ Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
 - **Gerçek Claude anahtarıyla komut** (kullanıcının anahtarı gerekir). Önceki "400" hatasının nedeni görülemedi; artık ayrıntı gösteriliyor ve terminale `[claude] 400: …` yazılıyor. Olası neden: hesapta kredi yok. Yerel komut yolu bulutta test edildi (`e2e:offline`, `e2e:ui`).
 - **4K video render'ı** (4K fotoğraf test edildi).
 - **Gerçek Android telefondan Wi-Fi ile yükleme** (QR).
-- **Gerçek konuşmayla** transkript, cümle kesme ve teslim (bulutta sentetik Türkçe ses ve test çözümleyicisi kullanıldı; gerçek Whisper Mac'te çalışıyor).
-- **İnternet kapalıyken** Mac'te uygulama (bulutta ağsız ad alanında 13/13 geçti).
 - Mac'te sesli komutların gerçek kullanımda doğruluğu.
 
 ### Mac'te test listesi (Faz 3, ~15 dk)
@@ -33,12 +31,12 @@ Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). Şu an **Faz 3 · Yerel St
 1. ✅ Çevrimdışı kabul testi (`npm run e2e:offline`, 12/12; Linux'ta ağsız ad alanında, Mac'te Wi-Fi kapalıyken), gerçek eski projeler (`tests/fixtures/eski-ev`, Faz 1 + Faz 2 koduyla üretildi; `scripts/eski-proje-uret.ts`), dış sesin çıktıda duyulduğunun ölçümü.
 2. ✅ Çekirdekte kaynak ↔ kurgu zaman eşlemesi, transkript, "cümleyi kes" ve "altyazıyı düzelt" işlemleri (`src/core/transcript.ts`).
 3. ✅ Yerleşim: solda Medya + Transkript, ortada geniş önizleme, sağda Komut + Seçili öğe (kapanabilir; tercih tarayıcıda hatırlanır).
-4. ✅ Transkript paneli (`web/src/TranscriptPanel.tsx`): arama, zaman etiketi → cümle başı, kelime → o kelime, oynatırken etkin cümle/kelime, kesilenler soluk, "Cümleyi kes" ≠ "Altyazıyı düzelt". Arayüz testi `npm run e2e:ui` 20/20 (Playwright gerekir; bulutta hazır).
+4. ✅ Transkript paneli (`web/src/TranscriptPanel.tsx`): arama, zaman etiketi → cümle başı, kelime → o kelime, oynatırken etkin cümle/kelime, kesilenler soluk, "Cümleyi kes" ≠ "Altyazıyı düzelt". Arayüz testi `npm run e2e:ui` 21/21 (Playwright gerekir; bulutta hazır).
 5. ✅ Komut paneli (`src/core/impact.ts`): algılanan talep, işlem listesi (klip no + ad, kurgu aralığı → tıklayınca o ana gider, kapsam: tüm proje / yalnız bir çıktı / ayrı iz), yan etki uyarıları (silinecek yazı/üst iz, dış ses çakışması); Önizle / Uygula / Vazgeç ve uygulandıktan sonra tek tıkla Geri al.
 6. ✅ Zaman çizelgesi: ses dalgası (klip + dış ses), I/O ile kare hassasiyetinde aralık silme, S / ⌘B ile imleçte bölme, klip ve dış seste ayarlanabilir yumuşak ses girişi/çıkışı (`edgeGain`).
 7. ✅ Konuşmalı içerikte uçtan uca deneme (bulutta sentetik ses) + Mac/Android test listesi (yukarıda).
 
-**Sıradaki somut iş:** kullanıcı Mac test listesini uygular; bulunan sorunlar düzeltilir. Ardından Faz 4'ün ilk adımı: LUT Kütüphanem sekmesi (toplu `.cube` içe aktarma, arama, etiket, favori, aynı karede önce/sonra).
+**Sıradaki somut iş:** Faz 4'ün ilk adımı: LUT Kütüphanem sekmesi (toplu `.cube` içe aktarma, arama, etiket, favori, aynı karede önce/sonra).
 
 Sonra: Faz 4 (Referanslar, LUT Kütüphanem, hareket) → Faz 5 (Bağlantılar) → Faz 6 (Marka, kampanya) → Faz 7/8 isteğe bağlı.
 Küçükler (uygun fazda): RAW fotoğraf (LibRaw), kaynak oranında çıktı (ör. 4:3), Premiere'e aktarım (OpenTimelineIO / FCP XML), telefonda düzenleme ekranı, depoyu `main` dalına birleştirme.

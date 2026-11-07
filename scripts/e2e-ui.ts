@@ -237,6 +237,17 @@ const main = async () => {
     });
     check('Boş projeye klip eklenince zaman çizelgesi tüm genişliği kullanıyor', fill > 0.9, `klip / alan = %${(fill * 100).toFixed(0)}`);
 
+    // 9) Altyazı izindeki “+” altyazıyı kapatır; iz görünür kalır ve tekrar “+” ile açılır
+    const capLabel = page.locator('.tl-label.lane-c');
+    await capLabel.click();
+    await page.waitForTimeout(500);
+    const off = (await api('GET', `/api/projects/${empty.project.id}`)).project.captions.enabled;
+    const offVisible = await page.getByText('Altyazı kapalı').isVisible();
+    await capLabel.click();
+    await page.waitForTimeout(500);
+    const on = (await api('GET', `/api/projects/${empty.project.id}`)).project.captions.enabled;
+    check('Altyazı “+” ile kapanıp aynı yerden tekrar açılabiliyor', off === false && offVisible && on === true);
+
     if (process.env.FABRIKA_UI_SHOT) await page.screenshot({ path: process.env.FABRIKA_UI_SHOT });
     check('Sayfada hata yok', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {
