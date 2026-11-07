@@ -144,6 +144,9 @@ export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSe
                       return (
                         <div
                           key={item.clip.id}
+                          data-clip-id={item.clip.id}
+                          data-asset-id={item.clip.assetId}
+                          data-start={item.start.toFixed(3)}
                           className={`tl-item clip ${sel ? 'sel' : ''} ${overId === item.clip.id ? 'over' : ''}`}
                           style={{ left: x(item.start), width: Math.max(2, x(item.duration) - 2), backgroundImage: a?.poster ? `url(${fileHref(a.poster)})` : undefined }}
                           draggable
@@ -232,7 +235,7 @@ export const Timeline: React.FC<{ compact?: boolean; selection?: Selection; onSe
                 <span>{formatTime(h.start)}</span>
               </div>
             ))}
-            <div className="tl-playhead" style={{ left: x(t) }} />
+            <div className="tl-playhead" data-t={t.toFixed(3)} style={{ left: x(t) }} />
           </div>
         </div>
       </div>

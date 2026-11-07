@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   ArrowLeft, Mic, Square, Send, Undo2, Redo2, Zap, Download, Play, Check, X, Scissors, Trash2, Plus, Music2, Layers, Loader2, Wand2, Video, Image as ImageIcon,
+  PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal,
 } from 'lucide-react';
 import { COMMAND_EXAMPLES, planCommand, type Plan, type PlanCandidate } from '../../src/core/commands';
 import { FPS } from '../../src/core/schema';
@@ -11,9 +12,26 @@ import { FramingControls } from './FramingControls';
 import { useApp, useProject } from './state';
 import { ExportStep } from './steps/ExportStep';
 import { Timeline, type Selection } from './Timeline';
+import { TranscriptPanel } from './TranscriptPanel';
 import { Modal, Segmented, Slider, fmtDb, fmtSec } from './ui';
 
 type HistoryItem = { text: string; summary: string; ok: boolean };
+
+/** Kişisel arayüz tercihi (yalnız bu tarayıcı); okunamazsa varsayılan */
+const readPref = <T extends string>(k: string, d: T): T => {
+  try {
+    return (localStorage.getItem(k) as T) || d;
+  } catch {
+    return d;
+  }
+};
+const writePref = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* yok say */
+  }
+};
 
 /** Mikrofon kaydı (tarayıcı); Safari mp4, Chrome webm üretir — sunucu ffmpeg ile çözer */
 const useRecorder = () => {
@@ -595,7 +613,15 @@ export const Studio: React.FC = () => {
   const [selection, setSelection] = useState<Selection>(project.ui.selectedClipId ? { kind: 'clip', id: project.ui.selectedClipId } : null);
   const [exporting, setExporting] = useState(false);
   const [name, setName] = useState(project.name);
-  const [tab, setTab] = useState<'komut' | 'medya' | 'secili'>('komut');
+  const [leftTab, setLeftTab] = useState<'medya' | 'transkript'>(() => readPref('fabrika.studyo.sol', 'transkript'));
+  const [rightTab, setRightTab] = useState<'komut' | 'secili'>('komut');
+  const [rightOpen, setRightOpen] = useState<boolean>(() => readPref('fabrika.studyo.sag', '1') === '1');
+  React.useEffect(() => writePref('fabrika.studyo.sol', leftTab), [leftTab]);
+  React.useEffect(() => writePref('fabrika.studyo.sag', rightOpen ? '1' : '0'), [rightOpen]);
+  const openRight = (t: 'komut' | 'secili') => {
+    setRightTab(t);
+    setRightOpen(true);
+  };
   const [cmdMode, setCmdMode] = useState<'talimat' | 'disses'>('talimat');
   const musicInput = useRef<HTMLInputElement>(null);
   const { toast } = useApp();
@@ -612,10 +638,10 @@ export const Studio: React.FC = () => {
   /** Zaman çizelgesindeki iz adlarının “+” eylemleri */
   const laneAction = (key: string) => {
     if (key === 'v1' || key === 'v2') {
-      setTab('medya');
+      setLeftTab('medya');
       toast(key === 'v1' ? 'Medyada “Ana ize” ile ekleyin' : 'Medyada “Üst ize” ile oynatma imlecine ekleyin');
     } else if (key === 'a2') {
-      setTab('komut');
+      openRight('komut');
       setCmdMode('disses');
       toast('Dış ses modu: mikrofona basıp konuşun');
     } else if (key === 'a1') musicInput.current?.click();
@@ -642,7 +668,7 @@ export const Studio: React.FC = () => {
   }, [undo, redo]);
 
   return (
-    <div className="studio">
+    <div className={`studio ${rightOpen ? '' : 'right-closed'}`}>
       <header className="topbar">
         <a className="icon-btn" href="#/" title="Ana ekran">
           <ArrowLeft size={18} />
@@ -670,34 +696,70 @@ export const Studio: React.FC = () => {
         </button>
       </header>
       <aside className="studio-left">
-        <div className="tabs">
+        <div className="tabs" role="tablist">
           {(
             [
-              ['komut', 'Komut'],
               ['medya', 'Medya'],
-              ['secili', 'Seçili öğe'],
+              ['transkript', 'Transkript'],
             ] as const
           ).map(([k, l]) => (
-            <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+            <button key={k} role="tab" aria-selected={leftTab === k} className={leftTab === k ? 'on' : ''} onClick={() => setLeftTab(k)}>
               {l}
             </button>
           ))}
         </div>
         <div className="tab-body">
-          {tab === 'komut' ? <CommandPanel mode={cmdMode} setMode={setCmdMode} /> : null}
-          {tab === 'medya' ? <MediaBin /> : null}
-          {tab === 'secili' ? <Inspector selection={selection} onClear={() => setSelection(null)} /> : null}
+          {leftTab === 'medya' ? <MediaBin /> : null}
+          {leftTab === 'transkript' ? <TranscriptPanel onSelect={setSelection} /> : null}
         </div>
       </aside>
       <main className="studio-center">
         <Preview framingToggle />
       </main>
+      {rightOpen ? (
+        <aside className="studio-right">
+          <div className="tabs" role="tablist">
+            {(
+              [
+                ['komut', 'Komut'],
+                ['secili', 'Seçili öğe'],
+              ] as const
+            ).map(([k, l]) => (
+              <button key={k} role="tab" aria-selected={rightTab === k} className={rightTab === k ? 'on' : ''} onClick={() => setRightTab(k)}>
+                {l}
+              </button>
+            ))}
+            <button className="tab-icon" onClick={() => setRightOpen(false)} title="Paneli kapat (önizleme genişler)" aria-label="Sağ paneli kapat">
+              <PanelRightClose size={16} />
+            </button>
+          </div>
+          <div className="tab-body">
+            {/* Komut paneli kapalı sekmede de yaşasın: plan ve önizleme kaybolmasın */}
+            <div hidden={rightTab !== 'komut'}>
+              <CommandPanel mode={cmdMode} setMode={setCmdMode} />
+            </div>
+            {rightTab === 'secili' ? <Inspector selection={selection} onClear={() => setSelection(null)} /> : null}
+          </div>
+        </aside>
+      ) : (
+        <aside className="studio-rail">
+          <button className="icon-btn" onClick={() => setRightOpen(true)} title="Paneli aç" aria-label="Sağ paneli aç">
+            <PanelRightOpen size={17} />
+          </button>
+          <button className="icon-btn" onClick={() => openRight('komut')} title="Komut">
+            <MessageSquareText size={17} />
+          </button>
+          <button className="icon-btn" onClick={() => openRight('secili')} title="Seçili öğe">
+            <SlidersHorizontal size={17} />
+          </button>
+        </aside>
+      )}
       <footer className="studio-timeline">
         <Timeline
           selection={selection}
           onSelect={(sel) => {
             setSelection(sel);
-            if (sel) setTab('secili');
+            if (sel) openRight('secili');
           }}
           onLaneAction={laneAction}
         />
