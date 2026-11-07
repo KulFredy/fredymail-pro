@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit -p .",
     "e2e:studio": "tsx scripts/e2e-studio.ts",
     "e2e:offline": "tsx scripts/e2e-offline.ts",
-    "e2e:ui": "tsx scripts/e2e-ui.ts"
+    "e2e:ui": "tsx scripts/e2e-ui.ts",
+    "e2e:lut": "tsx scripts/e2e-lut.ts"
   },
   "engines": {
     "node": ">=20"

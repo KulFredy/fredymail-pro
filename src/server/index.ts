@@ -16,6 +16,7 @@ import { FORMATS, outputLabel } from '../core/formats';
 import { buildRefs } from '../core/refs';
 import { OpError, OpSchema, patchOf } from '../core/ops';
 import { UiStateSchema } from '../core/schema';
+import { LutPatchSchema } from '../core/lutlib';
 import { getTools } from '../media/proc';
 import { MOBILE_TOKEN, downloadsPage, lanAddress, uploadPage } from './mobile';
 import { handleStrayError, warmUp } from './render';
@@ -230,13 +231,29 @@ export const createServer = async (home = defaultHome()) => {
   });
 
   // ---------- LUT ----------
-  app.get('/api/luts', async () => svc.listLuts());
+  app.get('/api/luts', async (req) => svc.listLuts((req.query as { kullanim?: string }).kullanim === '1'));
+  /** Toplu içe aktarma: .cube / .3dl / .zip; dosya başına rapor */
   app.post('/api/luts', async (req) => {
-    const added = [];
-    for await (const part of req.parts()) {
-      if (part.type === 'file') added.push(await svc.addLut(part.filename, (await part.toBuffer()).toString('utf8')));
-    }
-    return { added, luts: await svc.listLuts() };
+    const files: { name: string; data: Buffer }[] = [];
+    for await (const part of req.parts()) if (part.type === 'file') files.push({ name: part.filename || 'lut.cube', data: await part.toBuffer() });
+    const report = await svc.importLuts(files);
+    return { added: report.filter((r) => r.id).map((r) => ({ id: r.id })), report, luts: await svc.listLuts() };
+  });
+  app.patch('/api/luts/:id', async (req) => {
+    const { id } = req.params as { id: string };
+    const meta = await svc.updateLut(id, LutPatchSchema.parse(req.body));
+    return { meta, luts: await svc.listLuts() };
+  });
+  app.delete('/api/luts/:id', async (req) => {
+    await svc.deleteLut((req.params as { id: string }).id);
+    return { luts: await svc.listLuts() };
+  });
+  app.get('/api/assets/:id/frame', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const q = req.query as { t?: string; w?: string };
+    const file = await svc.assetFrame(id, Number(q.t ?? 0) || 0, Number(q.w ?? 320) || 320);
+    reply.header('cache-control', 'max-age=3600').type('image/jpeg');
+    return reply.send(await readFile(file));
   });
 
   // ---------- Projeler ----------

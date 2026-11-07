@@ -1,6 +1,9 @@
 import type { Asset, AssetRef } from './schema';
 
-export type LutInfo = { id: string; title: string; group: 'kamera' | 'kullanici'; path: string };
+import type { LutMeta } from './lutlib';
+
+/** meta: yalnız kullanıcı LUT'larında (tür, giriş, etiket, favori) · uses: kaç projede kullanılıyor */
+export type LutInfo = { id: string; title: string; group: 'kamera' | 'kullanici'; path: string; meta?: LutMeta; uses?: number };
 
 /** Göreli dosya yolunu URL'ye çevirir (Türkçe/boşluklu adlar güvenli) */
 export const fileUrl = (base: string, rel: string | null) =>

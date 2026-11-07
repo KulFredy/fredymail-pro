@@ -5,7 +5,11 @@ import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { FORMATS, RESOLUTION_LABELS, renderSize, resolutionScale } from '../core/formats';
+import { createHash } from 'node:crypto';
+import os from 'node:os';
 import { parseCube } from '../core/lut';
+import { LutMetaSchema, classifyLut, lutFormat, parse3dl, toCube, unsupportedReason, type LutMeta } from '../core/lutlib';
+import { getTools, runOk } from '../media/proc';
 import { buildRefs, lutUrls, type LutInfo } from '../core/refs';
 import { AssetSchema, type Asset, type CompProps, type Project } from '../core/schema';
 import { outputFrames } from '../core/timeline';
@@ -205,22 +209,192 @@ export class Service {
     return this.store.getProjectState(projectId);
   }
 
-  // ---------- LUT ----------
-  async listLuts(): Promise<LutInfo[]> {
+  // ---------- LUT Kütüphanem ----------
+  private lutMeta: Record<string, LutMeta> | null = null;
+  private lutMetaFile() {
+    return this.store.p('kutuphane', 'luts.json');
+  }
+  private async loadLutMeta() {
+    if (this.lutMeta) return this.lutMeta;
+    const out: Record<string, LutMeta> = {};
+    try {
+      const raw = JSON.parse(await readFile(this.lutMetaFile(), 'utf8')) as Record<string, unknown>;
+      for (const [id, v] of Object.entries(raw)) {
+        const r = LutMetaSchema.safeParse(v);
+        if (r.success) out[id] = r.data;
+      }
+    } catch {
+      /* ilk kullanım */
+    }
+    this.lutMeta = out;
+    return out;
+  }
+  private async saveLutMeta() {
+    await writeFile(this.lutMetaFile(), JSON.stringify(this.lutMeta ?? {}, null, 2));
+  }
+  private static lutHash = (cube: string) => createHash('sha256').update(cube.replace(/\r\n/g, '\n').trim()).digest('hex').slice(0, 16);
+
+  /** Projelerde hangi LUT kaç kez kullanılıyor (silmeden önce uyarı için) */
+  private async lutUses(): Promise<Record<string, number>> {
+    const uses: Record<string, number> = {};
+    for (const s of await this.store.listProjects()) {
+      try {
+        const p = await this.store.getProject(s.id);
+        const ids = new Set([p.look.lut, ...p.clips.map((c) => c.look?.lut ?? null)].filter(Boolean) as string[]);
+        for (const id of ids) uses[id] = (uses[id] ?? 0) + 1;
+      } catch {
+        /* bozuk proje: say */
+      }
+    }
+    return uses;
+  }
+
+  async listLuts(withUses = false): Promise<LutInfo[]> {
     const kamera = JSON.parse(await readFile(path.join(ROOT, 'assets', 'luts', 'kamera', 'index.json'), 'utf8')) as { id: string; title: string }[];
     const out: LutInfo[] = kamera.map((k) => ({ id: k.id, title: k.title, group: 'kamera', path: `/luts/kamera/${k.id}.cube` }));
     const userDir = this.store.p('kutuphane', 'luts');
-    for (const f of (await readdir(userDir).catch(() => [])).filter((f) => f.toLowerCase().endsWith('.cube')).sort()) {
-      out.push({ id: `kullanici:${f}`, title: f.replace(/\.cube$/i, ''), group: 'kullanici', path: `/files/kutuphane/luts/${f}` });
+    const meta = await this.loadLutMeta();
+    let dirty = false;
+    const uses = withUses ? await this.lutUses() : {};
+    for (const f of (await readdir(userDir).catch(() => [])).filter((f) => f.toLowerCase().endsWith('.cube')).sort((a, b) => a.localeCompare(b, 'tr'))) {
+      const id = `kullanici:${f}`;
+      if (!meta[id]) {
+        // Faz 4 öncesi eklenmiş LUT: bilgilerini bir kez çıkar
+        try {
+          const text = await readFile(path.join(userDir, f), 'utf8');
+          const lut = parseCube(text);
+          const name = f.replace(/\.cube$/i, '');
+          meta[id] = LutMetaSchema.parse({ name, ...classifyLut(f, lut.title), size: lut.size, hash: Service.lutHash(text), source: f, addedAt: new Date().toISOString() });
+          dirty = true;
+        } catch {
+          continue; // okunamayan dosya listelenmez
+        }
+      }
+      out.push({ id, title: meta[id].name, group: 'kullanici', path: `/files/kutuphane/luts/${f}`, meta: meta[id], ...(withUses ? { uses: uses[id] ?? 0 } : {}) });
     }
+    if (dirty) await this.saveLutMeta();
     return out;
   }
 
+  /**
+   * Toplu içe aktarma: .cube, .3dl (→ .cube'a çevrilir) ve bunları içeren .zip.
+   * Aynı içerik ikinci kez eklenmez. Her dosya için sonuç döner.
+   */
+  async importLuts(files: { name: string; data: Buffer }[]) {
+    type Row = { file: string; status: 'eklendi' | 'vardi' | 'hata'; id?: string; name?: string; reason?: string; kind?: string; input?: string | null };
+    const report: Row[] = [];
+    const meta = await this.loadLutMeta();
+    await this.listLuts(); // eski dosyaların bilgisi hazır olsun
+    const byHash = new Map(Object.entries(meta).map(([id, m]) => [m.hash, id]));
+    const userDir = this.store.p('kutuphane', 'luts');
+    await mkdir(userDir, { recursive: true });
+
+    // Zip'leri aç
+    const flat: { name: string; data: Buffer }[] = [];
+    for (const f of files) {
+      if (lutFormat(f.name) !== 'zip') {
+        flat.push(f);
+        continue;
+      }
+      const dir = path.join(os.tmpdir(), `fabrika-lut-${newId()}`);
+      try {
+        await mkdir(dir, { recursive: true });
+        await writeFile(path.join(dir, 'paket.zip'), f.data);
+        await runOk('unzip', ['-qq', '-o', '-j', path.join(dir, 'paket.zip'), '-d', path.join(dir, 'acik')]);
+        const inner = (await readdir(path.join(dir, 'acik')).catch(() => [])).filter((n) => !n.startsWith('.') && !n.startsWith('__'));
+        if (!inner.length) report.push({ file: f.name, status: 'hata', reason: 'Zip boş' });
+        for (const n of inner) flat.push({ name: `${f.name} › ${n}`, data: await readFile(path.join(dir, 'acik', n)) });
+      } catch {
+        report.push({ file: f.name, status: 'hata', reason: 'Zip açılamadı' });
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    for (const f of flat) {
+      const base = f.name.split(' › ').pop()!;
+      const fmt = lutFormat(base);
+      if (fmt !== 'cube' && fmt !== '3dl') {
+        report.push({ file: f.name, status: 'hata', reason: unsupportedReason(base) });
+        continue;
+      }
+      let cube: string;
+      let lut;
+      const name = base.replace(/\.(cube|3dl)$/i, '').replace(/_/g, ' ').trim() || 'LUT';
+      try {
+        const text = f.data.toString('utf8');
+        if (fmt === 'cube') {
+          if (/^\s*LUT_1D_SIZE/im.test(text) && /^\s*LUT_3D_SIZE/im.test(text)) throw new Error('1B + 3B (shaper) LUT desteklenmiyor');
+          lut = parseCube(text);
+          cube = text;
+        } else {
+          lut = parse3dl(text);
+          cube = toCube(lut, name);
+        }
+      } catch (e) {
+        report.push({ file: f.name, status: 'hata', reason: (e as Error).message });
+        continue;
+      }
+      const hash = Service.lutHash(cube);
+      const existing = byHash.get(hash);
+      if (existing) {
+        report.push({ file: f.name, status: 'vardi', id: existing, name: meta[existing]?.name });
+        continue;
+      }
+      const stem = name.replace(/[/\\:*?"<>|]/g, '_').slice(0, 80);
+      let fileName = `${stem}.cube`;
+      for (let i = 2; await stat(path.join(userDir, fileName)).then(() => true, () => false); i++) fileName = `${stem} (${i}).cube`;
+      await writeFile(path.join(userDir, fileName), cube);
+      const id = `kullanici:${fileName}`;
+      const c = classifyLut(base, lut.title);
+      meta[id] = LutMetaSchema.parse({ name, ...c, size: lut.size, hash, source: base, addedAt: new Date().toISOString() });
+      byHash.set(hash, id);
+      report.push({ file: f.name, status: 'eklendi', id, name, kind: c.kind, input: c.input });
+    }
+    await this.saveLutMeta();
+    return report;
+  }
+
+  /** Eski arayüz uyumu: tek .cube metni */
   async addLut(name: string, content: string) {
-    parseCube(content); // geçerli mi?
-    const safe = name.replace(/[/\\]/g, '_').replace(/\.cube$/i, '') + '.cube';
-    await writeFile(this.store.p('kutuphane', 'luts', safe), content);
-    return { id: `kullanici:${safe}` };
+    const [r] = await this.importLuts([{ name: lutFormat(name) ? name : `${name}.cube`, data: Buffer.from(content) }]);
+    if (r.status === 'hata') throw new Error(r.reason);
+    return { id: r.id! };
+  }
+
+  async updateLut(id: string, patch: Partial<Pick<LutMeta, 'name' | 'kind' | 'input' | 'tags' | 'favorite'>>) {
+    const meta = await this.loadLutMeta();
+    if (!meta[id]) throw new Error('LUT bulunamadı');
+    const next = { ...meta[id], ...patch };
+    if (patch.kind === 'gorunum') next.input = null;
+    if (patch.tags) next.tags = [...new Set(patch.tags.map((t) => t.toLocaleLowerCase('tr')))];
+    meta[id] = LutMetaSchema.parse(next);
+    await this.saveLutMeta();
+    return meta[id];
+  }
+
+  async deleteLut(id: string) {
+    const meta = await this.loadLutMeta();
+    if (!id.startsWith('kullanici:')) throw new Error('Yalnız kendi eklediğiniz LUT silinebilir');
+    await rm(this.store.p('kutuphane', 'luts', id.slice('kullanici:'.length)), { force: true });
+    delete meta[id];
+    await this.saveLutMeta();
+  }
+
+  /** Küçük önizleme karesi (LUT kütüphanesi için): videoda t. saniye, fotoğrafta kendisi; önbellekli JPEG */
+  async assetFrame(id: string, t: number, width: number) {
+    const a = this.store.library.get(id);
+    if (!a || a.kind === 'audio') throw new Error('Kare alınamaz');
+    const src = this.store.abs(a.preview ?? a.render ?? a.original);
+    const w = Math.max(64, Math.min(960, Math.round(width / 16) * 16));
+    const ts = a.kind === 'video' ? Math.max(0, Math.min(a.duration - 0.05, t)) : 0;
+    const out = this.store.p('kutuphane', 'cache', id, `kare-${ts.toFixed(2)}-${w}.jpg`);
+    if (!(await stat(out).then(() => true, () => false))) {
+      await mkdir(path.dirname(out), { recursive: true });
+      const { ffmpeg } = await getTools();
+      await runOk(ffmpeg, ['-hide_banner', '-v', 'error', '-y', ...(a.kind === 'video' ? ['-ss', ts.toFixed(3)] : []), '-i', src, '-frames:v', '1', '-vf', `scale=${w}:-2`, '-q:v', '4', out]);
+    }
+    return out;
   }
 
   // ---------- Render ----------
