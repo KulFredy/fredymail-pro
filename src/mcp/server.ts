@@ -158,8 +158,8 @@ server.registerTool(
   'kadraj_ayarla',
   {
     title: 'Kadraj',
-    description: 'Bir çıktıda (ör. Story) bir klibin kadrajı. Diğer çıktıları etkilemez. mod: fill (doldur/kırp), fit-blur (sığdır, bulanık arka plan), fit (sığdır, siyah). x,y: odak noktası 0..1, zoom 1..4.',
-    inputSchema: { proje_id: z.string(), cikti_id: z.string(), klip_id: z.string(), mod: z.enum(['fill', 'fit-blur', 'fit']).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), zoom: z.number().min(1).max(4).optional() },
+    description: 'Bir çıktıda (ör. Story) bir klibin kadrajı. Diğer çıktıları etkilemez. mod: fill (doldur/kırp), fit-blur (sığdır, bulanık arka plan), fit (sığdır, siyah). x,y: görüntü kareden büyükse odak noktası, küçükse karedeki yeri (0..1). zoom 0.1..4 (0.5 = yarı boyut).',
+    inputSchema: { proje_id: z.string(), cikti_id: z.string(), klip_id: z.string(), mod: z.enum(['fill', 'fit-blur', 'fit']).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), zoom: z.number().min(0.1).max(4).optional() },
   },
   async ({ proje_id, cikti_id, klip_id, mod, x, y, zoom }) => {
     const framing = Object.fromEntries(Object.entries({ mode: mod, x, y, zoom }).filter(([, v]) => v !== undefined));

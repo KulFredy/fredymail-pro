@@ -404,3 +404,11 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .add-format .menu button:hover { background: var(--card2); }
 .ratio-ico { width: 16px; max-height: 22px; border: 2px solid var(--muted); border-radius: 3px; flex: none; }
 .format-grid { grid-template-columns: repeat(3, 1fr); }
+
+/* ---------- Kadraj denetimi, çözünürlük seçimi ---------- */
+.preview-foot { flex-wrap: wrap; gap: 8px; }
+.res-pick { display: inline-flex; align-items: center; gap: 8px; }
+.insp-group { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--card); }
+.insp-group summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.insp-group[open] summary { margin-bottom: 8px; }
+.framing .segmented { align-self: flex-start; }

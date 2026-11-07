@@ -1,7 +1,8 @@
 import { PRESETS } from './looks';
 import type { OpInput } from './ops';
 import type { AssetRef, CaptionStyle, Project } from './schema';
-import { formatTime, layoutClips, sentences, timelineWords, totalDuration, type Sentence, type TimedWord } from './timeline';
+import { FORMATS } from './formats';
+import { formatTime, framingFor, layoutClips, outputSize, scaleFraming, sentences, timelineWords, totalDuration, type Sentence, type TimedWord } from './timeline';
 
 /**
  * Türkçe kurgu komutlarını işlem planına çevirir (kural tabanlı, yerel, ücretsiz).
@@ -33,6 +34,8 @@ export type CommandContext = {
   /** Oynatma imleci (sn) */
   playhead: number;
   selectedClipId: string | null;
+  /** Önizlemede seçili çıktı (kadraj komutları buna uygulanır) */
+  outputId?: string | null;
 };
 
 const fail = (summary: string, hint?: string): Plan => ({ understood: false, summary, ops: [], ranges: [], candidates: [], hint });
@@ -374,7 +377,77 @@ const ruleCaptionMove = (_raw: string, t: string, ctx: CommandContext): Plan | n
   return { understood: true, summary: 'Altyazıyı nereye taşıyayım?', ops: [], ranges: [], candidates: [up, down, mid, top] };
 };
 
-const RULES = [ruleUndo, ruleCaptionMove, ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
+/** "Görüntüyü %50 küçült", "videoyu büyüt", "sağ alt köşeye al", "ortala", "ekranı doldur", "tam sığdır" */
+const ruleScale = (_raw: string, t: string, ctx: CommandContext): Plan | null => {
+  if (/altyazı|yazı|müzi/.test(t)) return null;
+  const verbs = /(küçült|büyüt|yakınlaştır|uzaklaştır|ölçekle|boyut|köşe|sağ alt|sol alt|sağ üst|sol üst|ortala|ortaya al|doldur|sığdır|tam ekran|kaplasın|kenara)/;
+  if (!verbs.test(t) || !/(görüntü|video|klib|klip|resim|fotoğraf|kare|ekran|burayı|bunu|plan|kadraj|^)/.test(t)) return null;
+  const project = ctx.project;
+  const output = project.outputs.find((o) => o.id === ctx.outputId) ?? project.outputs.find((o) => o.id === project.ui.activeOutputId) ?? project.outputs[0];
+  if (!output) return fail('Önce bir çıktı biçimi ekleyin.');
+  const { width: W, height: H } = outputSize(output);
+  const all = /(tüm|bütün|hepsi|hepsini|tamamını|bütün klip)/.test(t);
+  const layout = layoutClips(project);
+  const atHead = layout.find((l) => ctx.playhead >= l.start && ctx.playhead < l.end)?.clip;
+  const ov = project.overlays.find((o) => ctx.playhead >= o.at && ctx.playhead < o.at + (o.out - o.in));
+  const targets = all ? project.clips.map((c) => ({ id: c.id, assetId: c.assetId })) : ov && /(üst|yakın plan|küçük görüntü)/.test(t) ? [{ id: ov.id, assetId: ov.assetId }] : [];
+  if (!targets.length) {
+    const sel = project.clips.find((c) => c.id === ctx.selectedClipId) ?? atHead ?? project.clips[0];
+    if (!sel) return fail('Önce klip ekleyin.');
+    targets.push({ id: sel.id, assetId: sel.assetId });
+  }
+  const pct = /%\s*(\d+)|yüzde\s*(\d+)|(\d+)\s*%/.exec(t);
+  const p = pct ? Number(pct[1] ?? pct[2] ?? pct[3]) / 100 : null;
+  const halfWord = /(yarı(ya|sına)?|yarım)/.test(t);
+  const ops: OpInput[] = [];
+  const parts: string[] = [];
+  for (const tg of targets) {
+    const a = ctx.assets[tg.assetId];
+    if (!a) continue;
+    let f = framingFor(output, { id: tg.id } as never);
+    if (/(küçült|uzaklaştır)/.test(t)) {
+      const factor = p !== null ? (p < 1 ? 1 - p : 0.5) : halfWord ? 0.5 : 0.75;
+      // "%50 küçült" = yarıya; "%30 küçült" = %70'e
+      f = scaleFraming(f, a.width, a.height, W, H, p !== null ? 1 - Math.min(0.9, p) : factor);
+      parts.push(`%${Math.round((p !== null ? 1 - Math.min(0.9, p) : factor) * 100)} boyutuna küçültülecek`);
+    } else if (/(büyüt|yakınlaştır)/.test(t)) {
+      const factor = p !== null ? 1 + p : halfWord ? 1.5 : 1.25;
+      f = scaleFraming(f, a.width, a.height, W, H, factor);
+      parts.push(`%${Math.round(factor * 100)} boyutuna büyütülecek`);
+    } else if (/(doldur|kaplasın|tam ekran)/.test(t)) {
+      f = { ...f, mode: 'fill', zoom: 1, x: 0.5, y: 0.5 };
+      parts.push('ekranı dolduracak');
+    } else if (/sığdır/.test(t)) {
+      f = { ...f, mode: 'fit-blur', zoom: 1, x: 0.5, y: 0.5 };
+      parts.push('tamamı görünecek (bulanık arka plan)');
+    }
+    const corner: [RegExp, number, number, string][] = [
+      [/sağ alt/, 0.94, 0.92, 'sağ alt köşeye'],
+      [/sol alt/, 0.06, 0.92, 'sol alt köşeye'],
+      [/sağ üst/, 0.94, 0.08, 'sağ üst köşeye'],
+      [/sol üst/, 0.06, 0.08, 'sol üst köşeye'],
+      [/(ortala|ortaya)/, 0.5, 0.5, 'ortaya'],
+    ];
+    const c = corner.find(([re]) => re.test(t));
+    if (c) {
+      if (f.zoom >= 1 && f.mode !== 'fill' && c[3] !== 'ortaya') f = scaleFraming(f, a.width, a.height, W, H, 0.4);
+      f = { ...f, x: c[1], y: c[2] };
+      parts.push(`${c[3]} alınacak`);
+    }
+    ops.push({ type: 'output.setFraming', outputId: output.id, clipId: tg.id, framing: { mode: f.mode, zoom: Number(f.zoom.toFixed(3)), x: f.x, y: f.y } });
+  }
+  if (!ops.length || !parts.length) return null;
+  const who = all ? 'Tüm klipler' : targets[0].id.startsWith('v') ? 'Üst izdeki görüntü' : 'Görüntü';
+  return {
+    understood: true,
+    summary: `${who} ${parts.filter((x, i, arr) => arr.indexOf(x) === i).join(' ve ')} (${FORMATS[output.format].label} ${FORMATS[output.format].ratio}).`,
+    ops,
+    ranges: [],
+    candidates: [],
+  };
+};
+
+const RULES = [ruleUndo, ruleScale, ruleCaptionMove, ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
 
 export const planCommand = (raw: string, ctx: CommandContext): Plan => {
   const t = normalizeTr(raw);

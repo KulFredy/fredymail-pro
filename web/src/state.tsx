@@ -112,7 +112,7 @@ type ProjectCtx = {
   highlights: { start: number; end: number; kind: 'delete' | 'overlay' | 'change' }[];
   setHighlights: (h: { start: number; end: number; kind: 'delete' | 'overlay' | 'change' }[]) => void;
   seekRef: React.MutableRefObject<((f: number) => void) | null>;
-  playRef: React.MutableRefObject<{ play: () => void; pause: () => void } | null>;
+  playRef: React.MutableRefObject<{ play: () => void; pause: () => void; fullscreen?: () => void } | null>;
 };
 
 const PCtx = createContext<ProjectCtx | null>(null);
@@ -135,7 +135,7 @@ export const ProjectProvider: React.FC<{ id: string; children: React.ReactNode }
   const pending = useRef(0);
   const debounced = useRef(new Map<string, { ops: OpInput[]; label?: string; timer: number }>());
   const seekRef = useRef<((f: number) => void) | null>(null);
-  const playRef = useRef<{ play: () => void; pause: () => void } | null>(null);
+  const playRef = useRef<{ play: () => void; pause: () => void; fullscreen?: () => void } | null>(null);
   const libRef = useRef(library);
   libRef.current = library;
 

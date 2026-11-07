@@ -39,7 +39,8 @@ export const FramingSchema = z.object({
   /** Kaynak görüntüde odak noktası (0..1) */
   x: pos(0.5),
   y: pos(0.5),
-  zoom: z.number().min(1).max(4).default(1),
+  /** Ölçek: 1 = kareye tam oturur (Doldur: kaplar, Sığdır: tamamı görünür); 0,5 = yarısı */
+  zoom: z.number().min(0.1).max(4).default(1),
 });
 export type Framing = z.infer<typeof FramingSchema>;
 

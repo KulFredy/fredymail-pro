@@ -39,21 +39,38 @@ export const framingFor = (output: Output, clip: Clip): Framing => output.framin
 
 export type Box = { left: number; top: number; width: number; height: number; scale: number };
 
-/** Kaynağın çıktı karesindeki konumu ve ölçüsü */
+/**
+ * Kaynağın çıktı karesindeki konumu ve ölçüsü.
+ * Görüntü kareden büyükse x/y kaynakta odak noktasıdır (kaydırma);
+ * kareden küçükse (ör. %50 küçültülmüş) x/y karedeki yerleşimdir (0 sol/üst · 0,5 orta · 1 sağ/alt).
+ */
 export const computeBox = (srcW: number, srcH: number, outW: number, outH: number, f: Framing): Box => {
   if (!srcW || !srcH) return { left: 0, top: 0, width: outW, height: outH, scale: 1 };
-  if (f.mode === 'fill') {
-    const scale = Math.max(outW / srcW, outH / srcH) * f.zoom;
-    const width = srcW * scale;
-    const height = srcH * scale;
-    const left = clamp(outW / 2 - f.x * width, outW - width, 0);
-    const top = clamp(outH / 2 - f.y * height, outH - height, 0);
-    return { left, top, width, height, scale };
-  }
-  const scale = Math.min(outW / srcW, outH / srcH) * f.zoom;
+  const base = f.mode === 'fill' ? Math.max(outW / srcW, outH / srcH) : Math.min(outW / srcW, outH / srcH);
+  const scale = base * f.zoom;
   const width = srcW * scale;
   const height = srcH * scale;
-  return { left: (outW - width) / 2, top: (outH - height) / 2, width, height, scale };
+  const axis = (size: number, out: number, p: number) => (size >= out ? clamp(out / 2 - p * size, out - size, 0) : (out - size) * p);
+  return { left: axis(width, outW, f.x), top: axis(height, outH, f.y), width, height, scale };
+};
+
+/** Önizlemede sürükleme: büyük görüntüde odak noktasını, küçük görüntüde yerini kaydırır */
+export const moveFraming = (f: Framing, box: Box, outW: number, outH: number, dxOut: number, dyOut: number): Framing => {
+  const ax = (p: number, size: number, out: number, d: number) => clamp01(size >= out ? p - d / size : p + d / Math.max(1, out - size));
+  return { ...f, x: ax(f.x, box.width, outW, dxOut), y: ax(f.y, box.height, outH, dyOut) };
+};
+
+/**
+ * Görüntüyü mevcut görünen boyutuna göre ölçekler (ör. 0,5 = yarıya küçült).
+ * Doldur modunda kareden küçülürse arka planı boş kalmasın diye “Sığdır (bulanık)” moduna geçer.
+ */
+export const scaleFraming = (f: Framing, srcW: number, srcH: number, outW: number, outH: number, factor: number): Framing => {
+  const cover = Math.max(outW / srcW, outH / srcH);
+  const fit = Math.min(outW / srcW, outH / srcH);
+  const current = (f.mode === 'fill' ? cover : fit) * f.zoom;
+  const target = Math.max(fit * 0.1, Math.min(cover * 4, current * factor));
+  if (f.mode === 'fill' && target < cover - 1e-6) return { ...f, mode: 'fit-blur', zoom: Math.max(0.1, target / fit) };
+  return { ...f, zoom: Math.max(0.1, Math.min(4, target / (f.mode === 'fill' ? cover : fit))) };
 };
 
 /** Doldur modunda kadrajı kaydırmak için: piksel kaymasını odak noktası değişimine çevirir */

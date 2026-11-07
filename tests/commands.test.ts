@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { planCommand, parseSeconds } from '../src/core/commands';
 import { applyOps, newProject, type OpContext } from '../src/core/ops';
 import type { AssetRef, Project } from '../src/core/schema';
-import { layoutClips, totalDuration } from '../src/core/timeline';
+import { computeBox, layoutClips, totalDuration } from '../src/core/timeline';
 
 let n = 0;
 const ctx: OpContext = {
@@ -158,5 +158,33 @@ describe('Türkçe komutlar', () => {
     expect(plan(base(), 'Geri al.').action).toBe('undo');
     expect(plan(base(), 'son işlemi geri al').action).toBe('undo');
     expect(plan(base(), 'yinele').action).toBe('redo');
+  });
+
+  it('“Görüntüyü %50 oranında küçült” → yarı boyut, arka plan dolu, ortada', () => {
+    const p0 = base();
+    const r = plan(p0, 'Görüntüyü %50 oranında küçült.');
+    expect(r.understood).toBe(true);
+    const p1 = applyOps(p0, r.ops, ctx);
+    const out = p1.outputs[0];
+    const f = out.framing[p1.clips[0].id];
+    // 1920x1080 kaynak, 1920x1080 çıktı: yarı boyut = 960x540, ortada
+    const b = computeBox(1920, 1080, 1920, 1080, f);
+    expect(b.width).toBeCloseTo(960, 0);
+    expect(b.left).toBeCloseTo(480, 0);
+    expect(f.mode).toBe('fit-blur');
+  });
+
+  it('köşeye alma, büyütme ve geri doldurma', () => {
+    const b0 = base();
+    const p0 = applyOps(b0, plan(b0, 'görüntüyü yarıya küçült').ops, ctx);
+    const corner = plan(p0, 'görüntüyü sağ alt köşeye al');
+    const p1 = applyOps(p0, corner.ops, ctx);
+    const b = computeBox(1920, 1080, 1920, 1080, p1.outputs[0].framing[p1.clips[0].id]);
+    expect(b.left + b.width).toBeGreaterThan(1850);
+    expect(b.top + b.height).toBeGreaterThan(1030);
+    const big = applyOps(p1, plan(p1, 'görüntüyü %100 büyüt').ops, ctx);
+    expect(computeBox(1920, 1080, 1920, 1080, big.outputs[0].framing[big.clips[0].id]).width).toBeCloseTo(1920, 0);
+    const fill = applyOps(p1, plan(p1, 'ekranı doldur').ops, ctx);
+    expect(fill.outputs[0].framing[fill.clips[0].id]).toMatchObject({ mode: 'fill', zoom: 1 });
   });
 });

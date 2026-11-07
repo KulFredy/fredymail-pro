@@ -6,7 +6,8 @@ import { FPS, type CompProps, type Framing } from '../../../src/core/schema';
 import { DEFAULT_FRAMING, framingFor, layoutClips, outputFrames, outputSize, toFrames } from '../../../src/core/timeline';
 import { Main } from '../../../src/remotion/Main';
 import { useApp, useProject } from '../state';
-import { Section, Slider } from '../ui';
+import { Section } from '../ui';
+import { FramingControls } from '../FramingControls';
 
 const Compare: React.FC<{ label: string; desc: string; framing: Framing; on: boolean; onClick: () => void; frame: number; clipId: string }> = ({
   label,
@@ -117,25 +118,9 @@ export const FrameStep: React.FC = () => {
           />
         </div>
       </Section>
-      {f.mode === 'fill' ? (
-        <Section title="Konum ve yakınlaştırma" hint="Yüz veya ürün kesiliyorsa önizlemede görüntüyü sürükleyin. Tekerlekle de yakınlaştırabilirsiniz.">
-          <Slider label="Yakınlaştır" value={f.zoom} min={1} max={3} step={0.01} format={(v) => `${v.toFixed(2)}×`} onChange={(zoom) => set({ zoom }, `zoom:${clip.id}`)} onReset={() => set({ zoom: 1 })} />
-          <Slider label="Yatay konum" value={f.x} min={0} max={1} format={(v) => `%${Math.round(v * 100)}`} onChange={(x) => set({ x }, `x:${clip.id}`)} />
-          <Slider label="Dikey konum" value={f.y} min={0} max={1} format={(v) => `%${Math.round(v * 100)}`} onChange={(y) => set({ y }, `y:${clip.id}`)} />
-          <div className="row">
-            <button className="btn soft" onClick={() => set({ ...DEFAULT_FRAMING })}>
-              <Crosshair size={14} /> Ortala
-            </button>
-            <button className="btn soft" onClick={() => set({ zoom: 1 })}>
-              <Minimize2 size={14} /> Yakınlaştırmayı sıfırla
-            </button>
-          </div>
-        </Section>
-      ) : (
-        <p className="hint">
-          <Maximize size={12} /> Sığdır modunda görüntünün tamamı görünür; kaydırma gerekmez.
-        </p>
-      )}
+      <Section title="Boyut ve konum" hint="Görüntüyü küçültebilir (%10'a kadar), büyütebilir ve karede istediğiniz yere yerleştirebilirsiniz.">
+        <FramingControls output={output} itemId={clip.id} assetId={clip.assetId} />
+      </Section>
     </div>
   );
 };

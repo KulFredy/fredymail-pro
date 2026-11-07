@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, Expand } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
 import { formatTime } from '../../src/core/timeline';
 import { useProject } from './state';
@@ -25,6 +25,7 @@ export const Transport: React.FC<{ duration: number; isImage: boolean }> = ({ du
         seek(frame + (e.shiftKey ? FPS : 1));
       } else if (e.key === 'Home') seek(0);
       else if (e.key === 'End') seek(duration - 1);
+      else if (e.key.toLowerCase() === 'f' && !e.metaKey && !e.ctrlKey) playRef.current?.fullscreen?.();
     };
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
@@ -47,6 +48,9 @@ export const Transport: React.FC<{ duration: number; isImage: boolean }> = ({ du
       </button>
       <button className="icon-btn" title="Sona (End)" onClick={() => seek(duration - 1)}>
         <SkipForward size={16} />
+      </button>
+      <button className="icon-btn" title="Tam ekran (F)" onClick={() => playRef.current?.fullscreen?.()}>
+        <Expand size={16} />
       </button>
       <span className="mono time">
         {formatTime(frame / FPS)} <span className="muted">/ {formatTime(duration / FPS)}</span>

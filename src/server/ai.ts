@@ -125,30 +125,52 @@ export const planWithClaude = async (opts: {
   const client = new Anthropic({ apiKey: opts.apiKey, timeout: 60_000, maxRetries: 1 });
   const context = buildContext(opts.project, opts.assets, opts.playhead, opts.selectedClipId);
   const fail = (summary: string, hint?: string): Plan & { source: 'claude' } => ({ understood: false, summary, ops: [], ranges: [], candidates: [], hint, source: 'claude' });
-  let response: Anthropic.Beta.BetaMessage;
-  try {
-    response = await client.beta.messages.create({
-      model: opts.model,
-      max_tokens: 8000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      output_config: { effort: 'low' },
-      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
-      tools: [TOOL],
-      tool_choice: { type: 'auto' },
-      messages: [
-        {
-          role: 'user',
-          content: `Proje bağlamı (JSON):\n${JSON.stringify(context)}\n\nKullanıcının talimatı: «${opts.text}»\n\nPlanı kurgu_plani aracıyla ver.`,
-        },
-      ],
-    });
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) return fail('Claude API anahtarı geçersiz.', 'Ayarlar’dan anahtarı kontrol edin.');
-    if (e instanceof Anthropic.RateLimitError) return fail('Claude şu an yoğun; biraz sonra tekrar deneyin.');
-    if (e instanceof Anthropic.APIConnectionError) return fail('Claude’a bağlanılamadı (internet bağlantısını kontrol edin).');
-    if (e instanceof Anthropic.APIError) return fail(`Claude hata verdi (${e.status}).`);
-    throw e;
+  const base = {
+    model: opts.model,
+    max_tokens: 8000,
+    system: [{ type: 'text' as const, text: SYSTEM, cache_control: { type: 'ephemeral' as const } }],
+    tools: [TOOL],
+    tool_choice: { type: 'auto' as const },
+    messages: [
+      {
+        role: 'user' as const,
+        content: `Proje bağlamı (JSON):\n${JSON.stringify(context)}\n\nKullanıcının talimatı: «${opts.text}»\n\nPlanı kurgu_plani aracıyla ver.`,
+      },
+    ],
+  };
+  // Hesapta açık olmayan bir özellik 400 verirse daha sade istekle yeniden dene
+  const attempts: (() => Promise<Anthropic.Beta.BetaMessage>)[] = [
+    () => client.beta.messages.create({ ...base, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default', output_config: { effort: 'low' } }),
+    () => client.beta.messages.create({ ...base, output_config: { effort: 'low' } }),
+    () => client.beta.messages.create({ ...base }),
+  ];
+  let response: Anthropic.Beta.BetaMessage | null = null;
+  let lastBadRequest = '';
+  for (const attempt of attempts) {
+    try {
+      response = await attempt();
+      break;
+    } catch (e) {
+      if (e instanceof Anthropic.BadRequestError) {
+        lastBadRequest = e.message;
+        console.error('[claude] 400:', e.message);
+        continue;
+      }
+      if (e instanceof Anthropic.AuthenticationError) return fail('Claude API anahtarı geçersiz.', 'Claude düğmesinden anahtarı kontrol edin.');
+      if (e instanceof Anthropic.PermissionDeniedError) return fail('Bu API anahtarının bu modele erişimi yok.', `Model: ${opts.model}`);
+      if (e instanceof Anthropic.NotFoundError) return fail(`Model bulunamadı: ${opts.model}`);
+      if (e instanceof Anthropic.RateLimitError) return fail('Claude şu an yoğun veya kredi sınırına ulaşıldı; biraz sonra tekrar deneyin.');
+      if (e instanceof Anthropic.APIConnectionError) return fail('Claude’a bağlanılamadı (internet bağlantısını kontrol edin).');
+      if (e instanceof Anthropic.APIError) return fail(`Claude hata verdi (${e.status}): ${e.message.slice(0, 200)}`);
+      throw e;
+    }
+  }
+  if (!response) {
+    const credit = /credit|balance|billing/i.test(lastBadRequest);
+    return fail(
+      credit ? 'Anthropic hesabında kredi yok.' : 'Claude isteği kabul etmedi (400).',
+      credit ? 'console.anthropic.com → Billing bölümünden kredi ekleyin.' : lastBadRequest.slice(0, 300),
+    );
   }
   if (response.stop_reason === 'refusal') return fail('Claude bu talimatı işlemedi.');
   const call = response.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use' && b.name === 'kurgu_plani');

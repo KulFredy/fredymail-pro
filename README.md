@@ -42,7 +42,8 @@ Geri al / yinele: ⌘Z / ⇧⌘Z.
 Ana ekranda **Kurgu Stüdyosu** yeni bir yatay proje açar; Hızlı Edit'teki her proje de **Stüdyoda aç** ile aynı zaman çizelgesinde açılır.
 
 - **Zaman çizelgesi:** görüntü, üst iz (B-roll), dış ses, müzik, altyazı ve yazı ayrı izlerde. Cetvele tıklayıp sürükleyerek imleci taşıyın; klipleri sürükleyerek sıralayın. Soldaki iz adlarındaki **+** ile o ize ekleme yapılır (müzik ekle, dış ses kaydet, yazı ekle…).
-- **Sol panel:** Komut · Medya · Seçili öğe sekmeleri; zaman çizelgesinde bir öğeye tıklayınca ayarları açılır.
+- **Sol panel:** Komut · Medya · Seçili öğe sekmeleri; zaman çizelgesinde bir öğeye tıklayınca ayarları açılır (kırpma, ses, **kadraj ve boyut**, köşeye küçültme).
+- **Önizleme:** tam ekran (F), **Kadrajı düzenle** ile görüntüyü sürükleyip tekerlekle boyutlandırma, altta render çözünürlüğü (720p · 1080p · 2K · 4K).
 - **Komut:** solda mikrofona basıp konuşun (bitince tekrar basın) ya da yazıp Enter'a basın. Komut önce zaman çizelgesinde işaretlenir (kırmızı: kesilecek, mavi: eklenecek). **Önizle** ile kaydetmeden izleyin, **Uygula** ile kaydedin. İki olası yer varsa A/B seçenekleri zaman koduyla gelir.
 - **Talimat / Dış ses kaydı:** *Talimat* modunda söyledikleriniz yalnız komut olur, videoya girmez. *Dış ses kaydı* modunda kayıt oynatma imlecinden itibaren videoya ses olarak eklenir ve altyazısı çıkarılır.
 - **Kişisel stil / bu proje:** "Bundan sonra…", "her zaman…" ile başlayan altyazı tercihleri kişisel stilinize kaydedilir; "bu sefer…" yalnız bu projeye not olarak kalır.
@@ -62,6 +63,7 @@ Anlaşılan komutlar (örnekler):
 | Bu sefer siyah beyaz yap · biraz sıcak yap · bu klibi film yap | Renk görünümü (projeye veya seçili klibe) |
 | Bundan sonra altyazılarımı beyaz ve iki satır yap | Altyazı stili + kişisel stile kaydet |
 | Altyazıları biraz yukarı kaydır · altyazıyı ortaya al · altyazıları kaydır | Altyazı konumu (yön yoksa seçenek sunar) |
+| Görüntüyü %50 küçült · videoyu büyüt · sağ alt köşeye al · ortala · ekranı doldur · tüm klipleri sığdır | Kadraj: boyut (%10–%400) ve yer; küçülünce arkası bulanık dolar |
 | Geri al · yinele | Son değişikliği geri alır / yeniden uygular |
 | Müziği konuşurken kıs · müziği arka planda kısık yap · müziği kaldır | Müzik modu |
 

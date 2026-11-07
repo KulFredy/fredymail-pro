@@ -7,6 +7,7 @@ import { FPS } from '../../src/core/schema';
 import { formatTime, layoutClips, toFrames } from '../../src/core/timeline';
 import { api, fileHref, upload } from './api';
 import { Preview } from './Preview';
+import { FramingControls } from './FramingControls';
 import { useApp, useProject } from './state';
 import { ExportStep } from './steps/ExportStep';
 import { Timeline, type Selection } from './Timeline';
@@ -70,7 +71,10 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
   const run = async (input: string) => {
     if (previewing) await reload();
     setPreviewing(false);
-    let p: Plan = { ...planCommand(input, { project, assets: refs, playhead, selectedClipId: project.ui.selectedClipId }), source: 'kural' };
+    let p: Plan = {
+      ...planCommand(input, { project, assets: refs, playhead, selectedClipId: project.ui.selectedClipId, outputId: project.ui.activeOutputId }),
+      source: 'kural',
+    };
     if (p.action) {
       if (p.action === 'undo') undo();
       else redo();
@@ -419,6 +423,7 @@ const MediaBin: React.FC = () => {
 
 const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ selection, onClear }) => {
   const { project, apply, frame } = useProject();
+  const output = project.outputs.find((o) => o.id === project.ui.activeOutputId) ?? project.outputs[0];
   const { library } = useApp();
   const t = frame / FPS;
   if (!selection) return <p className="muted small">Zaman çizelgesinde bir öğe seçin.</p>;
@@ -442,6 +447,12 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ se
         ) : (
           <Slider label="Süre" value={c.out - c.in} min={0.5} max={15} step={0.1} format={fmtSec} onChange={(v) => apply([{ type: 'clip.trim', clipId: c.id, in: 0, out: v }], { key: `d:${c.id}` })} />
         )}
+        {output ? (
+          <details className="insp-group" open>
+            <summary>Kadraj ve boyut</summary>
+            <FramingControls output={output} itemId={c.id} assetId={c.assetId} />
+          </details>
+        ) : null}
         <div className="row-wrap">
           <button className="btn tiny" disabled={!(t > item.start + 0.1 && t < item.end - 0.1)} onClick={() => apply([{ type: 'clip.split', clipId: c.id, at: t }])} title="Oynatma imlecinde ikiye böl">
             <Scissors size={13} /> İmleçte böl
@@ -477,6 +488,12 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ se
           format={fmtSec}
           onChange={(v) => apply([{ type: 'overlay.update', id: o.id, patch: { out: o.in + v } }], { key: `odur:${o.id}` })}
         />
+        {output ? (
+          <details className="insp-group" open>
+            <summary>Kadraj ve boyut (resim içinde resim için “Köşeye küçült”)</summary>
+            <FramingControls output={output} itemId={o.id} assetId={o.assetId} />
+          </details>
+        ) : null}
         <button className="btn tiny danger" onClick={() => (apply([{ type: 'overlay.remove', id: o.id }]), onClear())}>
           <Trash2 size={13} /> Kaldır
         </button>
@@ -614,7 +631,7 @@ export const Studio: React.FC = () => {
         </div>
       </aside>
       <main className="studio-center">
-        <Preview />
+        <Preview framingToggle />
       </main>
       <footer className="studio-timeline">
         <Timeline

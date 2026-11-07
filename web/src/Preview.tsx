@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
 import { Eye, EyeOff, Move, Plus } from 'lucide-react';
-import { FORMATS, outputLabel } from '../../src/core/formats';
-import { FPS, type CompProps, type FormatId, type Framing } from '../../src/core/schema';
-import { computeBox, framingFor, layoutClips, outputFrames, outputSize, panFraming, toFrames } from '../../src/core/timeline';
+import { FORMATS, RESOLUTION_LABELS, outputLabel, renderSize } from '../../src/core/formats';
+import { FPS, RESOLUTIONS, type CompProps, type FormatId, type Framing } from '../../src/core/schema';
+import { computeBox, framingFor, layoutClips, moveFraming, outputFrames, outputSize, scaleFraming, toFrames } from '../../src/core/timeline';
 import { Main } from '../../src/remotion/Main';
 import { useProject } from './state';
 import { Transport } from './Transport';
+import { Segmented } from './ui';
 
 const SafeZones: React.FC<{ format: keyof typeof FORMATS; scale: number }> = ({ format, scale }) => {
   const f = FORMATS[format];
@@ -78,7 +79,8 @@ const AddFormat: React.FC = () => {
   );
 };
 
-export const Preview: React.FC = () => {
+export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }) => {
+  const [editFrame, setEditFrame] = useState(false);
   const { project, refs, lutMap, setUi, apply, preview, frame, setFrame, seekRef, playRef, setPlaying } = useProject();
   const player = useRef<PlayerRef>(null);
   const wrap = useRef<HTMLDivElement>(null);
@@ -86,7 +88,7 @@ export const Preview: React.FC = () => {
   const output = project.outputs.find((o) => o.id === project.ui.activeOutputId) ?? project.outputs[0];
   const size = output ? outputSize(output) : { width: 1080, height: 1920 };
   const duration = output ? outputFrames(project, output) : 1;
-  const inFrame = project.ui.step === 'kadraj';
+  const inFrame = framingToggle ? editFrame : project.ui.step === 'kadraj';
 
   // Önizleme kutusunu sütuna sığdır
   useEffect(() => {
@@ -136,7 +138,7 @@ export const Preview: React.FC = () => {
       p.seekTo(Math.max(0, Math.min(duration - 1, f)));
       setFrame(f);
     };
-    playRef.current = { play: () => p.play(), pause: () => p.pause() };
+    playRef.current = { play: () => p.play(), pause: () => p.pause(), fullscreen: () => p.requestFullscreen() };
     return () => {
       p.removeEventListener('frameupdate', onFrame);
       p.removeEventListener('seeked', onFrame);
@@ -162,14 +164,13 @@ export const Preview: React.FC = () => {
   const onDown = (e: React.PointerEvent) => {
     if (!output || !dragClip || !dragAsset) return;
     const f = framingFor(output, dragClip);
-    if (f.mode !== 'fill') return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     drag.current = { x: e.clientX, y: e.clientY, f };
   };
   const nextFraming = (e: React.PointerEvent) => {
     const d = drag.current!;
     const b = computeBox(dragAsset!.width, dragAsset!.height, size.width, size.height, d.f);
-    return panFraming(d.f, b, (e.clientX - d.x) / scale, (e.clientY - d.y) / scale);
+    return moveFraming(d.f, b, size.width, size.height, (e.clientX - d.x) / scale, (e.clientY - d.y) / scale);
   };
   const onMove = (e: React.PointerEvent) => {
     if (!drag.current || !output || !dragClip) return;
@@ -185,13 +186,16 @@ export const Preview: React.FC = () => {
   const onWheel = (e: React.WheelEvent) => {
     if (!output || !dragClip) return;
     const f = framingFor(output, dragClip);
-    if (f.mode !== 'fill') return;
-    const zoom = Math.min(4, Math.max(1, f.zoom * (e.deltaY < 0 ? 1.06 : 1 / 1.06)));
-    apply([{ type: 'output.setFraming', outputId: output.id, clipId: dragClip.id, framing: { zoom } }], { key: `zoom:${dragClip.id}`, label: 'Yakınlaştırma' });
+    const a = refs[dragClip.assetId];
+    if (!a) return;
+    const next = scaleFraming(f, a.width, a.height, size.width, size.height, e.deltaY < 0 ? 1.06 : 1 / 1.06);
+    apply([{ type: 'output.setFraming', outputId: output.id, clipId: dragClip.id, framing: { mode: next.mode, zoom: next.zoom } }], {
+      key: `zoom:${dragClip.id}`,
+      label: 'Boyut',
+    });
   };
 
   if (!output) return <div className="preview-empty">Önce bir biçim seçin</div>;
-  const dragMode = dragClip ? framingFor(output, dragClip).mode : 'fill';
 
   return (
     <div className="preview">
@@ -238,30 +242,42 @@ export const Preview: React.FC = () => {
           ) : null}
           {inFrame && dragClip ? (
             <div
-              className={`drag-layer ${dragMode === 'fill' ? 'can' : ''}`}
+              className="drag-layer can"
               style={{ width: box.w, height: box.h }}
               onPointerDown={onDown}
               onPointerMove={onMove}
               onPointerUp={onUp}
               onWheel={onWheel}
-              title={dragMode === 'fill' ? 'Sürükleyerek kaydırın, tekerlekle yakınlaştırın' : 'Sığdır modunda kadraj ortalanır'}
+              title="Sürükleyerek yerleştirin, tekerlekle boyutlandırın"
             >
-              {dragMode === 'fill' ? (
-                <span className="drag-hint">
-                  <Move size={14} /> Sürükle · kaydır
-                </span>
-              ) : null}
+              <span className="drag-hint">
+                <Move size={14} /> Sürükle · tekerlek: boyut
+              </span>
             </div>
           ) : null}
         </div>
       </div>
       <Transport duration={duration} isImage={output.kind === 'image'} />
       <div className="preview-foot">
+        {framingToggle ? (
+          <button className={`chip ${editFrame ? 'on' : ''}`} onClick={() => setEditFrame((v) => !v)} title="Önizlemede görüntüyü sürükleyerek yerleştir, tekerlekle boyutlandır">
+            <Move size={14} /> Kadrajı düzenle
+          </button>
+        ) : null}
         <button className="chip" onClick={() => setUi({ safeZones: !project.ui.safeZones })}>
           {project.ui.safeZones ? <Eye size={14} /> : <EyeOff size={14} />} Instagram alanları
         </button>
-        <span className="muted mono">
-          {size.width}×{size.height}
+        <span className="res-pick">
+          <span className="muted small">Render:</span>
+          <Segmented
+            size="sm"
+            value={output.resolution ?? '1080'}
+            onChange={(r) => apply([{ type: 'output.update', outputId: output.id, patch: { resolution: r } }])}
+            options={RESOLUTIONS.map((r) => ({ value: r, label: RESOLUTION_LABELS[r], hint: `${renderSize(output.format, r).width}×${renderSize(output.format, r).height}` }))}
+          />
+          <span className="muted mono small">
+            {renderSize(output.format, output.resolution ?? '1080').width}×{renderSize(output.format, output.resolution ?? '1080').height}
+          </span>
         </span>
       </div>
     </div>
