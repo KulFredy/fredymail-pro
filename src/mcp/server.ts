@@ -88,14 +88,16 @@ server.registerTool(
   'proje_olustur',
   {
     title: 'Proje oluştur',
-    description: 'Yeni Hızlı Edit projesi. Biçimler: story, reel, post (fotoğraf JPEG), post_video (4:5 MP4), landscape (16:9 MP4).',
+    description: 'Yeni proje. Biçimler: story, reel (9:16), post (4:5 fotoğraf JPEG), post_video (4:5 MP4), square (1:1 MP4), square_foto (1:1 JPEG), landscape (16:9 MP4).',
     inputSchema: {
       ad: z.string().describe('Proje adı'),
-      bicimler: z.array(z.enum(['story', 'reel', 'post', 'post_video', 'landscape'])).default(['story']),
+      bicimler: z.array(z.enum(['story', 'reel', 'post', 'post_video', 'square', 'square_foto', 'landscape'])).default(['story']),
     },
   },
   async ({ ad, bicimler }) => {
-    const formats = bicimler.map((b) => (b === 'post_video' ? { format: 'post', kind: 'video' } : b === 'post' ? { format: 'post', kind: 'image' } : { format: b }));
+    const formats = bicimler.map((b) =>
+      b === 'post_video' ? { format: 'post', kind: 'video' } : b === 'post' ? { format: 'post', kind: 'image' } : b === 'square_foto' ? { format: 'square', kind: 'image' } : { format: b },
+    );
     const st = await call('POST', '/api/projects', { name: ad, formats });
     return text({ proje_id: st.project.id, ciktilar: st.project.outputs });
   },
@@ -292,9 +294,16 @@ server.registerTool(
   {
     title: 'Dışa aktar',
     description: 'Bir çıktıyı render eder (MP4: H.264/AAC, BT.709; görsel: JPEG) ve ffprobe ile doğrular. bekle=true ise bitene kadar bekler ve doğrulamayı döner.',
-    inputSchema: { proje_id: z.string(), cikti_id: z.string(), muziksiz: z.boolean().default(false), bekle: z.boolean().default(true) },
+    inputSchema: {
+      proje_id: z.string(),
+      cikti_id: z.string(),
+      muziksiz: z.boolean().default(false),
+      bekle: z.boolean().default(true),
+      cozunurluk: z.enum(['720', '1080', '1440', '2160']).optional().describe('Kısa kenar: 720p, 1080p, 2K (1440), 4K (2160)'),
+    },
   },
-  async ({ proje_id, cikti_id, muziksiz, bekle }) => {
+  async ({ proje_id, cikti_id, muziksiz, bekle, cozunurluk }) => {
+    if (cozunurluk) await call('POST', `/api/projects/${proje_id}/ops`, { ops: [{ type: 'output.update', outputId: cikti_id, patch: { resolution: cozunurluk } }], source: 'mcp' });
     const job = await call('POST', `/api/projects/${proje_id}/render`, { outputId: cikti_id, variant: muziksiz ? 'nomusic' : 'full' });
     if (!bekle) return text({ is_id: job.id, durum: job.status });
     const end = Date.now() + 30 * 60_000;

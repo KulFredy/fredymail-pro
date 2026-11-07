@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { OffthreadVideo, continueRender, delayRender, cancelRender } from 'remotion';
+import { OffthreadVideo, continueRender, delayRender, cancelRender, getRemotionEnvironment } from 'remotion';
 import { parseCube, type Lut3D } from '../core/lut';
 import type { Box } from '../core/timeline';
 import type { Look } from '../core/schema';
@@ -74,7 +74,9 @@ export const GradedMedia: React.FC<GradedMediaProps> = (props) => {
   const lutHandleDone = useRef(false);
 
   // Çizim çözünürlüğü: çıktıda görünen boyut (kaynaktan büyük olmaz)
-  const cw = Math.max(2, Math.round(Math.min(box.width, srcW || box.width, 4096)));
+  // Yüksek çözünürlük render'da (2K/4K) sayfa ölçeği > 1: tuvali de o kadar keskin çiz
+  const dpr = getRemotionEnvironment().isRendering && typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1;
+  const cw = Math.max(2, Math.round(Math.min(box.width * dpr, srcW || box.width * dpr, 4096)));
   const ch = Math.max(2, Math.round((cw * box.height) / box.width));
 
   const draw = useCallback(

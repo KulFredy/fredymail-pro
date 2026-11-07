@@ -59,7 +59,10 @@ export const ClipSchema = z.object({
 });
 export type Clip = z.infer<typeof ClipSchema>;
 
-export const FORMAT_IDS = ['story', 'reel', 'post', 'landscape'] as const;
+export const FORMAT_IDS = ['story', 'reel', 'post', 'square', 'landscape'] as const;
+/** Çıktı çözünürlüğü: kısa kenar (px). Kompozisyon 1080 tabanında tasarlanır, render ölçeklenir. */
+export const RESOLUTIONS = ['720', '1080', '1440', '2160'] as const;
+export type Resolution = (typeof RESOLUTIONS)[number];
 export type FormatId = (typeof FORMAT_IDS)[number];
 
 export const OutputSchema = z.object({
@@ -70,6 +73,7 @@ export const OutputSchema = z.object({
   framing: z.record(z.string(), FramingSchema).default({}),
   /** Görsel çıktı için kaynak kare */
   still: z.object({ clipId: z.string(), at: z.number().min(0).default(0) }).nullable().default(null),
+  resolution: z.enum(RESOLUTIONS).default('1080'),
 });
 export type Output = z.infer<typeof OutputSchema>;
 

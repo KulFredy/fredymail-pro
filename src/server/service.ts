@@ -4,7 +4,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { FORMATS } from '../core/formats';
+import { FORMATS, RESOLUTION_LABELS, renderSize, resolutionScale } from '../core/formats';
 import { parseCube } from '../core/lut';
 import { buildRefs, lutUrls, type LutInfo } from '../core/refs';
 import { AssetSchema, type Asset, type CompProps, type Project } from '../core/schema';
@@ -266,17 +266,20 @@ export class Service {
       const dir = this.store.exportsDir(projectId);
       await mkdir(dir, { recursive: true });
       // Önceki çıktıların üzerine asla yazma
-      let name = `${fmt.id}_${stamp}${variant === 'nomusic' ? '_muziksiz' : ''}.${ext}`;
+      const res = output.resolution ?? '1080';
+      const tag = `${fmt.id}_${RESOLUTION_LABELS[res].toLowerCase()}`;
+      let name = `${tag}_${stamp}${variant === 'nomusic' ? '_muziksiz' : ''}.${ext}`;
       for (let i = 2; await stat(path.join(dir, name)).then(() => true, () => false); i++)
-        name = `${fmt.id}_${stamp}-${i}${variant === 'nomusic' ? '_muziksiz' : ''}.${ext}`;
+        name = `${tag}_${stamp}-${i}${variant === 'nomusic' ? '_muziksiz' : ''}.${ext}`;
       const outFile = path.join(dir, name);
       const props = await this.compProps(project, outputId, variant, 'render');
-      const meta = await renderOutput({ props, outFile, kind: output.kind, onProgress: update });
+      const meta = await renderOutput({ props, outFile, kind: output.kind, onProgress: update, scale: resolutionScale(res) });
       update(0.99, 'Çıktı doğrulanıyor');
+      const size = renderSize(output.format, res);
       const verification = await verifyOutput(outFile, {
         kind: output.kind,
-        width: fmt.width,
-        height: fmt.height,
+        width: size.width,
+        height: size.height,
         duration: output.kind === 'video' ? outputFrames(project, output) / meta.fps : undefined,
       });
       const entry: ExportEntry = {

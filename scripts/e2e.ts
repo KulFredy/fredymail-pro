@@ -162,6 +162,28 @@ const main = async () => {
     }
     check('Story süresi ≈15 sn', Math.abs(eStory.verification.duration - 15) < 2.5, `${eStory.verification.duration.toFixed(2)} sn (render ${storySec.toFixed(0)} sn)`);
 
+    // 9b) Çözünürlük ve oran seçenekleri: 720p Story, 4K post, 1:1 kare
+    await api('POST', `/api/projects/${pid}/ops`, {
+      ops: [
+        { type: 'output.update', outputId: story.id, patch: { resolution: '720' } },
+        { type: 'output.update', outputId: post.id, patch: { resolution: '2160' } },
+        { type: 'output.add', format: 'square', kind: 'image' },
+      ],
+    });
+    const sq = (await api('GET', `/api/projects/${pid}`)).project.outputs.find((o: any) => o.format === 'square');
+    const e720 = await render(story.id);
+    const e4k = await render(post.id);
+    const eSq = await render(sq.id);
+    check('720p Story: 720×1280', e720.verification.ok && e720.verification.width === 720 && e720.verification.height === 1280, e720.name);
+    check('4K post: 2160×2700 JPEG', e4k.verification.ok && e4k.verification.width === 2160 && e4k.verification.height === 2700, e4k.name);
+    check('1:1 kare: 1080×1080', eSq.verification.ok && eSq.verification.width === 1080 && eSq.verification.height === 1080, eSq.name);
+    {
+      // 4K görsel gerçekten keskin mi? (2K'dan büyütülmüş bulanık değil): kenar enerjisi 1080 sürümüyle kıyas
+      const sharp4k = await sharp(path.join(home, e4k.file)).resize(1080, 1350).greyscale().convolve({ width: 3, height: 3, kernel: [0, -1, 0, -1, 4, -1, 0, -1, 0] }).stats();
+      const sharp1k = await sharp(path.join(home, ePost.file)).greyscale().convolve({ width: 3, height: 3, kernel: [0, -1, 0, -1, 4, -1, 0, -1, 0] }).stats();
+      check('4K çıktı keskin (1080 sürümü kadar ayrıntılı)', sharp4k.channels[0].stdev >= sharp1k.channels[0].stdev * 0.8, `kenar ${sharp4k.channels[0].stdev.toFixed(1)} / ${sharp1k.channels[0].stdev.toFixed(1)}`);
+    }
+
     // 10) Müzik kısma ölçümü: müzikli − müziksiz = yalnız müzik
     const full = path.join(home, eStory.file);
     const nomus = path.join(home, eNoMusic.file);

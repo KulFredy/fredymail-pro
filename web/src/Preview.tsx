@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { Eye, EyeOff, Move } from 'lucide-react';
+import { Eye, EyeOff, Move, Plus } from 'lucide-react';
 import { FORMATS, outputLabel } from '../../src/core/formats';
-import { FPS, type CompProps, type Framing } from '../../src/core/schema';
+import { FPS, type CompProps, type FormatId, type Framing } from '../../src/core/schema';
 import { computeBox, framingFor, layoutClips, outputFrames, outputSize, panFraming, toFrames } from '../../src/core/timeline';
 import { Main } from '../../src/remotion/Main';
 import { useProject } from './state';
@@ -28,6 +28,52 @@ const SafeZones: React.FC<{ format: keyof typeof FORMATS; scale: number }> = ({ 
         <span>{format === 'story' ? 'Yanıt alanı' : 'Açıklama ve müzik'}</span>
       </div>
       {f.safe.right > 100 ? <div className="safe-right" style={{ width: f.safe.right * scale, bottom: f.safe.bottom * scale }} /> : null}
+    </div>
+  );
+};
+
+const FORMAT_MENU: { format: FormatId; kind: 'video' | 'image'; label: string }[] = [
+  { format: 'story', kind: 'video', label: 'Story · 9:16 video' },
+  { format: 'reel', kind: 'video', label: 'Reel · 9:16 video' },
+  { format: 'landscape', kind: 'video', label: 'Yatay · 16:9 video (YouTube)' },
+  { format: 'post', kind: 'video', label: 'Post · 4:5 video' },
+  { format: 'post', kind: 'image', label: 'Post · 4:5 fotoğraf (JPEG)' },
+  { format: 'square', kind: 'video', label: 'Kare · 1:1 video' },
+  { format: 'square', kind: 'image', label: 'Kare · 1:1 fotoğraf (JPEG)' },
+];
+
+/** Aynı projeye başka bir oran ekler; kadraj her oran için ayrı tutulur */
+const AddFormat: React.FC = () => {
+  const { project, apply, setUi } = useProject();
+  const [open, setOpen] = useState(false);
+  const has = (f: string, k: string) => project.outputs.some((o) => o.format === f && o.kind === k);
+  const items = FORMAT_MENU.filter((m) => !has(m.format, m.kind));
+  if (!items.length) return null;
+  return (
+    <div className="add-format">
+      <button className="add" onClick={() => setOpen((o) => !o)} title="Aynı videodan başka bir oranda çıktı al">
+        <Plus size={13} /> Oran ekle
+      </button>
+      {open ? (
+        <div className="menu" onMouseLeave={() => setOpen(false)}>
+          {items.map((m) => (
+            <button
+              key={`${m.format}-${m.kind}`}
+              onClick={() => {
+                apply([{ type: 'output.add', format: m.format, kind: m.kind }]);
+                setOpen(false);
+                setTimeout(() => {
+                  const o = project.outputs.find((x) => x.format === m.format && x.kind === m.kind);
+                  if (o) setUi({ activeOutputId: o.id });
+                }, 600);
+              }}
+            >
+              <span className="ratio-ico" style={{ aspectRatio: `${FORMATS[m.format].width}/${FORMATS[m.format].height}` }} />
+              {m.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -155,6 +201,7 @@ export const Preview: React.FC = () => {
             {outputLabel(o.format, o.kind)}
           </button>
         ))}
+        <AddFormat />
       </div>
       <div className="player-wrap" ref={wrap}>
         <div className="phone" style={{ width: box.w }}>

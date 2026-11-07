@@ -188,10 +188,12 @@ export type RenderRequest = {
   props: CompProps;
   outFile: string;
   kind: 'video' | 'image';
+  /** 1080 tabanına göre ölçek (720p 0,667 · 2K 1,333 · 4K 2) */
+  scale?: number;
   onProgress: (p: number, message: string) => void;
 };
 
-export const renderOutput = async ({ props, outFile, kind, onProgress }: RenderRequest) => {
+export const renderOutput = async ({ props, outFile, kind, onProgress, scale = 1 }: RenderRequest) => {
   const listener: Listener = (p, m) => onProgress(p, m);
   prep.listeners.add(listener);
   onProgress(Math.max(0.01, prep.last.p), prep.last.message);
@@ -212,7 +214,7 @@ export const renderOutput = async ({ props, outFile, kind, onProgress }: RenderR
     ...browserOpts(),
     logLevel: 'error',
   });
-  log(`${path.basename(outFile)}: ${composition.width}×${composition.height}, ${composition.durationInFrames} kare`);
+  log(`${path.basename(outFile)}: ${Math.round(composition.width * scale)}×${Math.round(composition.height * scale)}, ${composition.durationInFrames} kare`);
   if (kind === 'image') {
     onProgress(0.4, 'Görsel oluşturuluyor');
     await renderStill({
@@ -221,6 +223,7 @@ export const renderOutput = async ({ props, outFile, kind, onProgress }: RenderR
       output: outFile,
       inputProps,
       frame: 0,
+      scale,
       imageFormat: 'jpeg',
       jpegQuality: 93,
       chromiumOptions: chromiumOptions(),
@@ -230,7 +233,7 @@ export const renderOutput = async ({ props, outFile, kind, onProgress }: RenderR
     });
     onProgress(1, 'Görsel hazır');
     log(`${path.basename(outFile)} hazır`);
-    return { durationInFrames: 1, fps: composition.fps, width: composition.width, height: composition.height };
+    return { durationInFrames: 1, fps: composition.fps, width: Math.round(composition.width * scale), height: Math.round(composition.height * scale) };
   }
   let lastLogged = -1;
   await renderMedia({
@@ -240,6 +243,7 @@ export const renderOutput = async ({ props, outFile, kind, onProgress }: RenderR
     audioCodec: 'aac',
     audioBitrate: '192k',
     crf: 18,
+    scale,
     x264Preset: 'medium',
     pixelFormat: 'yuv420p',
     // BT.709 + TV aralığı: Instagram ve telefonlarda doğru renk
@@ -268,5 +272,5 @@ export const renderOutput = async ({ props, outFile, kind, onProgress }: RenderR
   });
   onProgress(1, 'Video hazır');
   log(`${path.basename(outFile)} hazır`);
-  return { durationInFrames: composition.durationInFrames, fps: composition.fps, width: composition.width, height: composition.height };
+  return { durationInFrames: composition.durationInFrames, fps: composition.fps, width: Math.round(composition.width * scale), height: Math.round(composition.height * scale) };
 };

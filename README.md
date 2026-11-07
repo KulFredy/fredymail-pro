@@ -27,13 +27,13 @@ Tarayıcıda **http://localhost:4747** açılır. Veriler `~/İçerik Fabrikası
 ## Günlük kullanım
 
 1. **Ekle.** Dosyaları sürükle-bırak yapın ya da **Telefondan ekle** QR kodunu okutup galeriden seçin (telefon ve Mac aynı Wi-Fi'de olmalı). Seçim sırası klip sırası olur. Orijinaller salt-okunur arşive kopyalanır, hiç değiştirilmez.
-2. **Biçim.** Story / Reel (9:16), fotoğraf veya video postu (4:5), yatay video (16:9). Aynı projeden birden çok çıktı alırsınız.
+2. **Biçim.** Story / Reel (9:16), fotoğraf veya video postu (4:5), kare (1:1), yatay video (16:9). Aynı projeden birden çok oranda çıktı alırsınız; önizlemenin üstündeki **+ Oran ekle** ile her an yeni oran eklenir.
 3. **Sırala & kısalt.** Alttaki şeritte sürükleyerek sıralayın, tutamaçlarla kısaltın. "Konuşmaya göre kısalt" tek tıkla konuşulan bölümü seçer.
 4. **Kadraj.** Doldur / Sığdır (bulanık) / Sığdır (siyah) yan yana. Önizlemede sürükleyerek kaydırın, tekerlekle yakınlaştırın. Kadraj her çıktı için ayrı saklanır.
 5. **Renk & ışık.** Hazır görünümler + yoğunluk, pozlama/kontrast/sıcaklık… ayarları, kendi `.cube` LUT'larınız. Log çekimler için klip başına **kamera dönüşümü**: Sony S-Log3/S-Log2, Panasonic V-Log, Canon Log 2/3, Fujifilm F-Log/F-Log2, Nikon N-Log, DJI D-Log, Apple Log, ARRI LogC3. Sony log çekimleri dosyadan otomatik algılanır.
 6. **Ses & müzik.** Üç müzik modu: **Arka planda kısık**, **Konuşmada kıs**, **Sabit**. Klip başına ses seviyesi, susturma, "bu klipte müziği sustur".
 7. **Yazı & altyazı.** Türkçe konuşma otomatik çözülür. Kelimeye tıklayınca önizleme o ana gider, çift tıklayınca düzeltilir. Konuşmasız videolara elle yazı eklenir. "Varsayılanım yap" altyazı stilinizi sonraki projelere taşır.
-8. **Teslim.** Dışa aktar → H.264/AAC MP4 (BT.709) veya JPEG. Her çıktı ffprobe ile doğrulanır (çözünürlük, codec, renk, süre). **Müziksiz sürüm** (Instagram'ın müzik kütüphanesi için), **Telefona indir** (QR), açıklamayı kopyala, sürüm kaydet/geri dön.
+8. **Teslim.** Her çıktı için çözünürlük seçin: **720p · 1080p · 2K · 4K** (ör. 9:16 4K = 2160×3840, 16:9 4K = 3840×2160). Dışa aktar → H.264/AAC MP4 (BT.709) veya JPEG. 2K/4K render yaklaşık 2/4 kat uzun sürer; Instagram yüklerken 1080 genişliğe küçültür, 4K en çok YouTube ve arşiv için. Her çıktı ffprobe ile doğrulanır (çözünürlük, codec, renk, süre). **Müziksiz sürüm** (Instagram'ın müzik kütüphanesi için), **Telefona indir** (QR), açıklamayı kopyala, sürüm kaydet/geri dön.
 
 Geri al / yinele: ⌘Z / ⇧⌘Z.
 
@@ -166,6 +166,6 @@ Ortam değişkenleri: `FABRIKA_HOME` (veri klasörü), `FABRIKA_PORT` (4747), `F
 - RAW fotoğraf (CR3/ARW/NEF/DNG) yok; Lightroom'dan JPEG verin.
 - Hareketli grafik, `/KOMUT` sözlüğü ve doğrudan Instagram yayını sonraki fazlarda.
 - Stüdyo komutları kural tabanlıdır: listedeki kalıplara yakın cümleleri anlar; serbest anlatım için Claude bağlantısı sonraki adım.
-- Kaynak oranında (ör. 4:3) çıktı ve Premiere'e aktarım henüz yok; Stüdyo 16:9, 9:16 ve 4:5 çıktı verir.
+- Kaynak oranında (ör. 4:3) çıktı ve Premiere'e aktarım henüz yok; 9:16, 16:9, 4:5 ve 1:1 çıktı verilir.
 - Instagram güvenli alan ölçüleri resmi değil, yaklaşıktır.
 - Remotion, en çok 3 kişilik ekiplere ücretsizdir; ekip büyürse şirket lisansı gerekir (plan: HyperFrames alternatifi).

@@ -233,7 +233,7 @@ export const createServer = async (home = defaultHome()) => {
   app.get('/api/projects', async () => store.listProjects());
   app.post('/api/projects', async (req) => {
     const body = z
-      .object({ name: z.string().optional(), formats: z.array(z.object({ format: z.enum(['story', 'reel', 'post', 'landscape']), kind: z.enum(['video', 'image']).optional() })).optional() })
+      .object({ name: z.string().optional(), formats: z.array(z.object({ format: z.enum(['story', 'reel', 'post', 'square', 'landscape']), kind: z.enum(['video', 'image']).optional() })).optional() })
       .parse(req.body ?? {});
     const name = body.name || `Yeni proje · ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`;
     const formats = body.formats ?? [{ format: 'story' as const }];

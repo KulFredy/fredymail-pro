@@ -395,3 +395,12 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .tl-label.action svg { opacity: .55; }
 .tl-label.action:hover svg { opacity: 1; color: var(--accent); }
 @media (max-width: 1200px) { .studio { grid-template-columns: 340px minmax(0, 1fr); } }
+
+/* ---------- Oran ekle menüsü ---------- */
+.add-format { position: relative; }
+.preview-tabs .add { border: 1px dashed var(--line); background: transparent; color: var(--accent2); border-radius: 8px; padding: 5px 9px; font-size: 12px; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+.add-format .menu { position: absolute; top: 32px; left: 0; z-index: 30; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 6px; min-width: 250px; box-shadow: 0 16px 40px rgba(0,0,0,.5); display: flex; flex-direction: column; }
+.add-format .menu button { display: flex; align-items: center; gap: 10px; text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.add-format .menu button:hover { background: var(--card2); }
+.ratio-ico { width: 16px; max-height: 22px; border: 2px solid var(--muted); border-radius: 3px; flex: none; }
+.format-grid { grid-template-columns: repeat(3, 1fr); }

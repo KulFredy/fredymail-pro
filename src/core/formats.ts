@@ -1,4 +1,4 @@
-import type { FormatId } from './schema';
+import type { FormatId, Resolution } from './schema';
 
 export type SafeZone = { top: number; bottom: number; left: number; right: number };
 
@@ -44,6 +44,15 @@ export const FORMATS: Record<FormatId, FormatInfo> = {
     gridGuide: { width: 1012, height: 1350 },
     defaultKind: 'image',
   },
+  square: {
+    id: 'square',
+    label: 'Kare',
+    ratio: '1:1',
+    width: 1080,
+    height: 1080,
+    safe: { top: 60, bottom: 90, left: 60, right: 60 },
+    defaultKind: 'video',
+  },
   landscape: {
     id: 'landscape',
     label: 'Yatay video',
@@ -53,6 +62,18 @@ export const FORMATS: Record<FormatId, FormatInfo> = {
     safe: { top: 60, bottom: 90, left: 96, right: 96 },
     defaultKind: 'video',
   },
+};
+
+export const RESOLUTION_LABELS: Record<Resolution, string> = { '720': '720p', '1080': '1080p', '1440': '2K', '2160': '4K' };
+
+/** Render ölçeği: tüm biçimlerin kısa kenarı 1080 tabanlıdır */
+export const resolutionScale = (r: Resolution) => Number(r) / 1080;
+
+/** Çıktının gerçek piksel ölçüsü */
+export const renderSize = (format: FormatId, r: Resolution) => {
+  const f = FORMATS[format];
+  const k = resolutionScale(r);
+  return { width: Math.round(f.width * k), height: Math.round(f.height * k) };
 };
 
 export const outputLabel = (format: FormatId, kind: 'video' | 'image') =>

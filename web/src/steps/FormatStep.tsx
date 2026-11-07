@@ -10,6 +10,8 @@ const CHOICES: { format: FormatId; kind: 'video' | 'image'; label: string; desc:
   { format: 'reel', kind: 'video', label: 'Reel', desc: '1080×1920 · MP4' },
   { format: 'post', kind: 'image', label: 'Fotoğraf postu', desc: '1080×1350 · JPEG' },
   { format: 'post', kind: 'video', label: 'Video postu', desc: '1080×1350 · MP4' },
+  { format: 'square', kind: 'video', label: 'Kare video', desc: '1080×1080 · MP4' },
+  { format: 'square', kind: 'image', label: 'Kare fotoğraf', desc: '1080×1080 · JPEG' },
   { format: 'landscape', kind: 'video', label: 'Yatay video', desc: '1920×1080 · MP4' },
 ];
 
@@ -19,7 +21,7 @@ export const FormatStep: React.FC = () => {
   const has = (f: FormatId, k: string) => project.outputs.find((o) => o.format === f && o.kind === k);
   return (
     <div className="stack">
-      <Section title="Çıktılar" hint="Aynı dosyalardan birden çok çıktı alırsınız; galeriden ikinci kez seçmeniz gerekmez. Kadraj her çıktı için ayrı saklanır.">
+      <Section title="Çıktılar" hint="Aynı dosyalardan birden çok oranda çıktı alırsınız; galeriden ikinci kez seçmeniz gerekmez. Kadraj her çıktı için ayrı saklanır. Çözünürlüğü (720p–4K) Teslim adımında seçersiniz.">
         <div className="format-grid wide">
           {CHOICES.map((c) => {
             const o = has(c.format, c.kind);

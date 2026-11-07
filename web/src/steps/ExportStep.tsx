@@ -4,7 +4,9 @@ import { outputLabel } from '../../../src/core/formats';
 import { api, fileHref, type ExportEntry, type Version } from '../api';
 import { MobileModal } from '../MobileModal';
 import { useApp, useProject } from '../state';
-import { Progress, Section, Toggle, fmtBytes } from '../ui';
+import { Progress, Section, Segmented, Toggle, fmtBytes } from '../ui';
+import { RESOLUTION_LABELS, renderSize } from '../../../src/core/formats';
+import { RESOLUTIONS } from '../../../src/core/schema';
 
 export const ExportStep: React.FC = () => {
   const { project, apply } = useProject();
@@ -44,7 +46,28 @@ export const ExportStep: React.FC = () => {
         const failed = jobs.find((j) => j.type === 'render' && j.outputId === o.id && j.projectId === project.id && j.status === 'error');
         const list = exports.filter((e) => e.outputId === o.id).slice(0, 4);
         return (
-          <Section key={o.id} title={outputLabel(o.format, o.kind)}>
+          <Section key={o.id} title={`${outputLabel(o.format, o.kind)} · ${RESOLUTION_LABELS[o.resolution ?? '1080']}`}>
+            <div className="row-wrap">
+              <Segmented
+                size="sm"
+                value={o.resolution ?? '1080'}
+                onChange={(r) => apply([{ type: 'output.update', outputId: o.id, patch: { resolution: r } }])}
+                options={RESOLUTIONS.map((r) => {
+                  const sz = renderSize(o.format, r);
+                  return { value: r, label: RESOLUTION_LABELS[r], hint: `${sz.width}×${sz.height}` };
+                })}
+              />
+              <small className="muted">
+                {(() => {
+                  const sz = renderSize(o.format, o.resolution ?? '1080');
+                  return `${sz.width}×${sz.height}`;
+                })()}
+                {o.resolution === '2160' ? ' · render yaklaşık 4 kat uzun sürer' : o.resolution === '1440' ? ' · render yaklaşık 2 kat uzun sürer' : ''}
+              </small>
+            </div>
+            {(o.resolution === '1440' || o.resolution === '2160') && o.format !== 'landscape' ? (
+              <p className="hint small">Instagram yüklerken 1080 genişliğe küçültür; 2K/4K en çok YouTube ve arşiv için yararlıdır.</p>
+            ) : null}
             <div className="row-wrap">
               <button className="btn primary" disabled={!!notReady || running.length > 0} onClick={() => start(o.id)}>
                 {running.length ? <Loader2 size={15} className="spin" /> : <Download size={15} />} Dışa aktar

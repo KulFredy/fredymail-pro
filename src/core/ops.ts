@@ -6,6 +6,7 @@ import {
   CaptionStyleSchema,
   ClipSchema,
   FORMAT_IDS,
+  RESOLUTIONS,
   FramingSchema,
   LookSchema,
   MusicSchema,
@@ -63,7 +64,8 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('look.set'), look: LookPatch }),
   /** Bir klibin renk ayarını tüm projeye uygular, klip ayarlarını temizler */
   z.object({ type: z.literal('look.applyToAll'), fromClipId: z.string().optional() }),
-  z.object({ type: z.literal('output.add'), format: z.enum(FORMAT_IDS), kind: z.enum(['video', 'image']).optional() }),
+  z.object({ type: z.literal('output.add'), format: z.enum(FORMAT_IDS), kind: z.enum(['video', 'image']).optional(), resolution: z.enum(RESOLUTIONS).optional() }),
+  z.object({ type: z.literal('output.update'), outputId: z.string(), patch: z.object({ resolution: z.enum(RESOLUTIONS).optional(), kind: z.enum(['video', 'image']).optional() }) }),
   z.object({ type: z.literal('output.remove'), outputId: z.string() }),
   z.object({
     type: z.literal('output.setFraming'),
@@ -215,10 +217,20 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
     case 'output.add': {
       const kind = op.kind ?? FORMATS[op.format].defaultKind;
       if (p.outputs.some((o) => o.format === op.format && o.kind === kind)) break;
-      const out: Output = { id: ctx.newId('o'), format: op.format, kind, framing: {}, still: null };
+      const out: Output = { id: ctx.newId('o'), format: op.format, kind, framing: {}, still: null, resolution: op.resolution ?? '1080' };
       p.outputs = [...p.outputs, out];
       p = ensureStills(p, ctx);
       if (!p.ui.activeOutputId) p.ui.activeOutputId = out.id;
+      break;
+    }
+    case 'output.update': {
+      const o = findOutput(p, op.outputId);
+      if (op.patch.resolution) o.resolution = op.patch.resolution;
+      if (op.patch.kind && op.patch.kind !== o.kind) {
+        if (p.outputs.some((x) => x.id !== o.id && x.format === o.format && x.kind === op.patch.kind)) throw new OpError('Bu biçim zaten var');
+        o.kind = op.patch.kind;
+        p = ensureStills(p, ctx);
+      }
       break;
     }
     case 'output.remove':
@@ -393,6 +405,7 @@ export const describeOp = (op: OpInput): string => {
     case 'look.applyToAll': return 'Renk tüm kliplere uygulandı';
     case 'output.add': return `${FORMATS[op.format].label} çıktısı eklendi`;
     case 'output.remove': return 'Çıktı kaldırıldı';
+    case 'output.update': return op.patch.resolution ? `Çözünürlük ${op.patch.resolution}p` : 'Çıktı türü değişti';
     case 'output.setFraming': return 'Kadraj değişti';
     case 'output.setStill': return 'Post karesi seçildi';
     case 'music.set': return op.music === null ? 'Müzik kaldırıldı' : 'Müzik ayarı değişti';

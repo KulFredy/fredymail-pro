@@ -19,6 +19,7 @@ const FORMAT_CHOICES: { key: string; format: FormatId; kind: 'video' | 'image'; 
   { key: 'reel', format: 'reel', kind: 'video', label: 'Reel', sub: '9:16 · MP4' },
   { key: 'post-img', format: 'post', kind: 'image', label: 'Fotoğraf postu', sub: '4:5 · JPEG' },
   { key: 'post-vid', format: 'post', kind: 'video', label: 'Video postu', sub: '4:5 · MP4' },
+  { key: 'square', format: 'square', kind: 'video', label: 'Kare video', sub: '1:1 · MP4' },
   { key: 'landscape', format: 'landscape', kind: 'video', label: 'Yatay video', sub: '16:9 · MP4' },
 ];
 
