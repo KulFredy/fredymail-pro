@@ -1,12 +1,14 @@
 import React, { useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, Expand } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, Expand, Camera, Check, ImageIcon } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
 import { formatTime } from '../../src/core/timeline';
 import { useProject } from './state';
 import { modalOpen } from './ui';
 
 /** Her zaman görünen oynatma çubuğu: oynat/durdur, kare adımı, başa/sona; boşluk ve ok tuşları */
-export const Transport: React.FC<{ duration: number; isImage: boolean; videoLabel?: string | null }> = ({ duration, isImage, videoLabel }) => {
+export type StillControl = { isCurrent: boolean; onSet: () => void; onGo: () => void };
+
+export const Transport: React.FC<{ duration: number; still?: StillControl | null }> = ({ duration, still }) => {
   const { frame, playing, seekRef, playRef } = useProject();
   const toggle = () => (playing ? playRef.current?.pause() : playRef.current?.play());
   const seek = (f: number) => seekRef.current?.(Math.max(0, Math.min(duration - 1, f)));
@@ -33,19 +35,6 @@ export const Transport: React.FC<{ duration: number; isImage: boolean; videoLabe
     return () => window.removeEventListener('keydown', k);
   });
 
-  if (isImage)
-    return (
-      <div className="transport tp-still" data-testid="transport-still">
-        <span className="muted small">Fotoğraf çıktısı · tek kare</span>
-        {videoLabel ? (
-          <button className="btn tiny primary" onClick={() => playRef.current?.play()} title={`${videoLabel} önizlemesine geçip oynatır (boşluk)`}>
-            <Play size={13} /> Videoyu oynat · {videoLabel}
-          </button>
-        ) : (
-          <span className="muted small">Oynatmak için yukarıdan “Oran ekle” ile bir video çıktısı ekleyin.</span>
-        )}
-      </div>
-    );
   return (
     <div className="transport">
       <button className="icon-btn" title="Başa (Home)" onClick={() => seek(0)}>
@@ -69,6 +58,24 @@ export const Transport: React.FC<{ duration: number; isImage: boolean; videoLabe
       <span className="mono time">
         {formatTime(frame / FPS)} <span className="muted">/ {formatTime(duration / FPS)}</span>
       </span>
+      {still ? (
+        <span className="tp-still" data-testid="transport-still">
+          {still.isCurrent ? (
+            <span className="tp-still-on" title="Fotoğraf çıktısı bu kareden üretilir">
+              <Check size={13} /> Fotoğraf karesi
+            </span>
+          ) : (
+            <>
+              <button className="btn tiny primary" onClick={still.onSet} title="Durdurduğunuz kare fotoğraf (JPEG) çıktısı olur">
+                <Camera size={13} /> Bu kare fotoğraf olsun
+              </button>
+              <button className="icon-btn" onClick={still.onGo} title="Seçili fotoğraf karesine git">
+                <ImageIcon size={15} />
+              </button>
+            </>
+          )}
+        </span>
+      ) : null}
     </div>
   );
 };

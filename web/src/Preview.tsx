@@ -4,7 +4,7 @@ import { Player, type PlayerRef } from '@remotion/player';
 import { Eye, EyeOff, Move, Plus } from 'lucide-react';
 import { FORMATS, RESOLUTION_LABELS, outputLabel, renderSize } from '../../src/core/formats';
 import { FPS, RESOLUTIONS, type CompProps, type FormatId, type Framing } from '../../src/core/schema';
-import { computeBox, framingFor, layoutClips, moveFraming, outputFrames, outputSize, scaleFraming, toFrames } from '../../src/core/timeline';
+import { computeBox, framingFor, layoutClips, moveFraming, outputFrames, outputSize, scaleFraming, stillAtTime, stillTime, toFrames, totalDuration } from '../../src/core/timeline';
 import { Main } from '../../src/remotion/Main';
 import { useProject } from './state';
 import { Transport } from './Transport';
@@ -88,7 +88,10 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
   const [box, setBox] = useState({ w: 360, h: 640 });
   const output = project.outputs.find((o) => o.id === project.ui.activeOutputId) ?? project.outputs[0];
   const size = output ? outputSize(output) : { width: 1080, height: 1920 };
-  const duration = output ? outputFrames(project, output) : 1;
+  // Fotoğraf çıktısı önizlemede video gibi oynar (kare seçmek için); render'da tek karedir
+  const isImage = output?.kind === 'image';
+  const duration = output ? (isImage ? Math.max(1, toFrames(totalDuration(project))) : outputFrames(project, output)) : 1;
+  const stillFrame = output && isImage ? Math.min(duration - 1, toFrames(stillTime(project, output))) : 0;
   const inFrame = framingToggle ? editFrame : project.ui.step === 'kadraj';
 
   // Önizleme kutusunu sütuna sığdır
@@ -109,37 +112,24 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
   const [retry, setRetry] = useState(0);
   const readyKey = project.clips.map((c) => (refs[c.assetId]?.url ? '1' : '0')).join('') + (project.music && refs[project.music.assetId]?.url ? 'm' : '');
   const props: CompProps = useMemo(
-    () => ({ project, assets: refs, outputId: output?.id ?? '', variant: 'full', target: 'preview', luts: lutMap }),
-    [project, refs, output?.id, lutMap],
+    () => ({ project, assets: refs, outputId: output?.id ?? '', variant: 'full', target: 'preview', luts: lutMap, scrub: isImage }),
+    [project, refs, output?.id, lutMap, isImage],
   );
 
-  // Görsel (tek kare) çıktıdayken “Oynat”: video çıktısına geçip istenen yerden oynat
-  const videoOut = project.outputs.find((o) => o.kind === 'video');
-  const pendingSeek = useRef<number | null>(null);
-  const pendingPlay = useRef<number | null>(null);
+  const enteredRef = useRef<string | null>(null);
+  // Fotoğraf karesi değişince (Biçim adımındaki kaydırıcı, “Bu kare fotoğraf olsun”) önizleme o kareye gider
+  const { playing } = useProject();
+  useEffect(() => {
+    if (!isImage || playing) return;
+    player.current?.seekTo(stillFrame);
+    setFrame(stillFrame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isImage, stillFrame]);
 
   // Oynatma konumu: arayüze ve projeye (yeniden açınca aynı yer)
   useEffect(() => {
     const p = player.current;
     if (!p) return;
-    if (output?.kind === 'image') {
-      seekRef.current = (f) => {
-        pendingSeek.current = f;
-        setFrame(f);
-      };
-      playRef.current = {
-        play: () => {
-          if (!videoOut) return;
-          pendingPlay.current = pendingSeek.current ?? project.ui.frame;
-          pendingSeek.current = null;
-          setUi({ activeOutputId: videoOut.id });
-        },
-        pause: () => undefined,
-        fullscreen: () => p.requestFullscreen(),
-      };
-      setPlaying(false);
-      return;
-    }
     let last = 0;
     let saveTimer = 0;
     const onFrame = (e: { detail: { frame: number } }) => {
@@ -163,13 +153,9 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
       setFrame(f);
     };
     playRef.current = { play: () => p.play(), pause: () => p.pause(), fullscreen: () => p.requestFullscreen() };
-    if (pendingPlay.current !== null) {
-      const f = Math.max(0, Math.min(duration - 1, pendingPlay.current));
-      pendingPlay.current = null;
-      p.seekTo(f);
-      setFrame(f);
-      p.play();
-    }
+    // Fotoğraf çıktısına geçince seçili fotoğraf karesinde başla
+    if (isImage && enteredRef.current !== output?.id) setFrame(stillFrame);
+    enteredRef.current = output?.id ?? null;
     return () => {
       p.removeEventListener('frameupdate', onFrame);
       p.removeEventListener('seeked', onFrame);
@@ -178,17 +164,14 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
       p.removeEventListener('ended', onPause);
       clearTimeout(saveTimer);
     };
-  }, [duration, seekRef, playRef, setFrame, setUi, output?.id, output?.kind, videoOut?.id, readyKey, retry, setPlaying]);
+  }, [duration, seekRef, playRef, setFrame, setUi, output?.id, readyKey, retry, setPlaying]);
 
   // Kadrajda seçili klibi sürükleyerek kaydır
   const scale = box.w / size.width;
   const layout = layoutClips(project);
   const selected = project.clips.find((c) => c.id === project.ui.selectedClipId) ?? project.clips[0];
-  const visibleClip =
-    output?.kind === 'image'
-      ? project.clips.find((c) => c.id === output.still?.clipId)
-      : layout.find((l) => frame >= toFrames(l.start) && frame < toFrames(l.end))?.clip;
-  const dragClip = output?.kind === 'image' ? visibleClip : selected && visibleClip?.id === selected.id ? selected : visibleClip;
+  const visibleClip = layout.find((l) => frame >= toFrames(l.start) && frame < toFrames(l.end))?.clip;
+  const dragClip = selected && visibleClip?.id === selected.id ? selected : visibleClip;
   const dragAsset = dragClip ? refs[dragClip.assetId] : undefined;
   const drag = useRef<{ x: number; y: number; f: Framing } | null>(null);
 
@@ -252,7 +235,7 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
             style={{ width: box.w, height: box.h }}
             controls={false}
             loop
-            initialFrame={Math.min(project.ui.frame, Math.max(0, duration - 1))}
+            initialFrame={isImage ? stillFrame : Math.min(project.ui.frame, Math.max(0, duration - 1))}
             clickToPlay={!inFrame}
             spaceKeyToPlayOrPause={false}
             acknowledgeRemotionLicense
@@ -288,7 +271,21 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
           ) : null}
         </div>
       </div>
-      <Transport duration={duration} isImage={output.kind === 'image'} videoLabel={videoOut ? outputTitle(videoOut) : null} />
+      <Transport
+        duration={duration}
+        still={
+          isImage
+            ? {
+                isCurrent: Math.abs(frame - stillFrame) <= 1,
+                onSet: () => {
+                  const st = stillAtTime(project, frame / FPS);
+                  if (st) apply([{ type: 'output.setStill', outputId: output.id, clipId: st.clipId, at: st.at }], { label: 'Fotoğraf karesi seçildi' });
+                },
+                onGo: () => seekRef.current?.(stillFrame),
+              }
+            : null
+        }
+      />
       <div className="preview-foot">
         {framingToggle ? (
           <button className={`chip ${editFrame ? 'on' : ''}`} onClick={() => setEditFrame((v) => !v)} title="Önizlemede görüntüyü sürükleyerek yerleştir, tekerlekle boyutlandır">

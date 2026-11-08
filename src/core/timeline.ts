@@ -341,3 +341,20 @@ export const voiceOverlaps = <T extends { id: string; at: number; in: number; ou
 
 /** Zaman çizelgesinde t anına klip eklenecekse sırası: ortası t'den önce kalan klipler önde kalır */
 export const clipIndexAt = (project: Project, t: number) => layoutClips(project).filter((l) => (l.start + l.end) / 2 < t).length;
+
+/** Fotoğraf (tek kare) çıktısının karesi zaman çizelgesinde nerede (sn) */
+export const stillTime = (project: Project, output: Output): number => {
+  const layout = layoutClips(project);
+  const item = layout.find((l) => l.clip.id === output.still?.clipId) ?? layout[0];
+  if (!item) return 0;
+  const at = output.still?.clipId === item.clip.id ? output.still.at : 0;
+  return item.start + Math.min(at, Math.max(0, item.duration - 1 / FPS));
+};
+
+/** Zaman çizelgesindeki t anı fotoğraf karesi olarak: hangi klip, klibin kaçıncı saniyesi */
+export const stillAtTime = (project: Project, t: number): { clipId: string; at: number } | null => {
+  const layout = layoutClips(project);
+  if (!layout.length) return null;
+  const item = layout.find((l) => t >= l.start && t < l.end) ?? layout[layout.length - 1];
+  return { clipId: item.clip.id, at: Math.max(0, Math.min(item.duration - 1 / FPS, t - item.start)) };
+};

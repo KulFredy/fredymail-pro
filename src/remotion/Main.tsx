@@ -326,6 +326,39 @@ const StillView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
   );
 };
 
+/**
+ * Fotoğraf çıktısının oynatılabilir önizlemesi: zaman çizelgesindeki her kare, fotoğrafın
+ * çıkacağı haliyle (aynı kadraj, sabit logolar). Durdurulan kare “fotoğraf karesi” seçilebilir.
+ */
+const ScrubView: React.FC<{ props: CompProps; output: Output }> = ({ props, output }) => {
+  const { project } = props;
+  const layout = useMemo(() => layoutClips(project), [project]);
+  return (
+    <AbsoluteFill style={{ background: '#000' }}>
+      {layout.map((item) => (
+        <Sequence key={item.clip.id} from={toFrames(item.start)} durationInFrames={Math.max(1, toFrames(item.duration))} name={item.clip.id}>
+          <ClipLayer item={item} output={output} props={props} />
+        </Sequence>
+      ))}
+      {project.voice.map((v) => {
+        const a = props.assets[v.assetId];
+        if (!a?.url) return null;
+        const lenF = Math.max(1, toFrames(v.out - v.in));
+        return (
+          <Sequence key={v.id} from={toFrames(v.at)} durationInFrames={lenF} name="Dış ses">
+            <Audio src={a.url} trimBefore={toFrames(v.in)} volume={dbToGain(v.gainDb)} />
+          </Sequence>
+        );
+      })}
+      {project.logos
+        .filter((l) => l.full)
+        .map((l) => (
+          <LogoItem key={l.id} logo={l} output={output} props={props} len={1} still />
+        ))}
+    </AbsoluteFill>
+  );
+};
+
 export const Main: React.FC<CompProps> = (props) => {
   useFonts();
   const output = props.project.outputs.find((o) => o.id === props.outputId) ?? props.project.outputs[0];
@@ -336,5 +369,6 @@ export const Main: React.FC<CompProps> = (props) => {
       </AbsoluteFill>
     );
   }
-  return output.kind === 'image' ? <StillView props={props} output={output} /> : <VideoView props={props} output={output} />;
+  if (output.kind === 'image') return props.scrub ? <ScrubView props={props} output={output} /> : <StillView props={props} output={output} />;
+  return <VideoView props={props} output={output} />;
 };

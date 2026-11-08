@@ -412,4 +412,6 @@ export type CompProps = {
   framingOverride?: Record<string, Framing>;
   /** Kapak/küçük resim başlığı (yalnız görsel çıktıda; Faz 6) */
   coverTitle?: { text: string; font: FontId; color: string; accent: string } | null;
+  /** Yalnız önizleme: fotoğraf çıktısını video gibi oynat (kare seçmek için); render'da kullanılmaz */
+  scrub?: boolean;
 };

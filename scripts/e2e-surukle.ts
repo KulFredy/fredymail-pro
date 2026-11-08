@@ -127,20 +127,27 @@ const main = async () => {
     await page.waitForSelector('.preview-tabs');
     await page.locator('.preview-tabs button', { hasText: 'JPEG' }).click();
     await page.waitForSelector('[data-testid=transport-still]');
-    const stillTxt = await page.getByTestId('transport-still').innerText();
-    await page.getByTestId('transport-still').getByRole('button', { name: /Videoyu oynat/ }).click();
+    const playBtn = page.locator('.transport .play-btn');
+    const hasPlay = await playBtn.isVisible();
+    const total = await page.locator('.transport .time').innerText();
+    await playBtn.click();
     await page.waitForSelector('.transport .play-btn[title^="Durdur"]', { timeout: 15000 });
-    const active1 = await page.locator('.preview-tabs button.on').innerText();
-    check('Fotoğraf çıktısında “Videoyu oynat” → video önizlemesine geçip oynuyor', /Videoyu oynat/.test(stillTxt) && !/JPEG/.test(active1), active1);
-    await page.locator('.transport .play-btn').click();
-    await page.locator('.preview-tabs button', { hasText: 'JPEG' }).click();
-    await page.waitForSelector('[data-testid=transport-still]');
+    await page.waitForTimeout(1200);
+    await playBtn.click();
+    const activeTab = await page.locator('.preview-tabs button.on').innerText();
+    check('Fotoğraf çıktısında oynat/durdur çubuğu var; video 4:5 kadrajda oynuyor (sekme değişmiyor)', hasPlay && /JPEG/.test(activeTab) && !/0:00\.0 \/ 0:00\.0/.test(total), `${activeTab} · ${total}`);
+    await page.getByTestId('transport-still').getByRole('button', { name: /Bu kare fotoğraf olsun/ }).click();
+    const okStill = await waitFor(async () => {
+      const o = ((await projectOf(q)).outputs as { id: string; still: { at: number } | null }[]).find((x) => x.id === img.id);
+      return !!o?.still && o.still.at > 0.3;
+    });
+    await page.waitForSelector('.tp-still-on');
+    check('“Bu kare fotoğraf olsun” durdurulan kareyi fotoğraf karesi yaptı', okStill);
     await page.locator('.steps .step', { hasText: 'Sırala' }).click();
     await page.getByRole('button', { name: 'Oynat', exact: false }).first().click();
     await page.waitForSelector('.transport .play-btn[title^="Durdur"]', { timeout: 15000 });
-    check('Sırala adımında “Oynat” fotoğraf çıktısındayken de çalışıyor', !(await page.locator('.preview-tabs button.on').innerText()).includes('JPEG'));
-    await page.locator('.transport .play-btn').click();
-    void img;
+    check('Sırala adımında “Oynat” fotoğraf çıktısında da oynatıyor', /JPEG/.test(await page.locator('.preview-tabs button.on').innerText()));
+    await playBtn.click();
 
     // ---------- Sağ tık menüleri (Hızlı Edit) ----------
     const menuPick = async (name: RegExp) => {

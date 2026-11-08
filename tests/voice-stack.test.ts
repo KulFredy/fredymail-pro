@@ -72,3 +72,19 @@ describe('imlece ekleme sırası', () => {
     expect(clipIndexAt(p, 20)).toBe(2);
   });
 });
+
+import { stillAtTime, stillTime } from '../src/core/timeline';
+describe('fotoğraf karesi ↔ zaman çizelgesi', () => {
+  it('kareyi zamana, zamanı kareye çevirir', () => {
+    let n3 = 0;
+    const c3: OpContext = { assets: { v: { kind: 'video', duration: 10, width: 1920, height: 1080 } }, newId: (p) => `${p}${++n3}`, now: () => '2026-11-08T00:00:00.000Z' };
+    let p = applyOps(newProject('p', 'T', c3.now()), [{ type: 'output.add', format: 'post', kind: 'image' }, { type: 'clips.add', assetIds: ['v', 'v'] }], c3);
+    const out = p.outputs[0];
+    const s = stillAtTime(p, 13.5)!;
+    expect(s.clipId).toBe(p.clips[1].id);
+    expect(s.at).toBeCloseTo(3.5);
+    p = applyOps(p, [{ type: 'output.setStill', outputId: out.id, clipId: s.clipId, at: s.at }], c3);
+    expect(stillTime(p, p.outputs[0])).toBeCloseTo(13.5);
+    expect(stillAtTime(p, 99)!.clipId).toBe(p.clips[1].id);
+  });
+});
