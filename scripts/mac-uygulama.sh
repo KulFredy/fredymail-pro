@@ -1,15 +1,20 @@
 #!/bin/bash
 # İçerik Fabrikası'nı tek tıkla açılan bir Mac uygulamasına dönüştürür.
 #   bash scripts/mac-uygulama.sh
-# Sonuç: ~/Applications/İçerik Fabrikası.app (Launchpad, Spotlight ve Dock'tan açılır).
+# Sonuç: /Applications/İçerik Fabrikası.app (yazılamıyorsa ~/Applications); Launchpad, Spotlight ve Dock'tan açılır.
 # Tıklayınca: sunucu çalışmıyorsa arka planda başlatır, uygulamayı adres çubuğu olmayan
 # ayrı bir pencerede açar (Chrome/Edge/Brave “uygulama modu”; yoksa varsayılan tarayıcı).
 # Kapatmak için uygulamada ana sayfa → “Kapat”. Kayıt: ~/Library/Logs/IcerikFabrikasi.log
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-HEDEF="${FABRIKA_APP_DIR:-$HOME/Applications}"
+# Asıl Uygulamalar klasörü (Finder, Launchpad, Spotlight'ta görünür); yazılamıyorsa kullanıcının ~/Applications'ı
+if [ -n "${FABRIKA_APP_DIR:-}" ]; then HEDEF="$FABRIKA_APP_DIR"
+elif [ -w /Applications ]; then HEDEF="/Applications"
+else HEDEF="$HOME/Applications"; fi
 APP="$HEDEF/İçerik Fabrikası.app"
+# Eski konumdaki kopya kalmasın (iki simge olmasın)
+if [ "$HEDEF" = "/Applications" ] && [ -d "$HOME/Applications/İçerik Fabrikası.app" ]; then rm -rf "$HOME/Applications/İçerik Fabrikası.app"; fi
 
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
@@ -87,6 +92,11 @@ if command -v sips >/dev/null 2>&1 && command -v iconutil >/dev/null 2>&1 && [ -
   iconutil -c icns "$SET" -o "$APP/Contents/Resources/AppIcon.icns"
   touch "$APP"
 fi
+
+# macOS'a tanıt: Launchpad ve Spotlight hemen görsün
+LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+[ -x "$LSREG" ] && "$LSREG" -f "$APP" >/dev/null 2>&1 || true
+command -v mdimport >/dev/null 2>&1 && mdimport "$APP" >/dev/null 2>&1 || true
 
 echo "✓ Hazır: $APP"
 echo "  Launchpad'den, Spotlight'tan (⌘ Boşluk → “İçerik”) veya Finder → Uygulamalar'dan açın."

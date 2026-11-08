@@ -34,7 +34,7 @@ Bir kez çalıştırın (güncelleme betiği de bunu kendiliğinden yapar):
 bash scripts/mac-uygulama.sh
 ```
 
-`~/Applications/İçerik Fabrikası.app` oluşur: Launchpad, Spotlight (⌘ Boşluk → “İçerik”) veya Dock'tan açılır. Tıklayınca sunucu arka planda kendiliğinden başlar ve uygulama adres çubuğu olmayan ayrı bir pencerede açılır (Chrome/Edge/Brave varsa “uygulama modu”, yoksa varsayılan tarayıcı). Terminal gerekmez. Kapatmak: ana sayfada sağ üstteki **⏻** (yalnız bu Mac'ten çalışır). Kayıt: `~/Library/Logs/IcerikFabrikasi.log`. Proje klasörünü taşırsanız betiği yeniden çalıştırın. Chrome'da adres çubuğundaki “Yükle” simgesiyle ayrıca kendi Dock simgesi olan bir uygulama olarak da kurulabilir.
+`/Applications/İçerik Fabrikası.app` (Finder → Uygulamalar) oluşur: Launchpad, Spotlight (⌘ Boşluk → “İçerik”) veya Dock'tan açılır. Tıklayınca sunucu arka planda kendiliğinden başlar ve uygulama adres çubuğu olmayan ayrı bir pencerede açılır (Chrome/Edge/Brave varsa “uygulama modu”, yoksa varsayılan tarayıcı). Terminal gerekmez. Kapatmak: ana sayfada sağ üstteki **⏻** (yalnız bu Mac'ten çalışır). Kayıt: `~/Library/Logs/IcerikFabrikasi.log`. Proje klasörünü taşırsanız betiği yeniden çalıştırın. Chrome'da adres çubuğundaki “Yükle” simgesiyle ayrıca kendi Dock simgesi olan bir uygulama olarak da kurulabilir.
 
 ## Üretim hattı ve dış kurgu programları
 

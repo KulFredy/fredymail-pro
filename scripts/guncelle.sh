@@ -29,7 +29,7 @@ npm run build:web
 echo
 # Mac uygulaması (tek tıkla açılış) yoksa oluştur; varsa simge ve başlatıcıyı tazele
 if [ "$(uname)" = "Darwin" ]; then
-  bash scripts/mac-uygulama.sh >/dev/null && echo "▸ Uygulama: ~/Applications/İçerik Fabrikası.app"
+  bash scripts/mac-uygulama.sh | sed -n 1p
 fi
 if curl -sf -m 2 http://localhost:4747/api/health >/dev/null 2>&1; then
   # Eski sürüm açıksa durdur: yeni sürüm bir sonraki açılışta başlar
