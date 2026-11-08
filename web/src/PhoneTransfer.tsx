@@ -131,13 +131,13 @@ export const PhoneTransferModal: React.FC<{
                       value={newEditor}
                       onChange={setNewEditor}
                       options={[
-                        { value: 'quick', label: 'Hızlı Edit' },
+                        { value: 'quick', label: 'Instagram Hızlı Edit' },
                         { value: 'studio', label: 'Kurgu Stüdyosu' },
                       ]}
                     />
                   </span>
                 ) : (
-                  <small className="muted">Hızlı Edit veya Kurgu Stüdyosu</small>
+                  <small className="muted">Instagram Hızlı Edit veya Kurgu Stüdyosu</small>
                 )}
               </span>
             </label>
@@ -155,7 +155,7 @@ export const PhoneTransferModal: React.FC<{
         <div className="phone-qr stack" data-testid="phone-qr">
           <div className="row-between">
             <span>
-              Hedef: <b data-testid="phone-target-name">{target.name}</b> <span className="badge">{target.editor === 'studio' ? 'Stüdyo' : 'Hızlı Edit'}</span>
+              Hedef: <b data-testid="phone-target-name">{target.name}</b> <span className="badge">{target.editor === 'studio' ? 'Stüdyo' : 'Instagram Hızlı Edit'}</span>
             </span>
             {!received ? (
               <button className="link small" onClick={() => void (target.created ? api.deleteProject(target.id).catch(() => undefined) : null, setTarget(null), setQr(null), setStatus(null))}>

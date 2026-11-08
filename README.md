@@ -29,7 +29,7 @@ Tarayıcıda **http://localhost:4747** açılır. Veriler `~/İçerik Fabrikası
 ## Ana sayfa
 
 - **Son projeye dön:** son açtığınız proje (kapak, ad, Hızlı Edit/Stüdyo, çıktı profilleri, son düzenleme). **Devam et** onu en son kullandığınız düzenleyicide açar.
-- **Yeni proje:** **Hızlı Edit** (biçim seçip Oluştur) veya **Kurgu Stüdyosu**. Aynı pencerede “Marka kampanyası olarak başlat”.
+- **Yeni proje** kutusunda tek tıkla: **Instagram Hızlı Edit** (Story · Reel · Post; biçim seçip Oluştur) veya **Kurgu Stüdyosu** (YouTube, yatay video). Altında **Marka kampanyası**.
 - **Telefondan ekle:** önce hedef seçilir: **son proje**, **başka bir mevcut proje** veya **yeni proje**. Sonra o projeye ait QR kodu görünür. Telefon ile Mac aynı Wi-Fi'de olmalı. Gelen dosya sayısı pencerede görünür; bitince **Projeyi aç**. Bağlantı sorununda **Yeniden dene** aynı hedefle tekrar dener. Dosya gelmeden kapatılan yeni proje silinir.
 - **Projeler:** adla arama, **Sabitlenenler** süzgeci (sabitlenenler en üstte; uygulama kapanıp açılsa da kalır), markaya göre süzme. Kartın **⋯** menüsü: **Yeniden adlandır**, **Sabitle**, **Sil** (onay sorulur).
 - **Kullanım kılavuzu** ve **Stüdyo kısayolları** uygulama içinde, internetsiz açılır. Ana sayfada **?** tuşu kısayolları açar; pencereler **Esc** ile kapanır.

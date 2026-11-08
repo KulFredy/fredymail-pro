@@ -23,7 +23,7 @@ const ago = (iso: string) => {
 };
 const today = () => new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 export const editorHash = (editor: Editor, id: string) => `#/${editor === 'studio' ? 'studyo' : 'proje'}/${id}`;
-const EDITOR_LABEL: Record<Editor, string> = { quick: 'Hızlı Edit', studio: 'Stüdyo' };
+const EDITOR_LABEL: Record<Editor, string> = { quick: 'Instagram Hızlı Edit', studio: 'Stüdyo' };
 
 /** Çıktı profili adı: kanal (“YouTube video”) veya biçim (“Story”, “Post · foto”) */
 const outputName = (o: string) => {
@@ -55,7 +55,7 @@ export const NewProjectModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
     location.hash = editorHash('quick', st.project.id);
   };
   return (
-    <Modal title="Hızlı Edit · yeni proje" onClose={onClose} width={560} testid="new-quick">
+    <Modal title="Instagram Hızlı Edit · yeni proje" onClose={onClose} width={560} testid="new-quick">
       <label className="field">
         <span>Proje adı</span>
         <input autoFocus placeholder="ör. Kafe Story" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create()} />
@@ -104,7 +104,7 @@ const NewProjectChooser: React.FC<{ onClose: () => void; onQuick: () => void; on
       <div className="choice-grid">
         <button className="choice choice-quick" onClick={onQuick}>
           <Zap size={26} />
-          <b>Hızlı Edit</b>
+          <b>Instagram Hızlı Edit</b>
           <span>Story · Reel · Post. Adım adım: ekle, kadrajla, renk ver, müzik ve Türkçe altyazı, teslim.</span>
         </button>
         <button
@@ -118,7 +118,7 @@ const NewProjectChooser: React.FC<{ onClose: () => void; onQuick: () => void; on
         >
           <Clapperboard size={26} />
           <b>Kurgu Stüdyosu</b>
-          <span>Çok izli zaman çizelgesi, transkript, sesli veya yazılı Türkçe komutla kurgu.</span>
+          <span>YouTube ve yatay video; çok izli zaman çizelgesi, transkript, sesli veya yazılı Türkçe komutla kurgu.</span>
         </button>
       </div>
       <button className="link small campaign-link" onClick={onCampaign}>
@@ -261,6 +261,10 @@ export const Home: React.FC = () => {
     void load();
   };
   const close = () => setDialog(null);
+  const createStudio = async () => {
+    const st = await api.createProject(`Stüdyo · ${today()}`, [{ format: 'landscape', kind: 'video' }], 'studio');
+    location.hash = editorHash('studio', st.project.id);
+  };
 
   return (
     <div className="home">
@@ -321,15 +325,32 @@ export const Home: React.FC = () => {
             <div className="last-meta">
               <small className="eyebrow">Son projeye dön</small>
               <h2>Henüz proje yok</h2>
-              <p className="muted small">İlk projeyi “Yeni proje” ile başlatın ya da telefondan dosya gönderin.</p>
+              <p className="muted small">İlk projeyi “Instagram Hızlı Edit” veya “Kurgu Stüdyosu” ile başlatın ya da telefondan dosya gönderin.</p>
             </div>
           )}
         </div>
-        <button className="action action-new" onClick={() => setDialog({ kind: 'yeni' })}>
-          <Plus size={28} />
-          <b>Yeni proje</b>
-          <span>Hızlı Edit veya Kurgu Stüdyosu</span>
-        </button>
+        <div className="action action-new" data-testid="new-actions">
+          <span className="action-title">
+            <Plus size={20} /> Yeni proje
+          </span>
+          <button className="new-opt new-ig" onClick={() => setDialog({ kind: 'hizli' })}>
+            <Zap size={18} />
+            <span>
+              <b>Instagram Hızlı Edit</b>
+              <small>Story · Reel · Post</small>
+            </span>
+          </button>
+          <button className="new-opt new-studio" onClick={() => void createStudio()}>
+            <Clapperboard size={18} />
+            <span>
+              <b>Kurgu Stüdyosu</b>
+              <small>YouTube · yatay video</small>
+            </span>
+          </button>
+          <button className="link small" onClick={() => setDialog({ kind: 'kampanya' })}>
+            <Megaphone size={12} /> Marka kampanyası
+          </button>
+        </div>
         <button className="action action-phone" onClick={() => setDialog({ kind: 'telefon' })}>
           <Smartphone size={28} />
           <b>Telefondan ekle</b>
@@ -415,7 +436,7 @@ export const Home: React.FC = () => {
                     </b>
                     {p.brand ? <small className="brand-line">{[p.brand.brandName, p.brand.productName, p.brand.campaign].filter(Boolean).join(' · ')}</small> : null}
                     <small className="muted">
-                      <span className={`type-tag type-${p.editor}`}>{EDITOR_LABEL[p.editor]}</span> {outputsText(p)}
+                      <span className={`type-tag type-${p.editor}`}>{p.editor === 'quick' ? 'Instagram' : 'Stüdyo'}</span> {outputsText(p)}
                     </small>
                     <small className="muted">{ago(p.updatedAt)}</small>
                   </div>

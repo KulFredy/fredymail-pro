@@ -772,3 +772,16 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border-radius: 5
   .modal { max-width: calc(100vw - 20px); }
 }
 .modal:focus-visible, .modal:focus { outline: none; }
+/* Yeni proje kutusu: iki doğrudan seçenek */
+div.action-new { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+.action-title { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; margin-bottom: 2px; }
+.action-title svg { color: var(--accent); }
+.new-opt { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg2); color: inherit; text-align: left; cursor: pointer; font: inherit; transition: border-color .15s; }
+.new-opt:hover, .new-opt:focus-visible { border-color: var(--accent); }
+.new-opt > span { display: flex; flex-direction: column; min-width: 0; }
+.new-opt b { font-size: 14.5px; }
+.new-opt small { color: var(--muted); font-size: 12px; }
+.new-ig { background: linear-gradient(120deg, #3a1f0f, var(--bg2) 70%); border-color: #5a3420; }
+.new-ig svg { color: var(--accent); }
+.new-studio svg { color: #8fb3ff; }
+div.action-new .link { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; }

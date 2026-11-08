@@ -94,15 +94,13 @@ const main = async () => {
 
     // 2) Yeni proje → Hızlı Edit ve Kurgu Stüdyosu
     await goHome();
-    await page.getByRole('button', { name: /Yeni proje/ }).first().click();
-    await page.getByTestId('new-project').getByRole('button', { name: /Hızlı Edit/ }).click();
+    await page.getByTestId('new-actions').getByRole('button', { name: /Instagram Hızlı Edit/ }).click();
     await page.getByTestId('new-quick').getByRole('textbox').fill('E2E Hızlı');
     await page.getByTestId('new-quick').getByRole('button', { name: 'Oluştur' }).click();
     await page.waitForFunction(() => location.hash.startsWith('#/proje/'));
     const quickId = (await page.evaluate(() => location.hash)).split('/')[2];
     await goHome();
-    await page.getByRole('button', { name: /Yeni proje/ }).first().click();
-    await page.getByTestId('new-project').getByRole('button', { name: /Kurgu Stüdyosu/ }).click();
+    await page.getByTestId('new-actions').getByRole('button', { name: /Kurgu Stüdyosu/ }).click();
     await page.waitForFunction(() => location.hash.startsWith('#/studyo/'));
     const studioId = (await page.evaluate(() => location.hash)).split('/')[2];
     await page.waitForSelector('.topbar');
@@ -114,8 +112,8 @@ const main = async () => {
     const quickHref = await page.locator(`[data-project="${quickId}"] a.card-link`).getAttribute('href');
     const studioHref = await page.locator(`[data-project="${studioId}"] a.card-link`).getAttribute('href');
     check(
-      'Yeni proje: Hızlı Edit → #/proje (Story + post), Kurgu Stüdyosu → #/studyo; kartlarda tür doğru',
-      qp.mode === 'quick' && sp.mode === 'studio' && /Hızlı Edit/.test(quickCard) && /Stüdyo/.test(studioCard) && quickHref === `#/proje/${quickId}` && studioHref === `#/studyo/${studioId}`,
+      'Ana sayfadan tek tıkla: Instagram Hızlı Edit → #/proje (Story + post), Kurgu Stüdyosu → #/studyo; kartlarda tür doğru',
+      qp.mode === 'quick' && sp.mode === 'studio' && /Instagram/.test(quickCard) && /Stüdyo/.test(studioCard) && quickHref === `#/proje/${quickId}` && studioHref === `#/studyo/${studioId}`,
       `${quickCard.split('\n')[0]} / ${studioCard.split('\n')[0]}`,
     );
 
@@ -267,7 +265,7 @@ const main = async () => {
     await page.keyboard.press('Escape');
     check(
       'Kılavuz ve kısayollar: klavyeyle açılır, Esc ile kapanır, odak açan düğmeye döner; “?” kısayolu',
-      /Telefondan medya ekleme/.test(guideTxt) && /Galeriden seç/.test(guideTxt) && /Video süresi değişmez/.test(diffTxt) && backToGuide === 'Kullanım kılavuzu' && backToSc === 'Stüdyo kısayolları' && qOpen && /Giriş işareti/.test(scTxt) && /İmleçte böl/.test(scTxt) && /Bir kare geri/.test(scTxt) && /Geri al/.test(scTxt),
+      /Telefondan medya ekleme/.test(guideTxt) && /Instagram Hızlı Edit ile çıktı alma/.test(guideTxt) && /Galeriden seç/.test(guideTxt) && /Video süresi değişmez/.test(diffTxt) && backToGuide === 'Kullanım kılavuzu' && backToSc === 'Stüdyo kısayolları' && qOpen && /Giriş işareti/.test(scTxt) && /İmleçte böl/.test(scTxt) && /Bir kare geri/.test(scTxt) && /Geri al/.test(scTxt),
       `${backToGuide} / ${backToSc}`,
     );
 
@@ -296,8 +294,7 @@ const main = async () => {
     // 9) Marka kampanyası: “Marka oluştur” pencereyi kapatır; boş proje oluşmaz
     await goHome();
     const c0 = (await api('GET', '/api/projects')).length;
-    await page.getByRole('button', { name: /Yeni proje/ }).first().click();
-    await page.getByRole('button', { name: /Marka kampanyası olarak başlat/ }).click();
+    await page.getByTestId('new-actions').getByRole('button', { name: /Marka kampanyası/ }).click();
     await page.waitForSelector('[data-testid=campaign]');
     await page.getByRole('button', { name: /Marka oluştur/ }).click();
     const campaignGone = (await page.locator('[data-testid=campaign]').count()) === 0;

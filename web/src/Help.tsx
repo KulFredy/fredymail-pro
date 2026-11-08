@@ -24,9 +24,9 @@ export const GUIDE: GuideSection[] = [
   },
   {
     id: 'hizli',
-    title: 'Hızlı Edit ile çıktı alma',
+    title: 'Instagram Hızlı Edit ile çıktı alma',
     steps: [
-      <><B>Yeni proje</B> → <B>Hızlı Edit</B>; Story, Reel veya post biçimini seçip <B>Oluştur</B>.</>,
+      <>Ana sayfada <B>Yeni proje</B> kutusundaki <B>Instagram Hızlı Edit</B>; Story, Reel veya post biçimini seçip <B>Oluştur</B>.</>,
       <>Soldaki adımları sırayla izleyin: <B>Ekle</B>, <B>Biçim</B>, <B>Sırala & kısalt</B>, <B>Kadraj</B>, <B>Renk & ışık</B>, <B>Ses & müzik</B>, <B>Yazı & altyazı</B>.</>,
       <><B>Teslim</B> adımında çözünürlüğü seçip <B>Dışa aktar</B>; yeşil kontroller dosyanın doğru çıktığını gösterir.</>,
       <>Dosyayı telefona almak için <B>Telefona indir</B>.</>,
