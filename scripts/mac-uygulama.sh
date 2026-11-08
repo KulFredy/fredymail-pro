@@ -61,7 +61,12 @@ if ! saglikli; then
   cd "$REPO" || { uyari "Proje klasörü bulunamadı: $REPO. Klasörü taşıdıysanız: bash scripts/mac-uygulama.sh"; exit 1; }
   echo "--- $(date) başlatılıyor" >>"$LOG"
   if [ ! -f web/dist/index.html ]; then npm run build:web >>"$LOG" 2>&1; fi
-  nohup ./node_modules/.bin/tsx src/server/index.ts >>"$LOG" 2>&1 &
+  # Ayrı oturumda başlat: uygulama penceresi/başlatıcı kapansa da sunucu çalışmaya devam eder
+  if command -v perl >/dev/null 2>&1; then
+    nohup perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' ./node_modules/.bin/tsx src/server/index.ts >>"$LOG" 2>&1 < /dev/null &
+  else
+    nohup ./node_modules/.bin/tsx src/server/index.ts >>"$LOG" 2>&1 < /dev/null &
+  fi
   for _ in $(seq 1 120); do saglikli && break; sleep 0.5; done
   if ! saglikli; then
     uyari "Başlatılamadı. Ayrıntı: ~/Library/Logs/IcerikFabrikasi.log"

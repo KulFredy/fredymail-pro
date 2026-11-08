@@ -43,6 +43,8 @@ export const createServer = async (home = defaultHome()) => {
   await svc.init();
   const { store, jobs } = svc;
   const app = Fastify({ logger: false, bodyLimit: 20 * 1024 * 1024 });
+  // Beklenmeyen hatalar kayıt dosyasına düşsün (Mac uygulamasında ~/Library/Logs/IcerikFabrikasi.log)
+  if (!process.listenerCount('unhandledRejection')) process.on('unhandledRejection', (e) => console.error(`[${new Date().toISOString()}] beklenmeyen hata:`, e));
   await app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024 * 1024, files: 200 } });
 
   const isLocal = (req: FastifyRequest) => {

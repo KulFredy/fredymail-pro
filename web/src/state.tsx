@@ -145,10 +145,19 @@ export const ProjectProvider: React.FC<{ id: string; children: React.ReactNode }
     setDraft(null);
   }, [id]);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [slow, setSlow] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     setState(null);
-    reload().catch((e) => toast(e.message, 'error'));
-  }, [reload, toast]);
+    setLoadError(null);
+    setSlow(false);
+    const t = setTimeout(() => setSlow(true), 12000);
+    reload()
+      .catch((e) => setLoadError((e as Error).message || 'Sunucuya ulaşılamadı'))
+      .finally(() => clearTimeout(t));
+    return () => clearTimeout(t);
+  }, [reload, toast, attempt]);
 
   // Başka kaynaktan (MCP, telefon) gelen değişiklikleri al
   useEffect(
@@ -256,7 +265,28 @@ export const ProjectProvider: React.FC<{ id: string; children: React.ReactNode }
   const refs = useMemo(() => buildRefs(library.values(), '', 'preview'), [library]);
   const lutMap = useMemo(() => lutUrls(luts, ''), [luts]);
 
-  if (!state || !current) return <div className="loading">Proje açılıyor…</div>;
+  if (!state || !current)
+    return (
+      <div className="loading proj-loading" data-testid="project-loading">
+        {loadError || slow ? (
+          <div className="proj-load-err" role="alert">
+            <b>{loadError ? 'Proje açılamadı' : 'Proje açılması uzun sürüyor'}</b>
+            {loadError ? <code>{loadError}</code> : <span className="muted">Sunucu yanıt vermiyor olabilir.</span>}
+            <span className="muted small">Ayrıntı için Terminal: tail -30 ~/Library/Logs/IcerikFabrikasi.log</span>
+            <div className="row-wrap">
+              <button className="btn primary" onClick={() => setAttempt((a) => a + 1)}>
+                Yeniden dene
+              </button>
+              <a className="btn ghost" href="#/">
+                Ana sayfa
+              </a>
+            </div>
+          </div>
+        ) : (
+          'Proje açılıyor…'
+        )}
+      </div>
+    );
 
   const value: ProjectCtx = {
     project: current,
