@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FORMATS } from './formats';
+import { CHANNELS, CHANNEL_IDS, outputName } from './channels';
 import { layoutClips } from './timeline';
 import {
   DEFAULT_LOOK,
@@ -18,6 +19,10 @@ import {
   ReferenceSchema,
   LogoSchema,
   PlacementSchema,
+  CaptionOverrideSchema,
+  CoverSchema,
+  OutputMetaSchema,
+  ProjectBrandSchema,
   type Look,
   type Output,
   type Project,
@@ -71,7 +76,22 @@ export const OpSchema = z.discriminatedUnion('type', [
   /** Bir klibin renk ayarını tüm projeye uygular, klip ayarlarını temizler */
   z.object({ type: z.literal('look.applyToAll'), fromClipId: z.string().optional() }),
   z.object({ type: z.literal('output.add'), format: z.enum(FORMAT_IDS), kind: z.enum(['video', 'image']).optional(), resolution: z.enum(RESOLUTIONS).optional() }),
-  z.object({ type: z.literal('output.update'), outputId: z.string(), patch: z.object({ resolution: z.enum(RESOLUTIONS).optional(), kind: z.enum(['video', 'image']).optional() }) }),
+  z.object({
+    type: z.literal('output.update'),
+    outputId: z.string(),
+    patch: z.object({
+      resolution: z.enum(RESOLUTIONS).optional(),
+      kind: z.enum(['video', 'image']).optional(),
+      /** Çıktıya özel altyazı farkı (null → projenin ayarı); verilen alanlar birleşir */
+      captions: CaptionOverrideSchema.nullable().optional(),
+      cover: patchOf(CoverSchema).nullable().optional(),
+      meta: patchOf(OutputMetaSchema).optional(),
+    }),
+  }),
+  /** Kanal profili ekler (aynı biçimden farklı kanal olabilir: Reels + Shorts) */
+  z.object({ type: z.literal('output.addChannel'), channel: z.enum(CHANNEL_IDS), resolution: z.enum(RESOLUTIONS).optional() }),
+  /** Projeyi marka → ürün → kampanyaya bağlar (null → bağı kaldırır) */
+  z.object({ type: z.literal('project.setBrand'), brand: ProjectBrandSchema.nullable() }),
   z.object({ type: z.literal('output.remove'), outputId: z.string() }),
   z.object({
     type: z.literal('output.setFraming'),
@@ -127,6 +147,8 @@ export class OpError extends Error {}
 
 const mergeLook = (base: Look, patch: z.infer<typeof LookPatch>): Look =>
   LookSchema.parse({ ...base, ...patch, adjust: { ...base.adjust, ...(patch.adjust ?? {}) } });
+
+const blankOutput = (): Output => ({ id: '', format: 'story', kind: 'video', framing: {}, still: null, resolution: '1080', channel: null, captions: null, cover: null, meta: OutputMetaSchema.parse({}) });
 
 const findClip = (p: Project, id: string) => {
   const c = p.clips.find((x) => x.id === id);
@@ -246,8 +268,8 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
     }
     case 'output.add': {
       const kind = op.kind ?? FORMATS[op.format].defaultKind;
-      if (p.outputs.some((o) => o.format === op.format && o.kind === kind)) break;
-      const out: Output = { id: ctx.newId('o'), format: op.format, kind, framing: {}, still: null, resolution: op.resolution ?? '1080' };
+      if (p.outputs.some((o) => !o.channel && o.format === op.format && o.kind === kind)) break;
+      const out: Output = { ...blankOutput(), id: ctx.newId('o'), format: op.format, kind, resolution: op.resolution ?? '1080' };
       p.outputs = [...p.outputs, out];
       p = ensureStills(p, ctx);
       if (!p.ui.activeOutputId) p.ui.activeOutputId = out.id;
@@ -257,12 +279,51 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
       const o = findOutput(p, op.outputId);
       if (op.patch.resolution) o.resolution = op.patch.resolution;
       if (op.patch.kind && op.patch.kind !== o.kind) {
-        if (p.outputs.some((x) => x.id !== o.id && x.format === o.format && x.kind === op.patch.kind)) throw new OpError('Bu biçim zaten var');
+        if (p.outputs.some((x) => x.id !== o.id && (x.channel ?? null) === (o.channel ?? null) && x.format === o.format && x.kind === op.patch.kind)) throw new OpError('Bu biçim zaten var');
         o.kind = op.patch.kind;
         p = ensureStills(p, ctx);
       }
+      if (op.patch.captions !== undefined) {
+        const merged = op.patch.captions === null ? null : CaptionOverrideSchema.parse({ ...(o.captions ?? {}), ...op.patch.captions });
+        o.captions = merged && Object.keys(merged).length ? merged : null;
+      }
+      if (op.patch.cover !== undefined) o.cover = op.patch.cover === null ? null : CoverSchema.parse({ ...(o.cover ?? {}), ...op.patch.cover });
+      if (op.patch.meta) o.meta = OutputMetaSchema.parse({ ...o.meta, ...op.patch.meta });
       break;
     }
+    case 'output.addChannel': {
+      const ch = CHANNELS[op.channel];
+      if (p.outputs.some((o) => o.channel === op.channel)) break;
+      // Aynı biçimde kanalsız bir çıktı varsa onu bu kanala çevir (kadraj ve yerleşimler korunur)
+      const plain = p.outputs.find((o) => !o.channel && o.format === ch.format && o.kind === ch.kind);
+      if (plain) {
+        plain.channel = ch.id;
+        if (!ch.burnCaptions) plain.captions = { ...(plain.captions ?? {}), enabled: false };
+        break;
+      }
+      // Aynı biçimdeki başka kanalın kadrajı başlangıç olarak kopyalanır
+      const twin = p.outputs.find((o) => o.format === ch.format);
+      const out: Output = {
+        ...blankOutput(),
+        id: ctx.newId('o'),
+        format: ch.format,
+        kind: ch.kind,
+        resolution: op.resolution ?? '1080',
+        channel: ch.id,
+        framing: twin ? structuredClone(twin.framing) : {},
+        captions: ch.burnCaptions ? null : { enabled: false },
+      };
+      p.outputs = [...p.outputs, out];
+      if (twin) {
+        for (const el of [...p.texts, ...p.logos]) if (el.placements[twin.id]) el.placements = { ...el.placements, [out.id]: structuredClone(el.placements[twin.id]) };
+      }
+      p = ensureStills(p, ctx);
+      if (!p.ui.activeOutputId) p.ui.activeOutputId = out.id;
+      break;
+    }
+    case 'project.setBrand':
+      p.brand = op.brand;
+      break;
     case 'output.remove':
       findOutput(p, op.outputId);
       p.outputs = p.outputs.filter((o) => o.id !== op.outputId);
@@ -491,7 +552,10 @@ export const describeOp = (op: OpInput): string => {
     case 'look.applyToAll': return 'Renk tüm kliplere uygulandı';
     case 'output.add': return `${FORMATS[op.format].label} çıktısı eklendi`;
     case 'output.remove': return 'Çıktı kaldırıldı';
-    case 'output.update': return op.patch.resolution ? `Çözünürlük ${op.patch.resolution}p` : 'Çıktı türü değişti';
+    case 'output.update':
+      return op.patch.meta ? 'Yayın metni düzenlendi' : op.patch.cover !== undefined ? 'Kapak seçildi' : op.patch.captions !== undefined ? 'Bu çıktının altyazısı değişti' : op.patch.resolution ? `Çözünürlük ${op.patch.resolution}p` : 'Çıktı türü değişti';
+    case 'output.addChannel': return `${CHANNELS[op.channel].label} eklendi`;
+    case 'project.setBrand': return op.brand ? `Marka: ${op.brand.brandName}${op.brand.productName ? ' · ' + op.brand.productName : ''}` : 'Marka bağı kaldırıldı';
     case 'output.setFraming': return 'Kadraj değişti';
     case 'output.setStill': return 'Post karesi seçildi';
     case 'music.set': return op.music === null ? 'Müzik kaldırıldı' : 'Müzik ayarı değişti';

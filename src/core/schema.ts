@@ -81,6 +81,30 @@ export const RESOLUTIONS = ['720', '1080', '1440', '2160'] as const;
 export type Resolution = (typeof RESOLUTIONS)[number];
 export type FormatId = (typeof FORMAT_IDS)[number];
 
+export const CaptionOverrideSchema = z.object({
+  enabled: z.boolean().optional(),
+  position: z.enum(['bottom', 'middle', 'top']).optional(),
+  offset: z.number().min(-600).max(600).optional(),
+  size: z.number().min(24).max(140).optional(),
+});
+export type CaptionOverride = z.infer<typeof CaptionOverrideSchema>;
+
+export const CoverSchema = z.object({
+  /** Kurgu zamanı (sn) */
+  at: z.number().min(0).default(0),
+  title: z.string().default(''),
+});
+export type Cover = z.infer<typeof CoverSchema>;
+
+export const OutputMetaSchema = z.object({
+  title: z.string().default(''),
+  description: z.string().default(''),
+  tags: z.array(z.string()).default([]),
+  headline: z.string().default(''),
+  primaryText: z.string().default(''),
+});
+export type OutputMeta = z.infer<typeof OutputMetaSchema>;
+
 export const OutputSchema = z.object({
   id: z.string(),
   format: z.enum(FORMAT_IDS),
@@ -90,6 +114,14 @@ export const OutputSchema = z.object({
   /** Görsel çıktı için kaynak kare */
   still: z.object({ clipId: z.string(), at: z.number().min(0).default(0) }).nullable().default(null),
   resolution: z.enum(RESOLUTIONS).default('1080'),
+  /** Kanal profili (Faz 6): YouTube, Shorts, Reels, Story, 4:5 reklam… null → yalnız biçim */
+  channel: z.string().nullable().default(null),
+  /** Bu çıktıya özel altyazı (verilmeyen alan projenin ayarını kullanır) */
+  captions: CaptionOverrideSchema.nullable().default(null),
+  /** Kapak / küçük resim: kurgu zamanı ve isteğe bağlı başlık */
+  cover: CoverSchema.nullable().default(null),
+  /** Yayın metinleri: başlık, açıklama, etiketler, reklam başlığı ve metni */
+  meta: OutputMetaSchema.default(OutputMetaSchema.parse({})),
 });
 export type Output = z.infer<typeof OutputSchema>;
 
@@ -114,8 +146,12 @@ export const MusicSchema = z.object({
 });
 export type Music = z.infer<typeof MusicSchema>;
 
+/** Gömülü yazı tipleri (Türkçe karakterli, 800 kalınlık) */
+export const FONTS = ['Inter', 'Montserrat', 'Poppins', 'Playfair Display'] as const;
+export type FontId = (typeof FONTS)[number];
+
 export const CaptionStyleSchema = z.object({
-  font: z.enum(['Inter', 'Montserrat']).default('Inter'),
+  font: z.enum(FONTS).default('Inter'),
   size: z.number().min(24).max(140).default(64),
   color: z.string().default('#FFFFFF'),
   highlight: z.string().default('#FFD60A'),
@@ -166,7 +202,7 @@ export const TextOverlaySchema = z.object({
   anchor: z.enum(ANCHORS).nullable().default(null),
   size: z.number().min(20).max(220).default(84),
   color: z.string().default('#FFFFFF'),
-  font: z.enum(['Inter', 'Montserrat']).default('Montserrat'),
+  font: z.enum(FONTS).default('Montserrat'),
   style: z.enum(['shadow', 'box', 'outline']).default('shadow'),
   /** Eski projelerdeki davranış: solarak ve hafifçe yukarı kayarak gelir */
   anim: z.enum(ANIMS).default('yukari'),
@@ -243,6 +279,15 @@ export const UiStateSchema = z.object({
 });
 export type UiState = z.infer<typeof UiStateSchema>;
 
+export const ProjectBrandSchema = z.object({
+  brandId: z.string(),
+  brandName: z.string().default(''),
+  productId: z.string().nullable().default(null),
+  productName: z.string().default(''),
+  campaign: z.string().default(''),
+});
+export type ProjectBrand = z.infer<typeof ProjectBrandSchema>;
+
 export const ProjectSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION).default(SCHEMA_VERSION),
   id: z.string(),
@@ -262,6 +307,8 @@ export const ProjectSchema = z.object({
   look: LookSchema.default(DEFAULT_LOOK),
   /** Instagram açıklama metni */
   description: z.string().default(''),
+  /** Marka → ürün → kampanya (Faz 6). Adlar marka silinse de görünsün diye kopyalanır. */
+  brand: ProjectBrandSchema.nullable().default(null),
   /** Bu projeye özel talimatlar (ör. "bu sefer siyah beyaz") — Faz 2'de dolacak */
   notes: z.array(z.string()).default([]),
   ui: UiStateSchema.default(UiStateSchema.parse({})),

@@ -1,3 +1,4 @@
+import { outputNameRatio } from './channels';
 /**
  * Başlık/yazı ve logo yerleşimi (Faz 4.3).
  * Konum ya 9 noktalı ızgarayla (her çıktının Instagram güvenli alanı içinde) ya da serbest x/y ile verilir.
@@ -116,7 +117,7 @@ export const safeAreaIssues = (project: Project, assets: Record<string, AssetRef
   for (const o of project.outputs) {
     if (onlyOutputId && o.id !== onlyOutputId) continue;
     const r = safeRect(o);
-    const label = `${FORMATS[o.format].label} ${FORMATS[o.format].ratio}`;
+    const label = outputNameRatio(o);
     const push = (kind: 'text' | 'logo', id: string, name: string, b: Box) => {
       const s = overflow(b, r);
       const vertical = o.format === 'story' || o.format === 'reel';

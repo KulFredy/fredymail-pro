@@ -1,3 +1,4 @@
+import { outputNameRatio } from './channels';
 /**
  * Komut önerisinin etkisi (Faz 3): hangi işlem, hangi klip(ler), kurguda hangi aralık, hangi kapsam.
  * Komut paneli bunu "Önizle / Uygula" öncesinde gösterir; kapsam bir çıktı oranıyla sınırlıysa belirtilir.
@@ -23,8 +24,7 @@ export type ImpactItem = {
 export const outputLabel = (project: Project, outputId: string) => {
   const o = project.outputs.find((x) => x.id === outputId);
   if (!o) return 'bir çıktı';
-  const f = FORMATS[o.format];
-  return `${f.label} ${f.ratio}`;
+  return outputNameRatio(o);
 };
 
 /** lutNames: LUT kimliği → ad (renk işlemlerinde hangi LUT'un uygulanacağını yazmak için) */

@@ -20,6 +20,7 @@ import {
   type LayoutItem,
 } from '../core/timeline';
 import { GradedMedia } from './GradedMedia';
+import { captionsFor } from '../core/channels';
 import { useFonts } from './fonts';
 
 const ClipLayer: React.FC<{ item: LayoutItem; output: Output; props: CompProps }> = ({ item, output, props }) => {
@@ -75,7 +76,7 @@ const ClipLayer: React.FC<{ item: LayoutItem; output: Output; props: CompProps }
 const Captions: React.FC<{ props: CompProps; output: Output }> = ({ props, output }) => {
   const frame = useCurrentFrame();
   const { width: W, height: H } = useVideoConfig();
-  const { style } = props.project.captions;
+  const { style } = captionsFor(props.project, output);
   const safe = FORMATS[output.format].safe;
   const words = useMemo(() => timelineWords(props.project, props.assets), [props.project, props.assets]);
   const maxChars = Math.max(10, Math.floor((W - safe.left - safe.right - 60) / (style.size * 0.56)));
@@ -267,7 +268,7 @@ const VideoView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
           <TextItem text={t} output={output} />
         </Sequence>
       ))}
-      {project.captions.enabled ? <Captions props={props} output={output} /> : null}
+      {captionsFor(project, output).enabled ? <Captions props={props} output={output} /> : null}
       <Logos props={props} output={output} />
     </AbsoluteFill>
   );

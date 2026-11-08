@@ -6,6 +6,10 @@ import '@fontsource/inter/latin-800.css';
 import '@fontsource/inter/latin-ext-800.css';
 import '@fontsource/montserrat/latin-800.css';
 import '@fontsource/montserrat/latin-ext-800.css';
+import '@fontsource/poppins/latin-800.css';
+import '@fontsource/poppins/latin-ext-800.css';
+import '@fontsource/playfair-display/latin-800.css';
+import '@fontsource/playfair-display/latin-ext-800.css';
 
 let ready: Promise<unknown> | null = null;
 
@@ -19,6 +23,8 @@ export const useFonts = () => {
         document.fonts.load(`800 48px Inter`, sample),
         document.fonts.load(`600 48px Inter`, sample),
         document.fonts.load(`800 48px Montserrat`, sample),
+        document.fonts.load(`800 48px Poppins`, sample),
+        document.fonts.load(`800 48px "Playfair Display"`, sample),
       ]).catch(() => undefined);
     }
     ready.then(() => continueRender(handle));
