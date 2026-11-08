@@ -3,6 +3,7 @@ import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, Expand }
 import { FPS } from '../../src/core/schema';
 import { formatTime } from '../../src/core/timeline';
 import { useProject } from './state';
+import { modalOpen } from './ui';
 
 /** Her zaman görünen oynatma çubuğu: oynat/durdur, kare adımı, başa/sona; boşluk ve ok tuşları */
 export const Transport: React.FC<{ duration: number; isImage: boolean }> = ({ duration, isImage }) => {
@@ -14,6 +15,7 @@ export const Transport: React.FC<{ duration: number; isImage: boolean }> = ({ du
     const k = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable) return;
+      if (modalOpen()) return;
       if (e.code === 'Space') {
         e.preventDefault();
         toggle();

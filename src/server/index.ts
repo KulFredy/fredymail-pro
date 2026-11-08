@@ -14,7 +14,7 @@ import { planCommand } from '../core/commands';
 import { AI_MODELS, DEFAULT_AI_MODEL, planWithClaude } from './ai';
 import { FORMATS, outputLabel } from '../core/formats';
 import { buildRefs } from '../core/refs';
-import { OpError, OpSchema, patchOf } from '../core/ops';
+import { OpError, OpSchema, applyOps, newProject, patchOf } from '../core/ops';
 import { UiStateSchema } from '../core/schema';
 import { LutPatchSchema } from '../core/lutlib';
 import { Connections } from './connections';
@@ -320,6 +320,17 @@ export const createServer = async (home = defaultHome()) => {
     const lutNames = Object.fromEntries((await svc.listLuts()).map((l) => [l.id, l.meta?.name ?? l.title]));
     return brandPlan(project, brand, { productId: b.productId, campaign: b.campaign }, { ...DEFAULT_APPLY, ...b.options }, lutNames);
   });
+  /** Henüz oluşturulmamış (boş Stüdyo) proje için marka planı önizlemesi — proje “Uygula”da oluşturulur */
+  app.post('/api/marka-plan', async (req) => {
+    const b = z
+      .object({ brandId: z.string(), productId: z.string().nullable().default(null), campaign: z.string().default(''), options: z.object({ logo: z.boolean(), captions: z.boolean(), texts: z.boolean(), look: z.boolean(), references: z.boolean(), channels: z.boolean() }).partial().default({}) })
+      .parse(req.body);
+    const brand = await brands.get(b.brandId);
+    if (!brand) throw Object.assign(new Error('Marka bulunamadı'), { statusCode: 404 });
+    const blank = applyOps(newProject('yeni', 'Yeni', new Date().toISOString()), [{ type: 'output.add', format: 'landscape', kind: 'video' }], store.opContext());
+    const lutNames = Object.fromEntries((await svc.listLuts()).map((l) => [l.id, l.meta?.name ?? l.title]));
+    return brandPlan(blank, brand, { productId: b.productId, campaign: b.campaign }, { ...DEFAULT_APPLY, ...b.options }, lutNames);
+  });
   app.get('/api/projects/:id/kontrol', async (req) => delivery.checks((req.params as { id: string }).id));
   app.post('/api/projects/:id/paket', async (req) => {
     const b = z.object({ outputIds: z.array(z.string()).min(1) }).parse(req.body);
@@ -443,12 +454,30 @@ export const createServer = async (home = defaultHome()) => {
   app.get('/api/projects', async () => store.listProjects());
   app.post('/api/projects', async (req) => {
     const body = z
-      .object({ name: z.string().optional(), formats: z.array(z.object({ format: z.enum(['story', 'reel', 'post', 'square', 'landscape']), kind: z.enum(['video', 'image']).optional() })).optional() })
+      .object({
+        name: z.string().optional(),
+        formats: z.array(z.object({ format: z.enum(['story', 'reel', 'post', 'square', 'landscape']), kind: z.enum(['video', 'image']).optional() })).optional(),
+        mode: z.enum(['quick', 'studio']).optional(),
+      })
       .parse(req.body ?? {});
     const name = body.name || `Yeni proje · ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`;
     const formats = body.formats ?? [{ format: 'story' as const }];
-    const project = await store.createProject(name, formats.map((f) => ({ type: 'output.add' as const, ...f })));
+    const mode = body.mode ?? (formats.length === 1 && formats[0].format === 'landscape' ? 'studio' : 'quick');
+    const project = await store.createProject(name, formats.map((f) => ({ type: 'output.add' as const, ...f })), mode);
+    await store.opened(project.id, mode);
     return store.getProjectState(project.id);
+  });
+  /** Sabitle / sabitlemeyi kaldır */
+  app.put('/api/projects/:id/sabit', async (req) => {
+    const { pinned } = z.object({ pinned: z.boolean() }).parse(req.body);
+    await store.setPinned((req.params as { id: string }).id, pinned);
+    return { ok: true, pinned };
+  });
+  /** Proje bir düzenleyicide açıldı (son proje + düzenleyici türü) */
+  app.post('/api/projects/:id/acildi', async (req) => {
+    const { editor } = z.object({ editor: z.enum(['quick', 'studio']) }).parse(req.body);
+    await store.opened((req.params as { id: string }).id, editor);
+    return { ok: true };
   });
   app.get('/api/projects/:id', async (req) => {
     const { id } = req.params as { id: string };
@@ -524,10 +553,45 @@ export const createServer = async (home = defaultHome()) => {
     const project = await mobileProject(req);
     reply.type('text/html; charset=utf-8').send(uploadPage(project?.name ?? null));
   });
+  /** Telefon aktarımlarının durumu (proje başına): sürenler, gelen dosyalar, hata */
+  type Transfer = { active: number; uploads: { at: string; ok: boolean; count: number; assetIds: string[]; error: string | null }[] };
+  const transfers = new Map<string, Transfer>();
+  const transferOf = (key: string) => {
+    let t = transfers.get(key);
+    if (!t) transfers.set(key, (t = { active: 0, uploads: [] }));
+    return t;
+  };
   app.post(`/api/m/${MOBILE_TOKEN}/upload`, async (req) => {
     const project = await mobileProject(req);
-    const r = await handleUpload(req, project?.id);
-    return { count: r.assets.length };
+    const t = transferOf(project?.id ?? 'kutuphane');
+    t.active++;
+    try {
+      const r = await handleUpload(req, project?.id);
+      t.uploads.push({ at: new Date().toISOString(), ok: true, count: r.assets.length, assetIds: r.assets.map((a) => a.id), error: null });
+      return { count: r.assets.length };
+    } catch (e) {
+      t.uploads.push({ at: new Date().toISOString(), ok: false, count: 0, assetIds: [], error: (e as Error).message.slice(0, 200) });
+      throw e;
+    } finally {
+      t.active--;
+      t.uploads = t.uploads.slice(-50);
+    }
+  });
+  /** Arayüz: bu projeye telefondan gelenler (since: bu zamandan sonrakiler) */
+  app.get('/api/mobile/durum', async (req) => {
+    const q = z.object({ projectId: z.string(), since: z.string().optional() }).parse(req.query);
+    const t = transfers.get(q.projectId) ?? { active: 0, uploads: [] };
+    const ups = t.uploads.filter((u) => !q.since || u.at >= q.since);
+    const ids = ups.flatMap((u) => u.assetIds);
+    const assets = ids.map((id) => store.library.get(id)).filter((a): a is NonNullable<typeof a> => !!a);
+    return {
+      active: t.active,
+      received: ups.reduce((n, u) => n + u.count, 0),
+      ready: assets.filter((a) => a.status === 'ready').length,
+      failed: assets.filter((a) => a.status === 'error').length,
+      error: [...ups].reverse().find((u) => !u.ok)?.error ?? null,
+      lastAt: ups.at(-1)?.at ?? null,
+    };
   });
   app.get(`/m/${MOBILE_TOKEN}/indir`, async (req, reply) => {
     const project = await mobileProject(req);

@@ -22,7 +22,8 @@
     "e2e:ritim": "tsx scripts/e2e-ritim.ts",
     "e2e:baglanti": "tsx scripts/e2e-baglanti.ts",
     "e2e:marka": "tsx scripts/e2e-marka.ts",
-    "e2e:yayin": "tsx scripts/e2e-yayin.ts"
+    "e2e:yayin": "tsx scripts/e2e-yayin.ts",
+    "e2e:anasayfa": "tsx scripts/e2e-anasayfa.ts"
   },
   "engines": {
     "node": ">=20"

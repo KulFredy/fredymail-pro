@@ -3,7 +3,9 @@ import type { LutInfo } from '../../src/core/refs';
 import type { Asset, Project } from '../../src/core/schema';
 
 export type ProjectState = { project: Project; canUndo: boolean; canRedo: boolean; undoLabel: string | null; redoLabel: string | null };
-export type ProjectSummary = { id: string; name: string; updatedAt: string; clipCount: number; outputs: string[]; poster: string | null; duration: number; brand: Project['brand'] };
+export type Editor = 'quick' | 'studio';
+export type ProjectSummary = { id: string; name: string; updatedAt: string; clipCount: number; outputs: string[]; poster: string | null; duration: number; brand: Project['brand']; editor: Editor; pinned: boolean };
+export type MobileStatus = { active: number; received: number; ready: number; failed: number; error: string | null; lastAt: string | null };
 export type Brand = import('../../src/core/brand').Brand;
 export type BrandInput = Omit<Brand, 'id' | 'createdAt' | 'updatedAt' | 'products'> & { products: { id?: string; name: string; notes: string }[] };
 export type DeliveryCheck = import('../../src/core/delivery').Check;
@@ -122,7 +124,12 @@ export const api = {
   approveGeneration: (id: string, assetIds: string[]) => req<Generation>('POST', `/api/uretimler/${id}/onayla`, { assetIds }),
   deleteLut: (id: string) => req<{ luts: LutInfo[] }>('DELETE', `/api/luts/${encodeURIComponent(id)}`),
   jobs: () => req<Job[]>('GET', '/api/jobs'),
-  createProject: (name: string, formats: { format: string; kind?: string }[]) => req<ProjectState>('POST', '/api/projects', { name, formats }),
+  createProject: (name: string, formats: { format: string; kind?: string }[], mode?: Editor) => req<ProjectState>('POST', '/api/projects', { name, formats, mode }),
+  pinProject: (id: string, pinned: boolean) => req<{ ok: boolean }>('PUT', `/api/projects/${id}/sabit`, { pinned }),
+  projectOpened: (id: string, editor: Editor) => req<{ ok: boolean }>('POST', `/api/projects/${id}/acildi`, { editor }),
+  mobileStatus: (projectId: string, since: string) => req<MobileStatus>('GET', `/api/mobile/durum?projectId=${encodeURIComponent(projectId)}&since=${encodeURIComponent(since)}`),
+  brandPlanNew: (body: { brandId: string; productId: string | null; campaign: string; options?: Partial<import('../../src/core/brand').BrandApplyOptions> }) =>
+    req<{ ops: OpInput[]; items: string[] }>('POST', '/api/marka-plan', body),
   project: (id: string) => req<ProjectState>('GET', `/api/projects/${id}`),
   deleteProject: (id: string) => req('DELETE', `/api/projects/${id}`),
   ops: (id: string, ops: OpInput[], label?: string) => req<ProjectState>('POST', `/api/projects/${id}/ops`, { ops, label }),

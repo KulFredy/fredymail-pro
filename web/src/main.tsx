@@ -4,6 +4,7 @@ import { Home } from './Home';
 import { QuickEdit } from './QuickEdit';
 import { Studio } from './Studio';
 import { AppProvider, ProjectProvider, useApp } from './state';
+import { api } from './api';
 import './styles.css';
 
 const useHash = () => {
@@ -32,6 +33,10 @@ const Toasts = () => {
 const App = () => {
   const hash = useHash();
   const m = /^#\/(proje|studyo)\/([\w-]+)/.exec(hash);
+  // Hangi düzenleyicide açıldığını kaydet: ana sayfadaki “Son projeye dön” aynı yere götürür
+  useEffect(() => {
+    if (m) void api.projectOpened(m[2], m[1] === 'studyo' ? 'studio' : 'quick').catch(() => undefined);
+  }, [m?.[1], m?.[2]]);
   return (
     <>
       {m ? (

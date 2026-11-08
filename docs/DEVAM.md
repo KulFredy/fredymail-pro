@@ -11,13 +11,14 @@
 - **Faz 6 · Marka, kampanya ve kanal teslimi — tamam (bulutta gerçek render ve ölçümle doğrulandı; Mac'te denenmedi).**
 - **Faz 7 · Doğrudan yayın (YouTube) — tamam, sahte Google sunucusuyla doğrulandı; gerçek hesapla denenmedi (Google Cloud OAuth istemcisi gerekir).**
 - **Faz 8 · SaaS beta — tasarım belgesi `docs/SAAS.md`; karar bekliyor, kod yok.**
+- **Ana sayfa yenilendi (8 Kasım):** üç ana eylem (Son projeye dön · Yeni proje · Telefondan ekle), arama, Sabitlenenler, kart menüsü (yeniden adlandır/sabitle/sil), telefon aktarımında hedef seçimi + gelen dosya sayısı + yeniden dene, uygulama içi Kullanım kılavuzu ve Stüdyo kısayolları, pencerelerde klavye/odak düzeni. Düzeltilen hata: `state.json`'a eşzamanlı yazma bazen projeyi “açılıyor…”da bırakıyordu. `e2e:anasayfa` 18/18.
 - **Testler (son çalıştırma, 8 Kasım):** birim 98/98 · `npm run e2e` 28/28 · `e2e:studio` 12/12 · `e2e:ui` 40/40 · `e2e:grafik` 9/9 · `e2e:baglanti` 24/24 · `e2e:marka` 22/22 · `e2e:yayin` 14/14 · `e2e:offline` 13/13 · `e2e:lut` 16/16 · `e2e:ref` 8/8 · `e2e:ritim` 6/6.
 - **Kullanıcının Mac'i:** kurulum yapıldı (`scripts/setup-mac.sh`), güncelleme `bash scripts/guncelle.sh`. Gerçek Türkçe altyazı Mac'te çalıştı. Render için Chrome indirilemediğinde sistem Google Chrome'u kullanılıyor.
 
 ## Doğrulanmayanlar (kullanıcıyla kontrol et)
 Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
 - **4K video render'ı** (4K fotoğraf test edildi).
-- **Gerçek Android telefondan Wi-Fi ile yükleme** (QR).
+- **Gerçek Android telefondan Wi-Fi ile yükleme** (QR) — otomatik testte telefon, QR adresine aynı isteği gönderen bir betikle taklit edildi; gerçek cihaz denenmedi.
 - Mac'te sesli komutların gerçek kullanımda doğruluğu.
 - **Gerçek ElevenLabs ve Gemini çağrıları** (anahtar gerekir; sahte sunucuyla API biçimi resmi SDK kaynaklarından birebir alındı). Gemini görsel fiyatı doğrulanmadı.
 - **Mac Anahtar Zinciri** (`security` komutu) gerçek Mac'te denenmedi; bulutta gizli dosya kullanıldı.
@@ -34,6 +35,7 @@ Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
 5. **Gemini (anahtar varsa):** aistudio.google.com'dan anahtar, Üret → Ürün arka planı: bir ürün fotoğrafı + “mermer tezgah, yumuşak ışık”. Onay kutusunu oku → üret. 2 seçenekte ürün/etiket bozulmuş mu? Birini onayla → Ana ize.
 6. Hata olursa terminaldeki satırı bana gönder (anahtar loglara yazılmaz).
 7. **Marka (Faz 6, ~10 dk):** ana ekran → **Markalar** → Yeni marka: logonu (saydam PNG), iki renk, yazı tipleri, bir ürün (adını doğru yaz), kanallar (YouTube video, Shorts, Reels). Sonra **Marka kampanyası** → marka/ürün/kampanya → Uygula. Stüdyo'da bir video ekle; **Kanal paketi** → Metinleri yaz → YouTube'da kapak için imleçteki kareyi seç ve başlık yaz → kontrolleri oku (ürün adını bilerek yanlış yazıp uyarıyı gör) → Paketi hazırla → Klasör → dosyaları aç (kapak, .srt, metinler.txt) → Onayla. `~/İçerik Fabrikası/teslim/` altında marka/ürün/kampanya klasörü oluştu mu?
+9. **Ana sayfa ve telefon (gerçek Android, ~10 dk):** ana sayfada **Telefondan ekle** → “Başka bir mevcut proje” → bir proje seç → QR. Android kamerayla okut, 2–3 dosya gönder. Mac penceresinde “N dosya geldi” görünüyor mu? **Projeyi aç** doğru projeyi doğru düzenleyicide açıyor mu? Sonra son proje kartındaki **Bu projeye telefondan ekle** ile başka bir projeye gönder; dosyalar karışmadı mı? Gönderim sırasında telefonun Wi-Fi'ını kapat: telefonda “Bağlantı koptu” görünmeli; Wi-Fi'ı açıp aynı sayfadan yeniden gönderince Mac'teki sayı artıyor mu? Bir projeyi sabitle, uygulamayı kapatıp aç: hâlâ sabit mi?
 8. **YouTube (isteğe bağlı, Faz 7, ~20 dk ilk kurulum):** Bağlantılar → YouTube satırındaki “Nereden” adımlarıyla Google Cloud'da masaüstü OAuth istemcisi oluştur, `KİMLİK:GİZLİ` biçiminde gir → **Hesabı bağla** → Google onayı → “Kanal: …” görünmeli. Onaylı paketteki YouTube satırında **YouTube'a gönder** → görünürlüğü **Özel** bırak → onay kutusu → Yükle. YouTube Studio'da video, küçük resim ve Türkçe altyazı var mı? (Küçük resim için kanalın telefonla doğrulanmış olması gerekebilir.)
 
 ## Sıradaki işler

@@ -343,9 +343,10 @@ export const BrandsModal: React.FC<{ onClose: () => void; onChanged?: () => void
 
 /** Markayı projeye uygula: marka, ürün, kampanya, neler uygulanacağı ve önizleme maddeleri */
 export const BrandApplyForm: React.FC<{
-  projectId: string;
+  /** null → henüz oluşturulmamış yeni Stüdyo projesi (plan boş proje üzerinden önizlenir) */
+  projectId: string | null;
   initial?: { brandId: string; productId: string | null; campaign: string; brandName?: string; productName?: string } | null;
-  onApply: (ops: import('../../src/core/ops').OpInput[], label: string) => void | Promise<void>;
+  onApply: (ops: import('../../src/core/ops').OpInput[], label: string, choice: { brandId: string; productId: string | null; campaign: string; options: BrandApplyOptions }) => void | Promise<void>;
   onCancel: () => void;
   openBrands: () => void;
 }> = ({ projectId, initial, onApply, onCancel, openBrands }) => {
@@ -377,7 +378,7 @@ export const BrandApplyForm: React.FC<{
     if (!brandId || !brands?.some((b) => b.id === brandId)) return setPlan(null);
     const t = setTimeout(
       () =>
-        api.brandPlan(projectId, { brandId, productId, campaign, options: opts }).then(
+        (projectId ? api.brandPlan(projectId, { brandId, productId, campaign, options: opts }) : api.brandPlanNew({ brandId, productId, campaign, options: opts })).then(
           (p) => (setPlan(p), setPlanErr(null)),
           (e) => (setPlan(null), setPlanErr((e as Error).message)),
         ),
@@ -457,7 +458,7 @@ export const BrandApplyForm: React.FC<{
         <button className="btn ghost" onClick={onCancel}>
           Vazgeç
         </button>
-        <button className="btn primary" disabled={!plan?.ops.length} onClick={() => plan && void onApply(plan.ops, `Marka: ${brand?.name ?? ''}`)}>
+        <button className="btn primary" disabled={!plan?.ops.length} onClick={() => plan && void onApply(plan.ops, `Marka: ${brand?.name ?? ''}`, { brandId, productId, campaign, options: opts })}>
           <Check size={14} /> Uygula
         </button>
       </div>

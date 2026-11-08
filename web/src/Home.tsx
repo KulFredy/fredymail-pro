@@ -1,21 +1,38 @@
-import React, { useEffect, useState } from 'react';
-import { Clapperboard, Zap, Play, Trash2, Mic, Cpu, FolderOpen, Smartphone, Plug, Tag, Megaphone } from 'lucide-react';
-import { BrandApplyForm, BrandsModal } from './Brands';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  BookOpen, Clapperboard, Cpu, FolderOpen, Keyboard, Megaphone, Mic, MoreHorizontal, Pencil, Pin, PinOff, Play, Plug, Plus, Search, Smartphone, Tag, Trash2, X, Zap,
+} from 'lucide-react';
 import { CHANNELS, isChannel } from '../../src/core/channels';
-import { ConnectionsModal } from './Connections';
 import { FORMATS } from '../../src/core/formats';
 import type { FormatId } from '../../src/core/schema';
-import { api, fileHref, type ProjectSummary } from './api';
+import { api, fileHref, type Editor, type ProjectSummary } from './api';
+import { BrandApplyForm, BrandsModal } from './Brands';
+import { ConnectionsModal } from './Connections';
+import { GuideModal, ShortcutsModal } from './Help';
+import { PhoneTransferModal, type PhoneTarget } from './PhoneTransfer';
 import { useApp } from './state';
-import { Modal } from './ui';
+import { Modal, modalOpen } from './ui';
 
 const ago = (iso: string) => {
   const d = (Date.now() - new Date(iso).getTime()) / 1000;
   if (d < 60) return 'az önce';
   if (d < 3600) return `${Math.floor(d / 60)} dk önce`;
   if (d < 86400) return `${Math.floor(d / 3600)} sa önce`;
+  if (d < 86400 * 7) return `${Math.floor(d / 86400)} gün önce`;
   return new Date(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
 };
+const today = () => new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+export const editorHash = (editor: Editor, id: string) => `#/${editor === 'studio' ? 'studyo' : 'proje'}/${id}`;
+const EDITOR_LABEL: Record<Editor, string> = { quick: 'Hızlı Edit', studio: 'Stüdyo' };
+
+/** Çıktı profili adı: kanal (“YouTube video”) veya biçim (“Story”, “Post · foto”) */
+const outputName = (o: string) => {
+  if (isChannel(o)) return CHANNELS[o].label;
+  const [f, kind] = o.split(':') as [FormatId, string];
+  const label = FORMATS[f]?.label ?? f;
+  return kind === 'image' ? `${label} · foto` : label;
+};
+const outputsText = (p: ProjectSummary) => (p.outputs.length ? [...new Set(p.outputs.map(outputName))].join(' · ') : 'Çıktı yok');
 
 const FORMAT_CHOICES: { key: string; format: FormatId; kind: 'video' | 'image'; label: string; sub: string }[] = [
   { key: 'story', format: 'story', kind: 'video', label: 'Story', sub: '9:16 · MP4' },
@@ -26,6 +43,7 @@ const FORMAT_CHOICES: { key: string; format: FormatId; kind: 'video' | 'image'; 
   { key: 'landscape', format: 'landscape', kind: 'video', label: 'Yatay video', sub: '16:9 · MP4' },
 ];
 
+/** Hızlı Edit: ad + biçimler → yeni proje */
 export const NewProjectModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [name, setName] = useState('');
   const [sel, setSel] = useState<Set<string>>(new Set(['story', 'post-img']));
@@ -33,11 +51,11 @@ export const NewProjectModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
   const create = async () => {
     const formats = FORMAT_CHOICES.filter((f) => sel.has(f.key)).map((f) => ({ format: f.format, kind: f.kind }));
     if (!formats.length) return toast('En az bir biçim seçin', 'error');
-    const st = await api.createProject(name.trim(), formats);
-    location.hash = `#/proje/${st.project.id}`;
+    const st = await api.createProject(name.trim(), formats, 'quick');
+    location.hash = editorHash('quick', st.project.id);
   };
   return (
-    <Modal title="Instagram Hızlı Edit" onClose={onClose} width={520}>
+    <Modal title="Hızlı Edit · yeni proje" onClose={onClose} width={560} testid="new-quick">
       <label className="field">
         <span>Proje adı</span>
         <input autoFocus placeholder="ör. Kafe Story" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create()} />
@@ -49,12 +67,15 @@ export const NewProjectModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
             <button
               key={f.key}
               className={`format-card ${sel.has(f.key) ? 'on' : ''}`}
-              onClick={() => setSel((s) => {
-                const n = new Set(s);
-                if (n.has(f.key)) n.delete(f.key);
-                else n.add(f.key);
-                return n;
-              })}
+              aria-pressed={sel.has(f.key)}
+              onClick={() =>
+                setSel((s) => {
+                  const n = new Set(s);
+                  if (n.has(f.key)) n.delete(f.key);
+                  else n.add(f.key);
+                  return n;
+                })
+              }
             >
               <span className="ratio" style={{ aspectRatio: `${FORMATS[f.format].width}/${FORMATS[f.format].height}` }} />
               <b>{f.label}</b>
@@ -64,22 +85,141 @@ export const NewProjectModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
         </div>
       </div>
       <div className="modal-actions">
-        <button className="btn ghost" onClick={onClose}>Vazgeç</button>
-        <button className="btn primary" onClick={create}>Oluştur</button>
+        <button className="btn ghost" onClick={onClose}>
+          Vazgeç
+        </button>
+        <button className="btn primary" onClick={create}>
+          Oluştur
+        </button>
       </div>
     </Modal>
   );
 };
 
+/** Yeni proje: Hızlı Edit veya Kurgu Stüdyosu (marka kampanyası ikincil seçenek) */
+const NewProjectChooser: React.FC<{ onClose: () => void; onQuick: () => void; onCampaign: () => void }> = ({ onClose, onQuick, onCampaign }) => {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal title="Yeni proje" onClose={onClose} width={680} testid="new-project">
+      <div className="choice-grid">
+        <button className="choice choice-quick" onClick={onQuick}>
+          <Zap size={26} />
+          <b>Hızlı Edit</b>
+          <span>Story · Reel · Post. Adım adım: ekle, kadrajla, renk ver, müzik ve Türkçe altyazı, teslim.</span>
+        </button>
+        <button
+          className="choice choice-studio"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            const st = await api.createProject(`Stüdyo · ${today()}`, [{ format: 'landscape', kind: 'video' }], 'studio');
+            location.hash = editorHash('studio', st.project.id);
+          }}
+        >
+          <Clapperboard size={26} />
+          <b>Kurgu Stüdyosu</b>
+          <span>Çok izli zaman çizelgesi, transkript, sesli veya yazılı Türkçe komutla kurgu.</span>
+        </button>
+      </div>
+      <button className="link small campaign-link" onClick={onCampaign}>
+        <Megaphone size={13} /> Marka kampanyası olarak başlat (markanın logosu, renkleri ve kanallarıyla)
+      </button>
+    </Modal>
+  );
+};
+
+/** Kart menüsü: yeniden adlandır, sabitle, sil */
+const CardMenu: React.FC<{ p: ProjectSummary; onRename: () => void; onPin: () => void; onDelete: () => void }> = ({ p, onRename, onPin, onDelete }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+        btn.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', off);
+    window.addEventListener('keydown', key, true);
+    ref.current?.querySelector<HTMLElement>('[role=menuitem]')?.focus();
+    return () => {
+      document.removeEventListener('mousedown', off);
+      window.removeEventListener('keydown', key, true);
+    };
+  }, [open]);
+  const item = (fn: () => void) => () => {
+    setOpen(false);
+    fn();
+  };
+  return (
+    <div className="card-menu" ref={ref}>
+      <button ref={btn} className="icon-btn" aria-haspopup="menu" aria-expanded={open} aria-label={`Proje menüsü: ${p.name}`} onClick={(e) => (e.preventDefault(), setOpen((o) => !o))}>
+        <MoreHorizontal size={17} />
+      </button>
+      {open ? (
+        <div className="menu" role="menu">
+          <button role="menuitem" onClick={item(onRename)}>
+            <Pencil size={14} /> Yeniden adlandır
+          </button>
+          <button role="menuitem" onClick={item(onPin)}>
+            {p.pinned ? <PinOff size={14} /> : <Pin size={14} />} {p.pinned ? 'Sabitlemeyi kaldır' : 'Sabitle'}
+          </button>
+          <button role="menuitem" className="danger" onClick={item(onDelete)}>
+            <Trash2 size={14} /> Sil
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const RenameModal: React.FC<{ p: ProjectSummary; onClose: () => void; onDone: () => void }> = ({ p, onClose, onDone }) => {
+  const [name, setName] = useState(p.name);
+  const save = async () => {
+    if (!name.trim() || name.trim() === p.name) return onClose();
+    await api.ops(p.id, [{ type: 'project.rename', name: name.trim() }], 'Proje adı değişti');
+    onDone();
+  };
+  return (
+    <Modal title="Yeniden adlandır" onClose={onClose} width={440} testid="rename">
+      <label className="field">
+        <span>Proje adı</span>
+        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void save()} aria-label="Yeni proje adı" />
+      </label>
+      <div className="modal-actions">
+        <button className="btn ghost" onClick={onClose}>
+          Vazgeç
+        </button>
+        <button className="btn primary" disabled={!name.trim()} onClick={() => void save()}>
+          Kaydet
+        </button>
+      </div>
+    </Modal>
+  );
+};
+
+type Dialog =
+  | { kind: 'yeni' }
+  | { kind: 'hizli' }
+  | { kind: 'kampanya' }
+  | { kind: 'telefon'; initial?: PhoneTarget }
+  | { kind: 'kilavuz' }
+  | { kind: 'kisayol' }
+  | { kind: 'markalar' }
+  | { kind: 'baglantilar' }
+  | { kind: 'ad'; p: ProjectSummary };
+
 export const Home: React.FC = () => {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [last, setLast] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [conns, setConns] = useState(false);
-  const [brandsOpen, setBrandsOpen] = useState(false);
-  const [campaign, setCampaign] = useState<string | null>(null);
-  const [brandFilter, setBrandFilter] = useState<string>('hepsi');
-  const { health, library } = useApp();
+  const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<string>('hepsi');
+  const { health, library, toast } = useApp();
   const load = () =>
     api.state().then((s) => {
       setProjects(s.projects);
@@ -88,20 +228,40 @@ export const Home: React.FC = () => {
   useEffect(() => {
     void load();
   }, []);
-  const lastProject = projects?.find((p) => p.id === last) ?? projects?.[0];
-  const brandNames = [...new Set((projects ?? []).map((p) => p.brand?.brandName).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'tr'));
-  const visible = (projects ?? []).filter((p) => brandFilter === 'hepsi' || (brandFilter === 'markasiz' ? !p.brand : p.brand?.brandName === brandFilter));
-  /** Marka seçiliyken ürün · kampanya başlıklarıyla grupla */
-  const groups: [string, ProjectSummary[]][] =
-    brandFilter === 'hepsi' || brandFilter === 'markasiz'
-      ? [['', visible]]
-      : Object.entries(
-          visible.reduce<Record<string, ProjectSummary[]>>((acc, p) => {
-            const k = [p.brand?.productName || 'Genel', p.brand?.campaign].filter(Boolean).join(' · ');
-            (acc[k] ??= []).push(p);
-            return acc;
-          }, {}),
-        );
+  // “?” → Stüdyo kısayolları (yazı alanı ve açık pencere yokken)
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (e.key === '?' && !modalOpen() && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+        e.preventDefault();
+        setDialog({ kind: 'kisayol' });
+      }
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+
+  const lastProject = projects?.find((p) => p.id === last) ?? projects?.[0] ?? null;
+  const brandNames = useMemo(() => [...new Set((projects ?? []).map((p) => p.brand?.brandName).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'tr')), [projects]);
+  const q = query.trim().toLocaleLowerCase('tr-TR');
+  const visible = (projects ?? [])
+    .filter((p) => (filter === 'hepsi' ? true : filter === 'sabit' ? p.pinned : p.brand?.brandName === filter))
+    .filter((p) => !q || p.name.toLocaleLowerCase('tr-TR').includes(q))
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt.localeCompare(a.updatedAt));
+  const pinnedCount = (projects ?? []).filter((p) => p.pinned).length;
+
+  const togglePin = async (p: ProjectSummary) => {
+    await api.pinProject(p.id, !p.pinned);
+    toast(p.pinned ? 'Sabitleme kaldırıldı' : 'Sabitlendi');
+    void load();
+  };
+  const remove = async (p: ProjectSummary) => {
+    if (!confirm(`“${p.name}” silinsin mi? Kaynak dosyalar kütüphanede kalır.`)) return;
+    await api.deleteProject(p.id);
+    void load();
+  };
+  const close = () => setDialog(null);
+
   return (
     <div className="home">
       <header className="home-head">
@@ -109,139 +269,168 @@ export const Home: React.FC = () => {
           <span className="logo">İF</span>
           <div>
             <h1>İçerik Fabrikası</h1>
-            <p className="muted">Telefondan gelen çekimleri dakikalar içinde Instagram'a hazırlayın.</p>
+            <p className="muted">Telefondan gelen çekimleri dakikalar içinde kanallara hazırlayın.</p>
           </div>
         </div>
-        <div className="row-wrap">
-          <button className="btn ghost" onClick={() => setBrandsOpen(true)} title="Logo, renk, yazı tipi, ton, ürünler">
+        <nav className="home-links" aria-label="Yardım ve ayarlar">
+          <button className="btn ghost sm" onClick={() => setDialog({ kind: 'kilavuz' })}>
+            <BookOpen size={15} /> Kullanım kılavuzu
+          </button>
+          <button className="btn ghost sm" onClick={() => setDialog({ kind: 'kisayol' })} aria-keyshortcuts="?">
+            <Keyboard size={15} /> Stüdyo kısayolları
+          </button>
+          <button className="btn ghost sm" onClick={() => setDialog({ kind: 'markalar' })} title="Logo, renk, yazı tipi, ton, ürünler">
             <Tag size={15} /> Markalar
           </button>
-          <button className="btn ghost" onClick={() => setConns(true)} title="Claude, ElevenLabs, Google Gemini…">
+          <button className="btn ghost sm" onClick={() => setDialog({ kind: 'baglantilar' })} title="Claude, ElevenLabs, Google Gemini, YouTube">
             <Plug size={15} /> Bağlantılar
           </button>
-        </div>
+        </nav>
       </header>
-      {conns ? <ConnectionsModal onClose={() => setConns(false)} /> : null}
-      {brandsOpen ? <BrandsModal onClose={() => setBrandsOpen(false)} /> : null}
-      {campaign ? (
-        <Modal title="Marka kampanyası" onClose={() => setCampaign(null)} width={720}>
-          <p className="hint">Yeni Stüdyo projesi açılır; markanın logosu, renkleri, yazı tipleri ve kanalları (YouTube, Shorts, Reels…) hazır gelir.</p>
-          <BrandApplyForm
-            projectId={campaign}
-            onApply={async (ops) => {
-              await api.ops(campaign, ops, 'Marka kampanyası');
-              location.hash = `#/studyo/${campaign}`;
-            }}
-            onCancel={async () => {
-              await api.deleteProject(campaign);
-              setCampaign(null);
-            }}
-            openBrands={() => setBrandsOpen(true)}
-          />
-        </Modal>
-      ) : null}
 
-      {lastProject ? (
-        <a className="continue" href={`#/${(lastProject.outputs.length === 1 && lastProject.outputs[0] === 'landscape:video') || lastProject.outputs.some((o) => isChannel(o)) ? 'studyo' : 'proje'}/${lastProject.id}`}>
-          <div className="continue-poster" style={{ backgroundImage: lastProject.poster ? `url(${fileHref(lastProject.poster)})` : undefined }}>
-            <Play size={28} />
-          </div>
-          <div>
-            <small className="eyebrow">Kaldığınız yerden devam edin</small>
-            <h2>{lastProject.name}</h2>
-            <p className="muted">
-              {lastProject.clipCount} klip · {lastProject.outputs.length} çıktı · son düzenleme {ago(lastProject.updatedAt)}
-            </p>
-          </div>
-          <span className="btn primary">Devam et</span>
-        </a>
-      ) : null}
-
-      <div className="tiles">
-        <button className="tile tile-quick" onClick={() => setCreating(true)}>
-          <Zap size={30} />
-          <h3>Instagram Hızlı Edit</h3>
-          <p>Story · Reel · Post. Sürükle, kadrajla, renk ver, müzik ve Türkçe altyazı ekle, teslim et.</p>
-        </button>
-        <button
-          className="tile tile-studio"
-          onClick={async () => {
-            const st = await api.createProject(`Stüdyo · ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`, [{ format: 'landscape', kind: 'video' }]);
-            location.hash = `#/studyo/${st.project.id}`;
-          }}
-        >
-          <Clapperboard size={30} />
-          <h3>Kurgu Stüdyosu</h3>
-          <p>Yatay video, çok izli zaman çizelgesi. Mikrofona veya yazarak Türkçe kurgu: “Buradan sonraki üç saniyeyi kes”.</p>
-        </button>
-        <button
-          className="tile tile-brand"
-          onClick={async () => {
-            const st = await api.createProject(`Kampanya · ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`, [{ format: 'landscape', kind: 'video' }]);
-            setCampaign(st.project.id);
-          }}
-        >
-          <Megaphone size={30} />
-          <h3>Marka kampanyası</h3>
-          <p>Marka → ürün → kampanya. Aynı kurgudan YouTube + küçük resim, Shorts, Reels, Story ve 4:5 reklam; metinler, kontrol ve teslim paketi.</p>
-        </button>
-      </div>
-
-      <h3 className="list-title">Projeler</h3>
-      {projects === null ? (
-        <p className="muted">Yükleniyor…</p>
-      ) : projects.length === 0 ? (
-        <div className="empty">Henüz proje yok. “Instagram Hızlı Edit” ile başlayın.</div>
-      ) : (
-        <>
-        {brandNames.length ? (
-          <div className="chips brand-filter" data-testid="brand-filter">
-            {['hepsi', ...brandNames, 'markasiz'].map((b) => (
-              <button key={b} className={`chip ${brandFilter === b ? 'on' : ''}`} onClick={() => setBrandFilter(b)}>
-                {b === 'hepsi' ? 'Tümü' : b === 'markasiz' ? 'Markasız' : b}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {groups.map(([title, list]) => (
-        <div key={title} className="project-group">
-        {title ? <h4 className="group-title">{title}</h4> : null}
-        <div className="project-grid">
-          {list.map((p) => (
-            <a key={p.id} className="project-card" href={`#/${(p.outputs.length === 1 && p.outputs[0] === 'landscape:video') || p.outputs.some((o) => isChannel(o)) ? 'studyo' : 'proje'}/${p.id}`}>
-              <div className="poster" style={{ backgroundImage: p.poster ? `url(${fileHref(p.poster)})` : undefined }} />
-              <div className="meta">
-                <b>{p.name}</b>
-                {p.brand ? <small className="brand-line">{[p.brand.brandName, p.brand.productName, p.brand.campaign].filter(Boolean).join(' · ')}</small> : null}
-                <small className="muted">
-                  {p.outputs.map((o) => (isChannel(o) ? CHANNELS[o].label : FORMATS[o.split(':')[0] as FormatId]?.label)).join(' · ')} · {ago(p.updatedAt)}
-                </small>
+      <section className="actions" aria-label="Ana eylemler">
+        <div className={`action action-last ${lastProject ? '' : 'empty-last'}`} data-testid="last-project">
+          {lastProject ? (
+            <>
+              <a className="last-cover" href={editorHash(lastProject.editor, lastProject.id)} style={{ backgroundImage: lastProject.poster ? `url(${fileHref(lastProject.poster)})` : undefined }} aria-label={`${lastProject.name} projesine dön`}>
+                {lastProject.poster ? null : <Clapperboard size={26} />}
+                <span className="play">
+                  <Play size={20} />
+                </span>
+              </a>
+              <div className="last-meta">
+                <small className="eyebrow">Son projeye dön</small>
+                <h2 title={lastProject.name}>{lastProject.name}</h2>
+                <p className="muted small">
+                  <span className="badge">{EDITOR_LABEL[lastProject.editor]}</span> {outputsText(lastProject)}
+                </p>
+                <p className="muted small">
+                  {lastProject.clipCount} klip · son düzenleme {ago(lastProject.updatedAt)}
+                </p>
+                <div className="row-wrap">
+                  <a className="btn primary" href={editorHash(lastProject.editor, lastProject.id)}>
+                    <Play size={15} /> Devam et
+                  </a>
+                  <button className="btn ghost sm" onClick={() => setDialog({ kind: 'telefon', initial: { kind: 'son', projectId: lastProject.id } })}>
+                    <Smartphone size={14} /> Bu projeye telefondan ekle
+                  </button>
+                </div>
               </div>
-              <button
-                className="icon-btn danger"
-                title="Projeyi sil (kaynak dosyalar kütüphanede kalır)"
-                onClick={async (e) => {
-                  e.preventDefault();
-                  if (confirm(`“${p.name}” silinsin mi? Kaynak dosyalar kütüphanede kalır.`)) {
-                    await api.deleteProject(p.id);
-                    void load();
-                  }
-                }}
-              >
-                <Trash2 size={16} />
+            </>
+          ) : (
+            <div className="last-meta">
+              <small className="eyebrow">Son projeye dön</small>
+              <h2>Henüz proje yok</h2>
+              <p className="muted small">İlk projeyi “Yeni proje” ile başlatın ya da telefondan dosya gönderin.</p>
+            </div>
+          )}
+        </div>
+        <button className="action action-new" onClick={() => setDialog({ kind: 'yeni' })}>
+          <Plus size={28} />
+          <b>Yeni proje</b>
+          <span>Hızlı Edit veya Kurgu Stüdyosu</span>
+        </button>
+        <button className="action action-phone" onClick={() => setDialog({ kind: 'telefon' })}>
+          <Smartphone size={28} />
+          <b>Telefondan ekle</b>
+          <span>QR ile aynı Wi-Fi'den fotoğraf, video, müzik</span>
+        </button>
+      </section>
+
+      <section className="projects" aria-label="Projeler">
+        <div className="projects-head">
+          <h3>Projeler</h3>
+          <label className="search">
+            <Search size={15} />
+            <input type="search" placeholder="Projelerde ara" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Projelerde ara" />
+            {query ? (
+              <button className="icon-btn" aria-label="Aramayı temizle" onClick={() => setQuery('')}>
+                <X size={14} />
               </button>
-            </a>
+            ) : null}
+          </label>
+        </div>
+        <div className="chips" role="group" aria-label="Süzgeç" data-testid="project-filter">
+          <button className={`chip ${filter === 'hepsi' ? 'on' : ''}`} aria-pressed={filter === 'hepsi'} onClick={() => setFilter('hepsi')}>
+            Tümü {projects ? `(${projects.length})` : ''}
+          </button>
+          <button className={`chip ${filter === 'sabit' ? 'on' : ''}`} aria-pressed={filter === 'sabit'} onClick={() => setFilter('sabit')}>
+            <Pin size={12} /> Sabitlenenler ({pinnedCount})
+          </button>
+          {brandNames.map((b) => (
+            <button key={b} className={`chip ${filter === b ? 'on' : ''}`} aria-pressed={filter === b} onClick={() => setFilter(b)}>
+              <Tag size={12} /> {b}
+            </button>
           ))}
         </div>
-        </div>
-        ))}
-        </>
-      )}
+
+        {projects === null ? (
+          <p className="muted">Yükleniyor…</p>
+        ) : projects.length === 0 ? (
+          <div className="empty" data-testid="empty-projects">
+            <b>Henüz proje yok.</b>
+            <p>Yeni bir proje başlatın ya da telefondaki çekimleri gönderin; proje kendiliğinden burada görünür.</p>
+            <div className="row-wrap center">
+              <button className="btn primary" onClick={() => setDialog({ kind: 'yeni' })}>
+                <Plus size={15} /> Yeni proje
+              </button>
+              <button className="btn ghost" onClick={() => setDialog({ kind: 'telefon' })}>
+                <Smartphone size={15} /> Telefondan ekle
+              </button>
+            </div>
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="empty" data-testid="no-results">
+            {q ? (
+              <>
+                <b>“{query.trim()}” adında proje bulunamadı.</b>
+                <p>Adın bir bölümünü yazmayı deneyin{filter !== 'hepsi' ? ' ya da süzgeci “Tümü”ne alın' : ''}.</p>
+                <div className="row-wrap center">
+                  <button className="btn ghost" onClick={() => (setQuery(''), setFilter('hepsi'))}>
+                    Aramayı temizle
+                  </button>
+                </div>
+              </>
+            ) : filter === 'sabit' ? (
+              <>
+                <b>Sabitlenen proje yok.</b>
+                <p>Sık kullandığınız projeyi kartındaki ⋯ menüsünden “Sabitle” ile en üste alın.</p>
+              </>
+            ) : (
+              <b>Bu süzgeçte proje yok.</b>
+            )}
+          </div>
+        ) : (
+          <div className="project-grid" data-testid="project-grid">
+            {visible.map((p) => (
+              <article key={p.id} className={`project-card ${p.pinned ? 'pinned' : ''}`} data-project={p.id}>
+                <a className="card-link" href={editorHash(p.editor, p.id)} aria-label={`${p.name} projesini aç`}>
+                  <div className="poster" style={{ backgroundImage: p.poster ? `url(${fileHref(p.poster)})` : undefined }}>
+                    {p.poster ? null : <Clapperboard size={22} />}
+                  </div>
+                  <div className="meta">
+                    <b className="card-name" title={p.name}>
+                      {p.pinned ? <Pin size={12} className="pin-ico" aria-label="Sabitlendi" /> : null}
+                      {p.name}
+                    </b>
+                    {p.brand ? <small className="brand-line">{[p.brand.brandName, p.brand.productName, p.brand.campaign].filter(Boolean).join(' · ')}</small> : null}
+                    <small className="muted">
+                      <span className={`type-tag type-${p.editor}`}>{EDITOR_LABEL[p.editor]}</span> {outputsText(p)}
+                    </small>
+                    <small className="muted">{ago(p.updatedAt)}</small>
+                  </div>
+                </a>
+                <CardMenu p={p} onRename={() => setDialog({ kind: 'ad', p })} onPin={() => void togglePin(p)} onDelete={() => void remove(p)} />
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <footer className="status">
         <span title={health?.whisper.bin ?? ''}>
           <Mic size={14} /> Türkçe konuşma:{' '}
-          {health ? (health.whisper.available ? <b className="ok">hazır ({health.whisper.model ?? 'test'})</b> : <b className="warn">kurulu değil — scripts/setup-mac.sh</b>) : '…'}
+          {health ? health.whisper.available ? <b className="ok">hazır ({health.whisper.model ?? 'test'})</b> : <b className="warn">kurulu değil — scripts/setup-mac.sh</b> : '…'}
         </span>
         <span>
           <Cpu size={14} /> Kodlayıcı: {health?.encoder ?? '…'}
@@ -254,7 +443,41 @@ export const Home: React.FC = () => {
         </span>
       </footer>
 
-      {creating ? <NewProjectModal onClose={() => setCreating(false)} /> : null}
+      {dialog?.kind === 'yeni' ? <NewProjectChooser onClose={close} onQuick={() => setDialog({ kind: 'hizli' })} onCampaign={() => setDialog({ kind: 'kampanya' })} /> : null}
+      {dialog?.kind === 'hizli' ? <NewProjectModal onClose={close} /> : null}
+      {dialog?.kind === 'kampanya' ? (
+        <Modal title="Marka kampanyası" onClose={close} width={720} testid="campaign">
+          <p className="hint">Yeni Stüdyo projesi açılır; markanın logosu, renkleri, yazı tipleri ve kanalları (YouTube, Shorts, Reels…) hazır gelir. Proje “Uygula”ya basınca oluşturulur.</p>
+          <BrandApplyForm
+            projectId={null}
+            onApply={async (_ops, label, choice) => {
+              const st = await api.createProject(`${choice.campaign || 'Kampanya'} · ${today()}`, [{ format: 'landscape', kind: 'video' }], 'studio');
+              const plan = await api.brandPlan(st.project.id, choice);
+              if (plan.ops.length) await api.ops(st.project.id, plan.ops, label);
+              location.hash = editorHash('studio', st.project.id);
+            }}
+            onCancel={close}
+            // “Marka oluştur / Markaları düzenle”: bu pencere kapanır, Markalar açılır
+            openBrands={() => setDialog({ kind: 'markalar' })}
+          />
+        </Modal>
+      ) : null}
+      {dialog?.kind === 'telefon' && projects ? (
+        <PhoneTransferModal
+          projects={projects}
+          lastProjectId={lastProject?.id ?? null}
+          initial={dialog.initial}
+          onClose={(changed) => {
+            close();
+            if (changed) void load();
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'kilavuz' ? <GuideModal onClose={close} /> : null}
+      {dialog?.kind === 'kisayol' ? <ShortcutsModal onClose={close} /> : null}
+      {dialog?.kind === 'markalar' ? <BrandsModal onClose={close} onChanged={() => void load()} /> : null}
+      {dialog?.kind === 'baglantilar' ? <ConnectionsModal onClose={close} /> : null}
+      {dialog?.kind === 'ad' ? <RenameModal p={dialog.p} onClose={close} onDone={() => (close(), void load(), toast('Ad değişti'))} /> : null}
     </div>
   );
 };

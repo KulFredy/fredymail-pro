@@ -21,7 +21,7 @@ import { ConnectionsModal } from './Connections';
 import { BrandApplyForm, BrandsModal } from './Brands';
 import { DeliveryModal } from './DeliveryPanel';
 import { GeneratePanel, type RegenRequest } from './GeneratePanel';
-import { Modal, Segmented, Slider, fmtDb, fmtSec } from './ui';
+import { Modal, Segmented, Slider, fmtDb, fmtSec, modalOpen } from './ui';
 
 type HistoryItem = { text: string; summary: string; ok: boolean };
 
@@ -804,6 +804,7 @@ export const Studio: React.FC = () => {
     const k = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (modalOpen()) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -971,7 +972,7 @@ export const Studio: React.FC = () => {
       />
       {connOpen ? <ConnectionsModal onClose={() => setConnOpen(false)} /> : null}
       {deliveryOpen ? <DeliveryModal onClose={() => setDeliveryOpen(false)} openConnections={() => (setDeliveryOpen(false), setConnOpen(true))} /> : null}
-      {brandOpen === 'markalar' ? <BrandsModal onClose={() => setBrandOpen('uygula')} /> : null}
+      {brandOpen === 'markalar' ? <BrandsModal onClose={() => setBrandOpen(null)} /> : null}
       {brandOpen === 'uygula' ? (
         <Modal title="Marka, ürün ve kampanya" onClose={() => setBrandOpen(null)} width={720}>
           <BrandApplyForm

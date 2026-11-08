@@ -58,18 +58,57 @@ export const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void
   </label>
 );
 
-export const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode; width?: number }> = ({ title, onClose, children, width = 440 }) => {
+/** Açık pencereler yığını: Esc yalnız en üsttekini kapatır */
+const modalStack: number[] = [];
+let modalSeq = 0;
+
+export const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode; width?: number; testid?: string }> = ({ title, onClose, children, width = 440, testid }) => {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
+  const titleId = React.useId();
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
-  }, [onClose]);
+    const id = ++modalSeq;
+    modalStack.push(id);
+    // Açan öğe: kapanınca odak ona döner
+    const opener = document.activeElement as HTMLElement | null;
+    const el = ref.current;
+    const first = el?.querySelector<HTMLElement>('[autofocus], input:not([type=hidden]), select, textarea, button:not(.modal-x), a[href]');
+    (first ?? el)?.focus({ preventScroll: true });
+    const k = (e: KeyboardEvent) => {
+      if (modalStack[modalStack.length - 1] !== id) return;
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closeRef.current();
+      } else if (e.key === 'Tab' && el) {
+        // Odak pencerenin içinde kalsın
+        const items = [...el.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter((x) => x.offsetParent !== null);
+        if (!items.length) return;
+        const a = items[0];
+        const z = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === a) {
+          e.preventDefault();
+          z.focus();
+        } else if (!e.shiftKey && document.activeElement === z) {
+          e.preventDefault();
+          a.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', k, true);
+    return () => {
+      window.removeEventListener('keydown', k, true);
+      const i = modalStack.indexOf(id);
+      if (i >= 0) modalStack.splice(i, 1);
+      if (opener && document.contains(opener) && opener !== document.body) opener.focus({ preventScroll: true });
+    };
+  }, []);
   return (
     <div className="modal-bg" onMouseDown={onClose}>
-      <div className="modal" style={{ width }} onMouseDown={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ width }} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} ref={ref} data-testid={testid}>
         <div className="modal-head">
-          <h3>{title}</h3>
-          <button className="icon-btn" onClick={onClose} aria-label="Kapat">
+          <h3 id={titleId}>{title}</h3>
+          <button className="icon-btn modal-x" onClick={onClose} aria-label="Kapat">
             <X size={18} />
           </button>
         </div>
@@ -78,6 +117,9 @@ export const Modal: React.FC<{ title: string; onClose: () => void; children: Rea
     </div>
   );
 };
+
+/** Açık pencere var mı (sayfa kısayolları pencere açıkken çalışmasın) */
+export const modalOpen = () => modalStack.length > 0;
 
 export const Section: React.FC<{ title: React.ReactNode; aside?: React.ReactNode; children: React.ReactNode; hint?: React.ReactNode }> = ({ title, aside, children, hint }) => (
   <section className="section">

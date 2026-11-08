@@ -234,11 +234,11 @@ const main = async () => {
       page.on('pageerror', (e: Error) => errors.push(e.message));
       try {
         await page.goto(`${base}/#/`);
-        await page.waitForSelector('[data-testid=brand-filter]');
-        await page.locator('[data-testid=brand-filter] .chip', { hasText: 'Köşe Kahve' }).click();
-        const groupTitle = await page.locator('.group-title').first().innerText();
+        await page.waitForSelector('[data-testid=project-filter]');
+        await page.locator('[data-testid=project-filter] .chip', { hasText: 'Köşe Kahve' }).click();
+        const shown = await page.locator('.project-card').count();
         const line = await page.locator('.brand-line').first().innerText();
-        check('Ana ekran: markaya göre süzme, ürün · kampanya grubu', groupTitle === 'Kahvemiz · Yaz 2026' && /Köşe Kahve · Kahvemiz · Yaz 2026/.test(line), `${groupTitle} | ${line}`);
+        check('Ana ekran: markaya göre süzme, kartta marka · ürün · kampanya', shown === 1 && /Köşe Kahve · Kahvemiz · Yaz 2026/.test(line), `${shown} kart | ${line}`);
         // Markalar penceresinden yeni marka
         await page.getByRole('button', { name: 'Markalar' }).click();
         await page.getByRole('button', { name: /Yeni marka/ }).click();

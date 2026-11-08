@@ -10,8 +10,10 @@ export const newId = customAlphabet('0123456789abcdefghijkmnpqrstuvwxyz', 10);
 
 export const defaultHome = () => process.env.FABRIKA_HOME ?? path.join(os.homedir(), 'İçerik Fabrikası');
 
+let tmpSeq = 0;
 const writeJson = async (file: string, data: unknown) => {
-  const tmp = `${file}.${process.pid}.tmp`;
+  // Geçici ad her yazmada benzersiz: aynı dosyaya eşzamanlı iki yazma birbirinin geçici dosyasını taşımasın
+  const tmp = `${file}.${process.pid}.${++tmpSeq}.tmp`;
   await writeFile(tmp, JSON.stringify(data, null, 2));
   await rename(tmp, file);
 };
@@ -49,7 +51,16 @@ export type ProjectSummary = {
   poster: string | null;
   duration: number;
   brand: Project['brand'];
+  /** Hangi düzenleyicide açılır: son kullanılan, yoksa oluşturulduğu tür */
+  editor: Editor;
+  pinned: boolean;
 };
+export type Editor = 'quick' | 'studio';
+type AppState = { lastProjectId: string | null; pinned?: string[]; editors?: Record<string, Editor> };
+
+/** Eski projeler (tür kaydı yok): yalnız yatay video veya kanal profili varsa Stüdyo */
+export const inferEditor = (pr: Project): Editor =>
+  pr.mode === 'studio' || pr.outputs.some((o) => !!o.channel) || (pr.outputs.length === 1 && pr.outputs[0].format === 'landscape' && pr.outputs[0].kind === 'video') ? 'studio' : 'quick';
 
 const HISTORY_LIMIT = 100;
 
@@ -57,7 +68,9 @@ export class Store extends EventEmitter {
   library = new Map<string, Asset>();
   private projects = new Map<string, { project: Project; history: History; serial: Serial }>();
   private libSerial = new Serial();
-  state: { lastProjectId: string | null } = { lastProjectId: null };
+  private stateSerial = new Serial();
+  private saveState = () => this.stateSerial.run(() => writeJson(this.p('state.json'), this.state));
+  state: AppState = { lastProjectId: null };
   style: PersonalStyle = {};
 
   constructor(public home: string) {
@@ -127,6 +140,8 @@ export class Store extends EventEmitter {
         poster: first?.poster ?? null,
         duration: pr.clips.reduce((s, c) => s + (c.out - c.in), 0),
         brand: pr.brand,
+        editor: this.state.editors?.[id] ?? inferEditor(pr),
+        pinned: !!this.state.pinned?.includes(id),
       });
     }
     return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -166,10 +181,11 @@ export class Store extends EventEmitter {
     if (withHistory) await writeJson(path.join(this.dir(id), 'history.json'), e.history);
   }
 
-  async createProject(name: string, ops: OpInput[] = []) {
+  async createProject(name: string, ops: OpInput[] = [], mode: Editor = 'quick') {
     const id = `p_${newId()}`;
     const now = new Date().toISOString();
     let project = newProject(id, name, now, {
+      mode,
       captions: { enabled: true, edits: {}, style: CaptionStyleSchema.parse({ ...(this.style.captionStyle ?? {}) }) },
     });
     project = applyOps(project, ops, this.opContext());
@@ -184,12 +200,33 @@ export class Store extends EventEmitter {
     await this.load(id);
     this.projects.delete(id);
     await rm(this.dir(id), { recursive: true, force: true });
+    this.state.pinned = (this.state.pinned ?? []).filter((x) => x !== id);
+    if (this.state.editors) delete this.state.editors[id];
     if (this.state.lastProjectId === id) await this.setLast(null);
+    else await this.saveState();
+  }
+
+  /** Sabitle / sabitlemeyi kaldır (state.json'da; yeniden açılışta korunur) */
+  async setPinned(id: string, pinned: boolean) {
+    await this.load(id);
+    const cur = new Set(this.state.pinned ?? []);
+    if (pinned) cur.add(id);
+    else cur.delete(id);
+    this.state.pinned = [...cur];
+    await this.saveState();
+  }
+
+  /** Proje bir düzenleyicide açıldı: son proje ve düzenleyici türü kaydedilir */
+  async opened(id: string, editor: Editor) {
+    await this.load(id);
+    this.state.lastProjectId = id;
+    this.state.editors = { ...(this.state.editors ?? {}), [id]: editor };
+    await this.saveState();
   }
 
   async setLast(id: string | null) {
     this.state.lastProjectId = id;
-    await writeJson(this.p('state.json'), this.state);
+    await this.saveState();
   }
 
   /** İşlemleri uygular, geçmişe yazar. Tek çağrı = tek geri alma adımı. */

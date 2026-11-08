@@ -26,6 +26,14 @@ Tarayıcıda **http://localhost:4747** açılır. Veriler `~/İçerik Fabrikası
 
 Çalışma anında hiçbir hesap, abonelik veya API ücreti gerekmez. Konuşma çözümü (Whisper), renk, render ve doğrulama tamamen Mac'te çalışır.
 
+## Ana sayfa
+
+- **Son projeye dön:** son açtığınız proje (kapak, ad, Hızlı Edit/Stüdyo, çıktı profilleri, son düzenleme). **Devam et** onu en son kullandığınız düzenleyicide açar.
+- **Yeni proje:** **Hızlı Edit** (biçim seçip Oluştur) veya **Kurgu Stüdyosu**. Aynı pencerede “Marka kampanyası olarak başlat”.
+- **Telefondan ekle:** önce hedef seçilir: **son proje**, **başka bir mevcut proje** veya **yeni proje**. Sonra o projeye ait QR kodu görünür. Telefon ile Mac aynı Wi-Fi'de olmalı. Gelen dosya sayısı pencerede görünür; bitince **Projeyi aç**. Bağlantı sorununda **Yeniden dene** aynı hedefle tekrar dener. Dosya gelmeden kapatılan yeni proje silinir.
+- **Projeler:** adla arama, **Sabitlenenler** süzgeci (sabitlenenler en üstte; uygulama kapanıp açılsa da kalır), markaya göre süzme. Kartın **⋯** menüsü: **Yeniden adlandır**, **Sabitle**, **Sil** (onay sorulur).
+- **Kullanım kılavuzu** ve **Stüdyo kısayolları** uygulama içinde, internetsiz açılır. Ana sayfada **?** tuşu kısayolları açar; pencereler **Esc** ile kapanır.
+
 ## Günlük kullanım
 
 1. **Ekle.** Dosyaları sürükle-bırak yapın ya da **Telefondan ekle** QR kodunu okutup galeriden seçin (telefon ve Mac aynı Wi-Fi'de olmalı). Seçim sırası klip sırası olur. Orijinaller salt-okunur arşive kopyalanır, hiç değiştirilmez.
@@ -230,6 +238,7 @@ npm run e2e:ritim  # Faz 4.4: vuruş algılama (128 BPM), kesimlerin vuruşa otu
 npm run e2e:grafik # Faz 4.3: logo/başlık render'ı — köşe, saydamlık, Story güvenli alanı, animasyon, orana özel yerleşim
 npm run e2e:ref    # Faz 4.2: referanstan renk eşleme, render'da renk farkı ölçümü
 npm run e2e:lut    # Faz 4: LUT toplu içe aktarma (.cube/.3dl/zip/bozuk), tür tahmini, render'da piksel ölçümü
+npm run e2e:anasayfa # Ana sayfa: son proje, yeni proje (iki tür), arama/sabitleme/menü, telefon hedefi (iki proje), yardım pencereleri, dar ekran
 npm run e2e:yayin  # Faz 7: sahte Google sunucusuyla OAuth (PKCE), YouTube yükleme, küçük resim, altyazı, durum, sızıntı taraması
 npm run e2e:marka  # Faz 6: marka → kampanya → kanal paketi (render, kapak, altyazı dosyası, LUFS, zip, onay) + arayüz
 npm run e2e:baglanti # Faz 5: sahte ElevenLabs/Gemini/Claude sunucusuyla anahtar güvenliği, taşıma, maliyet, onay, arayüz
