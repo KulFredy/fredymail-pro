@@ -15,6 +15,7 @@ import {
   TextOverlaySchema,
   OverlaySchema,
   VoiceSchema,
+  ReferenceSchema,
   type Look,
   type Output,
   type Project,
@@ -98,6 +99,9 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('voice.add'), assetId: z.string(), at: z.number().min(0) }),
   z.object({ type: z.literal('voice.update'), id: z.string(), patch: patchOf(VoiceSchema.omit({ id: true, assetId: true })) }),
   z.object({ type: z.literal('voice.remove'), id: z.string() }),
+  z.object({ type: z.literal('reference.add'), assetId: z.string(), at: z.number().min(0).optional() }),
+  z.object({ type: z.literal('reference.update'), id: z.string(), patch: patchOf(ReferenceSchema.omit({ id: true, assetId: true })) }),
+  z.object({ type: z.literal('reference.remove'), id: z.string() }),
 ]);
 export type Op = z.infer<typeof OpSchema>;
 export type OpInput = z.input<typeof OpSchema>;
@@ -396,6 +400,21 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
     case 'voice.remove':
       p.voice = p.voice.filter((v) => v.id !== op.id);
       break;
+    case 'reference.add': {
+      const a = ctx.assets[op.assetId];
+      if (!a || a.kind === 'audio') throw new OpError('Referans olarak fotoğraf veya video eklenebilir');
+      p.references = [...p.references, ReferenceSchema.parse({ id: ctx.newId('r'), assetId: op.assetId, at: Math.min(op.at ?? 0, Math.max(0, a.duration - 0.05)) })];
+      break;
+    }
+    case 'reference.update': {
+      const r = p.references.find((x) => x.id === op.id);
+      if (!r) throw new OpError('Referans bulunamadı');
+      Object.assign(r, op.patch);
+      break;
+    }
+    case 'reference.remove':
+      p.references = p.references.filter((x) => x.id !== op.id);
+      break;
   }
   p.updatedAt = ctx.now();
   return ProjectSchema.parse(p);
@@ -440,5 +459,8 @@ export const describeOp = (op: OpInput): string => {
     case 'voice.add': return 'Dış ses eklendi';
     case 'voice.update': return 'Dış ses düzenlendi';
     case 'voice.remove': return 'Dış ses silindi';
+    case 'reference.add': return 'Referans eklendi';
+    case 'reference.update': return 'Referans karesi değişti';
+    case 'reference.remove': return 'Referans kaldırıldı';
   }
 };

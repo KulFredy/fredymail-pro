@@ -166,6 +166,16 @@ export const VoiceSchema = z.object({
 });
 export type Voice = z.infer<typeof VoiceSchema>;
 
+/** Referans görsel/video (Faz 4): kurguya ve render'a girmez; renk eşleme vb. için */
+export const ReferenceSchema = z.object({
+  id: z.string(),
+  assetId: z.string(),
+  /** Video referansta kullanılacak kare (sn) */
+  at: z.number().min(0).default(0),
+  note: z.string().default(''),
+});
+export type Reference = z.infer<typeof ReferenceSchema>;
+
 export const UiStateSchema = z.object({
   step: z.string().default('ekle'),
   selectedClipId: z.string().nullable().default(null),
@@ -189,6 +199,7 @@ export const ProjectSchema = z.object({
   texts: z.array(TextOverlaySchema).default([]),
   overlays: z.array(OverlaySchema).default([]),
   voice: z.array(VoiceSchema).default([]),
+  references: z.array(ReferenceSchema).default([]),
   look: LookSchema.default(DEFAULT_LOOK),
   /** Instagram açıklama metni */
   description: z.string().default(''),
@@ -222,7 +233,7 @@ export const AssetSchema = z.object({
   sha256: z.string(),
   kind: z.enum(['video', 'image', 'audio']),
   /** media: normal kaynak · voiceover: uygulamada kaydedilen dış ses */
-  role: z.enum(['media', 'voiceover']).default('media'),
+  role: z.enum(['media', 'voiceover', 'reference']).default('media'),
   name: z.string(),
   ext: z.string(),
   size: z.number(),
