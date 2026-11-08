@@ -56,7 +56,8 @@ const main = async () => {
   await runOk('npx', ['vite', 'build', '--config', 'web/vite.config.ts', '--logLevel', 'error']);
   const pw = createRequire(import.meta.url)('playwright');
   const browser = await pw.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e: Error) => errors.push(e.message));
   try {
@@ -203,8 +204,17 @@ const main = async () => {
     // ---------- Stüdyo ----------
     const s = (await api('POST', '/api/projects', { name: 'Stüdyo sürükle', formats: [{ format: 'reel' }], mode: 'studio' })).project.id as string;
     await api('POST', `/api/projects/${s}/ops`, { ops: [{ type: 'clips.add', assetIds: [VIDEO] }] });
+    // Çok pencere: Chrome adres başına 6 bağlantı açar; sürekli açık bağlantı kalmamalı
+    const extra = [];
+    for (let k = 0; k < 7; k++) {
+      const pg = await page.context().newPage();
+      await pg.goto(`${base}/#/`);
+      extra.push(pg);
+    }
     await page.goto(`${base}/#/studyo/${s}`);
-    await page.waitForSelector('.studio-timeline .tl-content');
+    const manyOk = await page.waitForSelector('.studio-timeline .tl-content', { timeout: 20000 }).then(() => true, () => false);
+    check('7 pencere daha açıkken proje açılıyor (bağlantı havuzu dolmuyor)', manyOk);
+    for (const pg of extra) await pg.close();
     await page.getByRole('tab', { name: 'Media' }).click();
     await page.waitForSelector(`.bin-item[data-asset="${PHOTO}"]`);
     const sc = page.locator('.studio-timeline .tl-content');

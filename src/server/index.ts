@@ -120,6 +120,29 @@ export const createServer = async (home = defaultHome()) => {
 
   app.put('/api/style', async (req) => store.saveStyle(req.body as object));
 
+  // Olay günlüğü: pencereler kısa aralıklarla sorar (/api/events/since). Sürekli açık bağlantı
+  // tutulmaz; Chrome aynı adrese en çok 6 bağlantı açtığı için birkaç pencere + video akışı
+  // kalan istekleri (proje açma) süresiz bekletiyordu.
+  const eventLog: { seq: number; type: string; data: unknown }[] = [];
+  let eventSeq = 0;
+  const logEvent = (type: string) => (data: unknown) => {
+    eventLog.push({ seq: ++eventSeq, type, data });
+    if (eventLog.length > 600) eventLog.splice(0, eventLog.length - 600);
+  };
+  jobs.on('job', logEvent('job'));
+  store.on('asset', logEvent('asset'));
+  store.on('project', logEvent('project'));
+  store.on('export', logEvent('export'));
+  app.get('/api/events/since', async (req) => {
+    const seq = Number((req.query as { seq?: string }).seq ?? -1);
+    if (!Number.isFinite(seq) || seq < 0) return { seq: eventSeq, events: [] };
+    const oldest = eventLog[0]?.seq ?? eventSeq + 1;
+    // İstemci çok geride kaldıysa (veya sunucu yeniden başladıysa) tam yenileme ister
+    if (seq > eventSeq || seq < oldest - 1) return { seq: eventSeq, events: [], reset: true };
+    return { seq: eventSeq, events: eventLog.filter((e) => e.seq > seq) };
+  });
+
+  /** Eski pencereler için (yeni arayüz kullanmaz) */
   app.get('/api/events', (req, reply) => {
     reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     const send = (type: string, data: unknown) => reply.raw.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);

@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { applyOps, type OpContext, type OpInput } from '../../src/core/ops';
 import { buildRefs, lutUrls, type LutInfo } from '../../src/core/refs';
 import type { Asset, AssetRef, Project } from '../../src/core/schema';
-import { api, type Health, type Job, type ProjectState } from './api';
+import { api, recentUploads, type Health, type Job, type ProjectState } from './api';
 
 // ---------------- Uygulama geneli: kütüphane, işler, LUT'lar ----------------
 
@@ -47,18 +47,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void refreshLuts();
     api.health().then(setHealth).catch(() => undefined);
     api.jobs().then(setJobs).catch(() => undefined);
-    const es = new EventSource('/api/events');
-    es.addEventListener('job', (e) => {
-      const job = JSON.parse((e as MessageEvent).data) as Job;
-      setJobs((list) => [job, ...list.filter((j) => j.id !== job.id)].slice(0, 100));
-    });
-    es.addEventListener('asset', (e) => {
-      const a = JSON.parse((e as MessageEvent).data) as Asset;
-      setLibrary((m) => new Map(m).set(a.id, a));
-    });
-    es.addEventListener('project', (e) => projectListeners.current.forEach((fn) => fn(JSON.parse((e as MessageEvent).data))));
-    es.addEventListener('export', (e) => exportListeners.current.forEach((fn) => fn(JSON.parse((e as MessageEvent).data))));
-    return () => es.close();
+    // Olaylar kısa aralıklı sorgu ile alınır: sürekli açık bağlantı yok (Chrome'un adres başına
+    // 6 bağlantı sınırı birkaç pencerede dolup proje açmayı kilitliyordu)
+    let alive = true;
+    let seq = -1;
+    let timer = 0;
+    const handle = (ev: { type: string; data: unknown }) => {
+      if (ev.type === 'job') {
+        const job = ev.data as Job;
+        setJobs((list) => [job, ...list.filter((j) => j.id !== job.id)].slice(0, 100));
+      } else if (ev.type === 'asset') {
+        const a = ev.data as Asset;
+        setLibrary((m) => new Map(m).set(a.id, a));
+      } else if (ev.type === 'project') projectListeners.current.forEach((fn) => fn(ev.data as { id: string; source: string }));
+      else if (ev.type === 'export') exportListeners.current.forEach((fn) => fn(ev.data as never));
+    };
+    const poll = async () => {
+      try {
+        const ctl = new AbortController();
+        const t = setTimeout(() => ctl.abort(), 5000);
+        const r = (await fetch(`/api/events/since?seq=${seq}`, { signal: ctl.signal, cache: 'no-store' }).then((x) => x.json())) as {
+          seq: number;
+          events: { type: string; data: unknown }[];
+          reset?: boolean;
+        };
+        clearTimeout(t);
+        if (!alive) return;
+        if (r.reset && seq >= 0) {
+          void refreshLibrary();
+          api.jobs().then(setJobs).catch(() => undefined);
+        }
+        r.events.forEach(handle);
+        seq = r.seq;
+      } catch {
+        /* sunucu kapalı olabilir: ServerWatch gösterir */
+      }
+      if (alive) timer = window.setTimeout(poll, document.visibilityState === 'hidden' ? 4000 : 1000);
+    };
+    void poll();
+    const onUploaded = (e: Event) => {
+      const list = (e as CustomEvent<Asset[]>).detail;
+      setLibrary((m) => {
+        const n = new Map(m);
+        list.forEach((a) => n.set(a.id, a));
+        return n;
+      });
+    };
+    window.addEventListener('fabrika:assets', onUploaded);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      window.removeEventListener('fabrika:assets', onUploaded);
+    };
   }, [refreshLibrary, refreshLuts]);
 
   const value = useMemo<AppCtx>(
@@ -120,6 +160,7 @@ export const useProject = () => useContext(PCtx)!;
 
 export const opContextFrom = (library: Map<string, Asset>): OpContext => {
   const assets: OpContext['assets'] = {};
+  for (const a of recentUploads.values()) if (!library.has(a.id)) assets[a.id] = { kind: a.kind as Asset['kind'], duration: a.duration, width: a.width, height: a.height };
   for (const a of library.values()) assets[a.id] = { kind: a.kind, duration: a.duration, width: a.width, height: a.height };
   return { assets, newId: (p) => `${p}_${Math.random().toString(36).slice(2, 12)}`, now: () => new Date().toISOString(), photoDuration: 3 };
 };

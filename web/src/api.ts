@@ -182,6 +182,9 @@ export const api = {
 };
 
 /** Dosya yükleme (ilerleme yüzdesiyle) */
+/** Az önce yüklenen dosyalar: kütüphane durumu güncellenmeden de işlemlerde tanınsınlar */
+export const recentUploads = new Map<string, { id: string; kind: string; duration: number; width: number; height: number }>();
+
 export const upload = (url: string, files: File[], onProgress: (f: number) => void) =>
   new Promise<any>((resolve, reject) => {
     const fd = new FormData();
@@ -191,7 +194,12 @@ export const upload = (url: string, files: File[], onProgress: (f: number) => vo
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
     xhr.onload = () => {
       const data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
-      if (xhr.status < 300) resolve(data);
+      if (xhr.status < 300) {
+        // Yeni dosyalar kütüphaneye hemen girsin (olay sorgusunu beklemeden; hemen ardından işlem uygulanabilir)
+        if (Array.isArray(data?.assets)) for (const a of data.assets) if (a?.id) recentUploads.set(a.id, a);
+        if (Array.isArray(data?.assets) && data.assets.length) window.dispatchEvent(new CustomEvent('fabrika:assets', { detail: data.assets }));
+        resolve(data);
+      }
       else reject(new Error(data?.error ?? 'Yükleme başarısız'));
     };
     xhr.onerror = () => reject(new Error('Bağlantı hatası'));
