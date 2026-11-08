@@ -10,6 +10,37 @@ import { useApp, useProject } from './state';
 import type { Selection } from './Timeline';
 import { Segmented, Slider, fmtPct } from './ui';
 
+/** Referans görselde fareyle dikdörtgen çizerek bölge seçimi (oran 0..1) */
+const RegionPicker: React.FC<{ src: string; region: { x: number; y: number; w: number; h: number } | null; onChange: (r: { x: number; y: number; w: number; h: number } | null) => void }> = ({ src, region, onChange }) => {
+  const box = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const pt = (e: React.PointerEvent) => {
+    const r = box.current!.getBoundingClientRect();
+    return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+  };
+  const shown = drag ? { x: Math.min(drag.x0, drag.x1), y: Math.min(drag.y0, drag.y1), w: Math.abs(drag.x1 - drag.x0), h: Math.abs(drag.y1 - drag.y0) } : region;
+  return (
+    <div
+      ref={box}
+      className="region-picker"
+      onPointerDown={(e) => {
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        const p = pt(e);
+        setDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+      }}
+      onPointerMove={(e) => drag && setDrag({ ...drag, x1: pt(e).x, y1: pt(e).y })}
+      onPointerUp={() => {
+        if (drag && shown && shown.w > 0.03 && shown.h > 0.03) onChange({ x: +shown.x.toFixed(3), y: +shown.y.toFixed(3), w: +shown.w.toFixed(3), h: +shown.h.toFixed(3) });
+        setDrag(null);
+      }}
+      aria-label="Renk alınacak bölgeyi çizin"
+    >
+      <img src={src} alt="" draggable={false} />
+      {shown ? <div className="region-rect" style={{ left: `${shown.x * 100}%`, top: `${shown.y * 100}%`, width: `${shown.w * 100}%`, height: `${shown.h * 100}%` }} /> : null}
+    </div>
+  );
+};
+
 type Match = { refId: string; target: string; lutId: string; name: string; summary: string[]; swatches: { reference: string; target: string } };
 
 /**
@@ -32,7 +63,7 @@ export const ReferencePanel: React.FC<{ selection: Selection }> = ({ selection }
   const clip = item?.clip ?? null;
   const ref = project.references.find((r) => r.id === selId) ?? null;
   const refAsset = ref ? library.get(ref.assetId) : undefined;
-  const targetKey = `${target}:${target === 'klip' ? clip?.id : ''}`;
+  const targetKey = `${target}:${target === 'klip' ? clip?.id : ''}:${JSON.stringify(ref?.region ?? null)}:${ref?.at ?? 0}`;
   const urls = lutUrls(luts, '');
 
   // Hedef klibin orta karesi (önce/sonra için)
@@ -180,6 +211,20 @@ export const ReferencePanel: React.FC<{ selection: Selection }> = ({ selection }
               { value: 'tum', label: 'Tüm kurgu', hint: 'Bütün kliplerin ortak rengini eşle' },
             ]}
           />
+          <details className="region-box" open={!!ref.region}>
+            <summary className="small">{ref.region ? 'Yalnız seçili bölgenin rengi alınacak' : 'Bölge seç (yazı/logo varsa)'}</summary>
+            <RegionPicker
+              src={`/api/assets/${encodeURIComponent(ref.assetId)}/frame?t=${ref.at.toFixed(2)}&w=640`}
+              region={ref.region}
+              onChange={(region) => apply([{ type: 'reference.update', id: ref.id, patch: { region } }], { label: 'Referans bölgesi seçildi' })}
+            />
+            <small className="muted">Görselin üzerinde fareyle bir dikdörtgen çizin; yazı bandı veya logo dışarıda kalsın.</small>
+            {ref.region ? (
+              <button className="link small" onClick={() => apply([{ type: 'reference.update', id: ref.id, patch: { region: null } }])}>
+                Bölgeyi kaldır (tüm kare)
+              </button>
+            ) : null}
+          </details>
           {!match ? (
             <button className="btn primary tiny" disabled={!!busy || refAsset.status !== 'ready' || !clip} onClick={doMatch}>
               <Palette size={13} /> Rengi eşle

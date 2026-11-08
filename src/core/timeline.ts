@@ -1,5 +1,5 @@
 import { FORMATS } from './formats';
-import { FPS, type AssetRef, type Clip, type Framing, type Output, type Project, type Word } from './schema';
+import { FPS, type AssetRef, type Clip, type Framing, type Motion, type Output, type Project, type Word } from './schema';
 
 export const dbToGain = (db: number) => Math.pow(10, db / 20);
 export const toFrames = (sec: number) => Math.round(sec * FPS);
@@ -66,6 +66,35 @@ export const computeBox = (srcW: number, srcH: number, outW: number, outH: numbe
   const height = srcH * scale;
   const axis = (size: number, out: number, p: number) => (size >= out ? clamp(out / 2 - p * size, out - size, 0) : (out - size) * p);
   return { left: axis(width, outW, f.x), top: axis(height, outH, f.y), width, height, scale };
+};
+
+/**
+ * Ken Burns: t (klip içi sn) anındaki kadraj. Yumuşak (ease-in-out) ilerler.
+ * Kaydırmada görüntü biraz büyütülür ki kenar boşluğu kalmasın.
+ */
+export const motionFraming = (f: Framing, motion: Motion | null | undefined, t: number, clipDur: number): Framing => {
+  if (!motion) return f;
+  const D = Math.max(0.1, Math.min(clipDur, motion.duration ?? clipDur));
+  const k = Math.min(1, Math.max(0, t / D));
+  const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+  const a = motion.amount;
+  switch (motion.kind) {
+    case 'yakinlas':
+      return { ...f, zoom: f.zoom * (1 + a * e) };
+    case 'uzaklas':
+      return { ...f, zoom: f.zoom * (1 + a * (1 - e)) };
+    case 'sola':
+    case 'saga':
+    case 'yukari':
+    case 'asagi': {
+      const d = (e - 0.5) * a * 2; // −a..+a
+      const zoom = f.zoom * (1 + a);
+      if (motion.kind === 'sola') return { ...f, zoom, x: clamp01(f.x + d) };
+      if (motion.kind === 'saga') return { ...f, zoom, x: clamp01(f.x - d) };
+      if (motion.kind === 'yukari') return { ...f, zoom, y: clamp01(f.y + d) };
+      return { ...f, zoom, y: clamp01(f.y - d) };
+    }
+  }
 };
 
 /** Önizlemede sürükleme: büyük görüntüde odak noktasını, küçük görüntüde yerini kaydırır */

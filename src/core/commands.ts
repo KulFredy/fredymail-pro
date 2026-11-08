@@ -1,3 +1,4 @@
+import { snapCutsToBeats } from './beats';
 import { PRESETS } from './looks';
 import type { OpInput } from './ops';
 import type { AssetRef, CaptionStyle, Project } from './schema';
@@ -390,6 +391,48 @@ const ruleLogo = (_raw: string, t: string, ctx: CommandContext): Plan | null => 
 };
 const ANCHOR_NAMES: Record<string, string> = { tl: 'sol üst', tc: 'üst orta', tr: 'sağ üst', ml: 'sol orta', mc: 'orta', mr: 'sağ orta', bl: 'sol alt', bc: 'alt orta', br: 'sağ alt' };
 
+/** “Kesimleri müziğe oturt” — klip geçişlerini en yakın vuruşa kaydırır */
+const ruleBeatCuts = (_raw: string, t: string, ctx: CommandContext): Plan | null => {
+  if (!/(müziğe|müziğin|vuruş|ritm|tempo|beat)/.test(t) || !/(oturt|göre|uydur|hizala|denk|kes|eşle|kaydır)/.test(t)) return null;
+  if (!ctx.project.music) return fail('Projede müzik yok.', 'Önce MÜZİK izinin + düğmesiyle bir müzik ekleyin.');
+  const r = snapCutsToBeats(ctx.project, ctx.assets);
+  if (!r) return fail('Müziğin vuruşları henüz hesaplanmadı.', 'Müzik yeni eklendiyse birkaç saniye sonra tekrar deneyin.');
+  if (!r.cuts) return fail('Kurguda tek klip var; oturtulacak geçiş yok.');
+  if (!r.ops.length) return { understood: false, summary: `Geçişler zaten vuruşlara yakın (≈${Math.round(r.bpm)} BPM); değişiklik gerekmiyor.`, ops: [], ranges: [], candidates: [] };
+  return {
+    understood: true,
+    summary: `${r.cuts} geçişten ${r.ops.length} tanesi müziğin vuruşuna oturtulacak (≈${Math.round(r.bpm)} BPM, en çok 0,3 sn kaydırma).`,
+    ops: r.ops,
+    ranges: r.moved.map((m) => ({ start: Math.min(m.at, m.to), end: Math.max(m.at, m.to) + 0.05, kind: 'change' as const })),
+    candidates: [],
+  };
+};
+
+/** “Girişte yavaşça yakınlaş”, “bu klipte yavaşça sola kay”, “hareketi kaldır” */
+const ruleMotion = (_raw: string, t: string, ctx: CommandContext): Plan | null => {
+  const remove = /(hareketi|yakınlaşmayı|ken ?burns).*(kaldır|sil|kapat|durdur)|sabit kalsın/.test(t);
+  if (!remove && !(/(yavaş|giderek|ken ?burns|hareket|yakınlaşsın|yakınlaşarak|uzaklaşsın|uzaklaşarak|kayarak|kaysın)/.test(t) && /(yakınlaş|uzaklaş|kay|zoom|hareket|ken ?burns)/.test(t))) return null;
+  const layout = layoutClips(ctx.project);
+  const all = /(tüm|bütün|hepsi|her klip)/.test(t);
+  const target = layout.find((l) => l.clip.id === ctx.selectedClipId) ?? layout.find((l) => ctx.playhead >= l.start && ctx.playhead < l.end) ?? layout[0];
+  if (!target) return fail('Kurguda klip yok.');
+  const targets = all ? layout : [target];
+  if (remove) return { understood: true, summary: `${all ? 'Tüm kliplerde' : `${layout.indexOf(target) + 1}. klipte`} hareket kaldırılacak.`, ops: targets.map((l) => ({ type: 'clip.update' as const, clipId: l.clip.id, patch: { motion: null } })), ranges: [], candidates: [] };
+  const kind = /uzaklaş/.test(t) ? 'uzaklas' : /sola/.test(t) ? 'sola' : /sağa/.test(t) ? 'saga' : /yukarı/.test(t) ? 'yukari' : /aşağı/.test(t) ? 'asagi' : 'yakinlas';
+  const amount = /(hafif|azıcık|biraz)/.test(t) ? 0.08 : /(çok|belirgin|güçlü|iyice)/.test(t) ? 0.3 : 0.15;
+  const nm = /ilk (\d+(?:[.,]\d+)?|bir|iki|üç|dört|beş) saniye/.exec(t);
+  const words: Record<string, number> = { bir: 1, iki: 2, üç: 3, dört: 4, beş: 5 };
+  const duration = nm ? (words[nm[1]] ?? Number(nm[1].replace(',', '.'))) : /(girişte|başta|başında|açılışta)/.test(t) ? 1.5 : null;
+  const names: Record<string, string> = { yakinlas: 'yavaşça yakınlaşacak', uzaklas: 'yavaşça uzaklaşacak', sola: 'yavaşça sola kayacak', saga: 'yavaşça sağa kayacak', yukari: 'yavaşça yukarı kayacak', asagi: 'yavaşça aşağı kayacak' };
+  return {
+    understood: true,
+    summary: `${all ? 'Tüm klipler' : `${layout.indexOf(target) + 1}. klip`} ${duration ? `ilk ${String(duration).replace('.', ',')} saniyede` : 'boyunca'} ${names[kind]} (%${Math.round(amount * 100)}).`,
+    ops: targets.map((l) => ({ type: 'clip.update' as const, clipId: l.clip.id, patch: { motion: { kind, amount, duration } } })),
+    ranges: targets.map((l) => ({ start: l.start, end: duration ? Math.min(l.end, l.start + duration) : l.end, kind: 'change' as const })),
+    candidates: [],
+  };
+};
+
 const ruleUndo = (_raw: string, t: string): Plan | null => {
   if (/^(geri al|son (işlemi|değişikliği) geri al|bunu geri al|vazgeç|iptal et)$/.test(t) || /(geri al)$/.test(t))
     return { understood: true, summary: 'Son değişiklik geri alınacak.', ops: [], ranges: [], candidates: [], action: 'undo' };
@@ -492,7 +535,7 @@ const ruleScale = (_raw: string, t: string, ctx: CommandContext): Plan | null =>
   };
 };
 
-const RULES = [ruleRestore, ruleLogo, ruleUndo, ruleScale, ruleCaptionMove, ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
+const RULES = [ruleRestore, ruleLogo, ruleBeatCuts, ruleMotion, ruleUndo, ruleScale, ruleCaptionMove, ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
 
 export const planCommand = (raw: string, ctx: CommandContext): Plan => {
   const t = normalizeTr(raw);
@@ -517,4 +560,6 @@ export const COMMAND_EXAMPLES = [
   'Müziği konuşurken kıs',
   'Orijinal haline dön',
   'Logoyu sol alta al',
+  'Girişte yavaşça yakınlaş',
+  'Kesimleri müziğe oturt',
 ];

@@ -13,6 +13,7 @@ export const assetRef = (a: Asset, base: string, target: 'preview' | 'render'): 
   id: a.id,
   kind: a.kind,
   alpha: a.alpha,
+  ...(a.beats ? { beats: a.beats.beats, bpm: a.beats.bpm } : {}),
   importedAt: a.importedAt,
   name: a.name,
   url: a.status === 'ready' ? fileUrl(base, target === 'render' ? a.render : a.preview) : '',

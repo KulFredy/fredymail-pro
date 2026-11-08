@@ -44,6 +44,17 @@ export const FramingSchema = z.object({
 });
 export type Framing = z.infer<typeof FramingSchema>;
 
+/** Ken Burns hareketi: klip boyunca (veya yalnız girişte) yavaş yakınlaşma/kaydırma */
+export const MOTIONS = ['yakinlas', 'uzaklas', 'sola', 'saga', 'yukari', 'asagi'] as const;
+export const MotionSchema = z.object({
+  kind: z.enum(MOTIONS).default('yakinlas'),
+  /** Ölçek değişimi (0,15 = %15 yakınlaşma); kaydırmada kaydırma payı */
+  amount: z.number().min(0.03).max(0.6).default(0.15),
+  /** null → klibin tamamı boyunca; sayı → yalnız ilk N saniye (girişte) */
+  duration: z.number().positive().nullable().default(null),
+});
+export type Motion = z.infer<typeof MotionSchema>;
+
 export const ClipSchema = z.object({
   id: z.string(),
   assetId: z.string(),
@@ -60,6 +71,7 @@ export const ClipSchema = z.object({
   /** Klip sesinin yumuşak girişi/çıkışı (sn); 0 → yalnız tık önleyici kısa geçiş */
   audioFadeIn: z.number().min(0).max(5).default(0),
   audioFadeOut: z.number().min(0).max(5).default(0),
+  motion: MotionSchema.nullable().default(null),
 });
 export type Clip = z.infer<typeof ClipSchema>;
 
@@ -215,6 +227,8 @@ export const ReferenceSchema = z.object({
   /** Video referansta kullanılacak kare (sn) */
   at: z.number().min(0).default(0),
   note: z.string().default(''),
+  /** Renk eşlemede yalnız bu bölgeye bakılır (oran 0..1); null → tüm kare */
+  region: z.object({ x: pos(0), y: pos(0), w: z.number().min(0.02).max(1), h: z.number().min(0.02).max(1) }).nullable().default(null),
 });
 export type Reference = z.infer<typeof ReferenceSchema>;
 
@@ -279,6 +293,8 @@ export const AssetSchema = z.object({
   role: z.enum(['media', 'voiceover', 'reference']).default('media'),
   /** Saydam görsel (PNG/SVG): önizleme/render kopyaları PNG tutulur */
   alpha: z.boolean().default(false),
+  /** Müzik vuruşları (ses dosyalarında, yerelde hesaplanır) */
+  beats: z.object({ bpm: z.number(), beats: z.array(z.number()), confidence: z.number() }).nullable().default(null),
   name: z.string(),
   ext: z.string(),
   size: z.number(),
@@ -325,6 +341,9 @@ export type AssetRef = {
   duration: number;
   hasAudio: boolean;
   alpha?: boolean;
+  /** Ses dosyasında vuruşlar (sn, dosya zamanı) ve tempo */
+  beats?: number[];
+  bpm?: number;
   words: Word[];
   transcriptStatus: Transcript['status'];
   cameraDetected: string | null;

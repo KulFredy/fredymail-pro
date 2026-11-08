@@ -11,6 +11,7 @@ import {
   dbToGain,
   framingFor,
   layoutClips,
+  motionFraming,
   musicGainAt,
   speechIntervals,
   timelineWords,
@@ -23,6 +24,7 @@ import { useFonts } from './fonts';
 
 const ClipLayer: React.FC<{ item: LayoutItem; output: Output; props: CompProps }> = ({ item, output, props }) => {
   const { width: W, height: H } = useVideoConfig();
+  const frame = useCurrentFrame(); // kancalar koşullu dönüşten önce
   const { clip } = item;
   const asset = props.assets[clip.assetId];
   if (!asset || !asset.url) {
@@ -35,7 +37,8 @@ const ClipLayer: React.FC<{ item: LayoutItem; output: Output; props: CompProps }
       </AbsoluteFill>
     );
   }
-  const framing = props.framingOverride?.[clip.id] ?? framingFor(output, clip);
+  const baseFraming = props.framingOverride?.[clip.id] ?? framingFor(output, clip);
+  const framing = motionFraming(baseFraming, clip.motion, frame / FPS, item.duration);
   const box = computeBox(asset.width, asset.height, W, H, framing);
   const bgBox = framing.mode === 'fit-blur' ? computeBox(asset.width, asset.height, W, H, { mode: 'fill', x: 0.5, y: 0.5, zoom: 1 }) : null;
   const look = effectiveLook(props.project, clip);
@@ -229,7 +232,7 @@ const VideoView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
         <Sequence key={o.id} from={toFrames(o.at)} durationInFrames={Math.max(1, toFrames(o.out - o.in))} name="Üst iz">
           <ClipLayer
             item={{
-              clip: { id: o.id, assetId: o.assetId, in: o.in, out: o.out, camera: o.camera, look: null, gainDb: 0, muted: true, musicMuted: false, audioFadeIn: 0, audioFadeOut: 0 },
+              clip: { id: o.id, assetId: o.assetId, in: o.in, out: o.out, camera: o.camera, look: null, gainDb: 0, muted: true, musicMuted: false, audioFadeIn: 0, audioFadeOut: 0, motion: null },
               start: o.at,
               end: o.at + (o.out - o.in),
               duration: o.out - o.in,

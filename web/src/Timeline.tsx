@@ -311,7 +311,14 @@ export const Timeline: React.FC<{
                               <div className="tl-item music" style={{ left: 0, width: x(total) }}>
                                 <span className="tl-name">
                                   ♪ {music.name} · {project.music?.mode === 'bed' ? 'arka planda kısık' : project.music?.mode === 'duck' ? 'konuşmada kısılır' : 'sabit'}
+                                  {music.beats?.bpm ? ` · ${Math.round(music.beats.bpm)} BPM` : ''}
                                 </span>
+                                {music.beats && pps > 6
+                                  ? music.beats.beats
+                                      .map((b) => b - (project.music?.start ?? 0))
+                                      .filter((b) => b > 0 && b < total)
+                                      .map((b, i) => <i key={i} className="tl-beat" style={{ left: x(b) }} />)
+                                  : null}
                               </div>
                             )
                           : <span className="tl-empty">Müzik yok</span>

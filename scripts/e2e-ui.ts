@@ -366,6 +366,17 @@ const main = async () => {
     const tx = pl.texts.find((t: any) => t.text === 'Kampanya');
     check('“Güvenli alana al” o oran için düzeltti', nWarn2 === nWarn - 1 && Object.keys(tx.placements).length === 1, `${nWarn} → ${nWarn2} uyarı`);
 
+    // 13) Hareket: seçili klipte “Yavaşça yakınlaş”, yalnız girişte
+    await page.locator('.tl-item.clip').first().click();
+    await page.getByRole('tab', { name: 'Seçili öğe' }).click().catch(() => undefined);
+    await page.getByText('Hareket (yavaş yakınlaşma / kaydırma)').click();
+    await page.getByLabel('Hareket', { exact: true }).selectOption('yakinlas');
+    await page.waitForTimeout(400);
+    await page.getByText('Yalnız girişte').click();
+    await page.waitForTimeout(500);
+    const mv = (await api('GET', `/api/projects/${pid}`)).project.clips[0].motion;
+    check('Hareket seçildi: yavaşça yakınlaş, yalnız girişte', mv?.kind === 'yakinlas' && mv.duration > 0, JSON.stringify(mv));
+
     if (process.env.FABRIKA_UI_SHOT) await page.screenshot({ path: process.env.FABRIKA_UI_SHOT });
     check('Sayfada hata yok', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {

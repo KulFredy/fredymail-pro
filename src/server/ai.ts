@@ -36,6 +36,8 @@ const OPS_DOC = `İşlemler (JSON). Zamanlar saniye. "timeline" = zaman çizelge
 - Konum (anchor): t/m/b = üst/orta/alt, l/c/r = sol/orta/sağ; her oranın Instagram güvenli alanı içinde hesaplanır. Serbest konum için anchor:null ve x,y (0..1).
 - {"type":"logo.add","assetId":ID,"logo":{"anchor":"tr","size":0.03..0.9,"opacity":0..1,"anim":"yok|solma|yukari|buyume","full":true}} (logo: görsel kaynak; full=false ise start/end) · {"type":"logo.update","id":ID,"patch":{...aynı alanlar}} · {"type":"logo.remove","id":ID}
 - Yalnız bir oranda farklı yerleşim: {"type":"element.place","kind":"text|logo","id":ID,"outputId":ID,"place":{"anchor":"bl","x":0.5,"y":0.5,"scale":1}} (place:null → genel yerleşime döner)
+- Hareket (Ken Burns): {"type":"clip.update","clipId":ID,"patch":{"motion":{"kind":"yakinlas|uzaklas|sola|saga|yukari|asagi","amount":0.03..0.6,"duration":null|saniye}}} (duration: yalnız girişte; null = klip boyunca; motion:null kaldırır)
+- Kesimi müziğe oturtmak için muzik.vuruslar listesini kullan: clip.trim ile klip sonunu en yakın vuruşa (kurgu zamanı) kaydır.
 - {"type":"project.restoreOriginal"} (orijinale dön: kesimler geri gelir, renk/LUT ve kadraj sıfırlanır; dış ses, müzik, yazı, altyazı kalır)
 - {"type":"voice.update","id":ID,"patch":{"at":T,"gainDb":dB,"fadeIn":sn,"fadeOut":sn}} · {"type":"voice.remove","id":ID}`;
 
@@ -100,6 +102,7 @@ export const buildContext = (project: Project, assets: Record<string, AssetRef>,
       ses_db: l.clip.gainDb,
       sessiz: l.clip.muted,
       lut: (l.clip.look ?? project.look).lut,
+      hareket: l.clip.motion,
       kadraj: (project.outputs.find((o) => o.id === project.ui.activeOutputId) ?? project.outputs[0])?.framing[l.clip.id] ?? { mode: 'fill', zoom: 1, x: 0.5, y: 0.5 },
     })),
     ust_iz: project.overlays.map((o) => ({ id: o.id, kaynak: assets[o.assetId]?.name, at: o.at, sure: o.out - o.in })),
@@ -110,7 +113,15 @@ export const buildContext = (project: Project, assets: Record<string, AssetRef>,
       .filter((a) => a.kind === 'image')
       .slice(0, 20)
       .map((a) => ({ id: a.id, ad: a.name, saydam: !!a.alpha })),
-    muzik: project.music ? { mod: project.music.mode, seviye_db: project.music.gainDb } : null,
+    muzik: project.music
+      ? {
+          mod: project.music.mode,
+          seviye_db: project.music.gainDb,
+          bpm: assets[project.music.assetId]?.bpm ?? null,
+          /** Kurgu zamanında ilk 64 vuruş (sn) */
+          vuruslar: (assets[project.music.assetId]?.beats ?? []).map((b) => +(b - project.music!.start).toFixed(2)).filter((b) => b > 0).slice(0, 64),
+        }
+      : null,
     renk: { gorunum: project.look.preset, yogunluk: project.look.intensity, lut: project.look.lut, lut_yogunluk: project.look.lutIntensity },
     /** Kullanıcının LUT kütüphanesi (look.lut olarak id verilir) */
     lutlar: luts.slice(0, 120),

@@ -609,6 +609,40 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ se
             <FramingControls output={output} itemId={c.id} assetId={c.assetId} />
           </details>
         ) : null}
+        <details className="insp-group" open={!!c.motion}>
+          <summary>Hareket (yavaş yakınlaşma / kaydırma)</summary>
+          <label className="field">
+            <span>Hareket</span>
+            <select
+              value={c.motion?.kind ?? ''}
+              onChange={(e) =>
+                apply([{ type: 'clip.update', clipId: c.id, patch: { motion: e.target.value ? { kind: e.target.value as NonNullable<typeof c.motion>['kind'], amount: c.motion?.amount ?? 0.15, duration: c.motion?.duration ?? null } : null } }], {
+                  label: e.target.value ? 'Hareket eklendi' : 'Hareket kaldırıldı',
+                })
+              }
+              aria-label="Hareket"
+            >
+              <option value="">Yok (sabit)</option>
+              <option value="yakinlas">Yavaşça yakınlaş</option>
+              <option value="uzaklas">Yavaşça uzaklaş</option>
+              <option value="sola">Sola kay</option>
+              <option value="saga">Sağa kay</option>
+              <option value="yukari">Yukarı kay</option>
+              <option value="asagi">Aşağı kay</option>
+            </select>
+          </label>
+          {c.motion ? (
+            <>
+              <Slider label="Miktar" value={c.motion.amount} min={0.03} max={0.6} step={0.01} format={(v) => `%${Math.round(v * 100)}`} onChange={(v) => apply([{ type: 'clip.update', clipId: c.id, patch: { motion: { ...c.motion!, amount: v } } }], { key: `ma:${c.id}` })} />
+              <label className="row small">
+                <input type="checkbox" checked={c.motion.duration !== null} onChange={(e) => apply([{ type: 'clip.update', clipId: c.id, patch: { motion: { ...c.motion!, duration: e.target.checked ? Math.min(1.5, item.duration) : null } } }])} /> Yalnız girişte
+              </label>
+              {c.motion.duration !== null ? (
+                <Slider label="Giriş süresi" value={c.motion.duration} min={0.3} max={Math.max(0.4, item.duration)} step={0.1} format={fmtSec} onChange={(v) => apply([{ type: 'clip.update', clipId: c.id, patch: { motion: { ...c.motion!, duration: v } } }], { key: `md:${c.id}` })} />
+              ) : null}
+            </>
+          ) : null}
+        </details>
         <div className="row-wrap">
           <button className="btn tiny" disabled={!(t > item.start + 0.1 && t < item.end - 0.1)} onClick={() => apply([{ type: 'clip.split', clipId: c.id, at: t }])} title="Oynatma imlecinde ikiye böl">
             <Scissors size={13} /> İmleçte böl

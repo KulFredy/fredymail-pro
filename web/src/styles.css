@@ -522,6 +522,16 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .safe-ok { color: var(--ok); display: inline-flex; gap: 4px; align-items: center; }
 .color-field input[type=color] { width: 44px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
 
+/* Referans bölgesi */
+.region-box { display: flex; flex-direction: column; gap: 6px; }
+.region-box summary { cursor: pointer; }
+.region-picker { position: relative; cursor: crosshair; user-select: none; touch-action: none; margin: 6px 0 4px; border-radius: 6px; overflow: hidden; }
+.region-picker img { width: 100%; display: block; pointer-events: none; }
+.region-rect { position: absolute; border: 2px solid var(--accent); background: rgba(255,122,61,.15); box-shadow: 0 0 0 9999px rgba(0,0,0,.45); pointer-events: none; }
+
+/* Müzik vuruşları */
+.tl-beat { position: absolute; top: 2px; bottom: 2px; width: 1px; background: rgba(255,255,255,.35); pointer-events: none; z-index: 1; }
+
 /* Komut etkisi */
 .asked q { color: var(--text); }
 .impact { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

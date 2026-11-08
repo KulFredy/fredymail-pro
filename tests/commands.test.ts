@@ -234,3 +234,41 @@ describe('logo komutları', () => {
     expect(plan(p, 'logoyu kaldır').ops[0]).toMatchObject({ type: 'logo.remove' });
   });
 });
+
+describe('ritim ve hareket komutları', () => {
+  const ctxM = { ...ctx, assets: { ...ctx.assets, muz: { kind: 'audio' as const, duration: 60, width: 0, height: 0 } } };
+  const muz = (beats?: number[]): AssetRef => ({ ...ref('ses'), id: 'muz', kind: 'audio', name: 'muz.mp3', duration: 60, ...(beats ? { beats, bpm: 120 } : {}) });
+  // foto 3 sn + yakın 5 sn + yatay 30 sn → geçişler 3 ve 8
+  const three = () => applyOps(newProject('r', 'Ritim', ctx.now()), [{ type: 'output.add', format: 'landscape' }, { type: 'clips.add', assetIds: ['foto', 'yakin', 'yatay'] }], ctxM);
+  const P = (p: Project, text: string, extra: Record<string, AssetRef> = {}, playhead = 0, sel: string | null = null) =>
+    planCommand(text, { project: p, assets: { ...assets, ...extra }, playhead, selectedClipId: sel });
+
+  it('kesimleri müziğe oturt: geçiş en yakın vuruşa kayar, sonraki geçiş kaymayı hesaba katar', () => {
+    let p = three();
+    p = applyOps(p, [{ type: 'music.set', music: { assetId: 'muz', start: 0.1 } }], ctxM);
+    // dosyada 0,3 · 0,8 · … → kurguda 0,2 · 0,7 · … · 3,2 · … · 8,2
+    const beats = Array.from({ length: 100 }, (_, i) => +(0.3 + i * 0.5).toFixed(3));
+    const r = P(p, 'Kesimleri müziğe oturt', { muz: muz(beats) });
+    expect(r.understood).toBe(true);
+    expect(r.ops).toHaveLength(1); // 3 → 3,2; ikinci geçiş kaymayla zaten 8,2'ye düşer
+    const l = layoutClips(applyOps(p, r.ops, ctxM));
+    expect(l[0].end).toBeCloseTo(3.2, 1);
+    expect(l[1].end).toBeCloseTo(8.2, 1);
+    expect(P(p, 'kesimleri müziğe oturt', { muz: muz() }).summary).toMatch(/hesaplanmadı/);
+    expect(P(three(), 'kesimleri müziğe oturt').hint).toMatch(/müzik ekleyin/);
+  });
+
+  it('girişte yavaşça yakınlaş / tüm kliplerde uzaklaş / hareketi kaldır; “videoyu büyüt” ayrı kalır', () => {
+    const p = three();
+    const r = P(p, 'Girişte yavaşça yakınlaş', {}, 1);
+    expect(r.ops).toEqual([{ type: 'clip.update', clipId: p.clips[0].id, patch: { motion: { kind: 'yakinlas', amount: 0.15, duration: 1.5 } } }]);
+    const r2 = P(p, 'tüm kliplerde hafif yavaşça uzaklaşsın');
+    expect(r2.ops).toHaveLength(3);
+    expect(r2.ops[0]).toMatchObject({ patch: { motion: { kind: 'uzaklas', amount: 0.08, duration: null } } });
+    expect(P(p, 'ilk 2 saniyede yavaşça sola kay', {}, 4).ops[0]).toMatchObject({ clipId: p.clips[1].id, patch: { motion: { kind: 'sola', duration: 2 } } });
+    expect(P(p, 'hareketi kaldır', {}, 0, p.clips[2].id).ops[0]).toMatchObject({ clipId: p.clips[2].id, patch: { motion: null } });
+    expect(P(p, 'videoyu büyüt').ops[0]?.type).not.toBe('clip.update');
+    const q = applyOps(p, r.ops, ctxM);
+    expect(q.clips[0].motion).toEqual({ kind: 'yakinlas', amount: 0.15, duration: 1.5 });
+  });
+});

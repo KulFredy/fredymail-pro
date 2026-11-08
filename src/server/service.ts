@@ -22,6 +22,7 @@ import { probe } from '../media/probe';
 import { detectCamera } from '../media/camera';
 import { verifyOutput, type Verification } from '../media/verify';
 import { findWhisper, transcribe, type WhisperConfig } from '../media/whisper';
+import { detectBeats } from '../media/beats';
 import { Jobs } from './jobs';
 import { renderOutput } from './render';
 import { Store, newId } from './store';
@@ -58,7 +59,24 @@ export class Service {
       if (a.status === 'importing') this.enqueueProcess(a.id);
       else if (a.transcript.status === 'pending' || a.transcript.status === 'running') this.enqueueTranscribe(a.id);
       else if (a.transcript.status === 'unavailable' && this.whisper.model) this.enqueueTranscribe(a.id);
+      if (a.kind === 'audio' && a.status === 'ready' && !a.beats) this.ensureBeats(a.id);
     }
+  }
+
+  /** Müzik vuruşlarını sırayla (arka planda) hesapla */
+  private beatQueue: Promise<void> = Promise.resolve();
+  ensureBeats(id: string) {
+    this.beatQueue = this.beatQueue.then(async () => {
+      const a = this.store.library.get(id);
+      if (!a || a.kind !== 'audio' || a.beats) return;
+      try {
+        const b = await detectBeats(this.store.abs(a.original));
+        await this.store.patchAsset(id, { beats: b });
+      } catch (e) {
+        console.error(`[vuruş] ${a.name}: ${(e as Error).message}`);
+      }
+    });
+    return this.beatQueue;
   }
 
   baseUrl() {
@@ -151,6 +169,7 @@ export class Service {
         const cur = this.store.library.get(id)!;
         const wantsWords = ((cur.kind === 'video' && cur.hasAudio) || cur.role === 'voiceover') && cur.role !== 'reference';
         if (wantsWords && cur.transcript.status !== 'done') this.enqueueTranscribe(id);
+        if (cur.kind === 'audio') void this.ensureBeats(id);
       } catch (e) {
         await this.store.patchAsset(id, { status: 'error', error: (e as Error).message });
         throw e;
@@ -200,10 +219,19 @@ export class Service {
   }
 
   /** Bir kaynağın karesinin RGB pikselleri (gerekirse kamera dönüşümü uygulanmış) */
-  private async framePixels(assetId: string, t: number, camera: string | null) {
+  private async framePixels(assetId: string, t: number, camera: string | null, region: { x: number; y: number; w: number; h: number } | null = null) {
     const sharp = (await import('sharp')).default;
-    const file = await this.assetFrame(assetId, t, 256);
-    const { data, info } = await sharp(file).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const file = await this.assetFrame(assetId, t, region ? 640 : 256);
+    let img = sharp(file).removeAlpha();
+    if (region) {
+      const m = await sharp(file).metadata();
+      const W = m.width ?? 1;
+      const H = m.height ?? 1;
+      const left = Math.max(0, Math.min(W - 2, Math.round(region.x * W)));
+      const top = Math.max(0, Math.min(H - 2, Math.round(region.y * H)));
+      img = img.extract({ left, top, width: Math.max(2, Math.min(W - left, Math.round(region.w * W))), height: Math.max(2, Math.min(H - top, Math.round(region.h * H))) });
+    }
+    const { data, info } = await img.raw().toBuffer({ resolveWithObject: true });
     if (!camera) return { data, channels: info.channels };
     const lut = parseCube(await readFile(path.join(ROOT, 'assets', 'luts', 'kamera', `${camera}.cube`), 'utf8'));
     const out = Buffer.alloc(data.length);
@@ -231,7 +259,7 @@ export class Service {
       return a && a.kind !== 'audio' && a.status === 'ready';
     });
     if (!targets.length) throw new Error('Eşlenecek klip yok');
-    const rp = await this.framePixels(refAsset.id, ref.at, null);
+    const rp = await this.framePixels(refAsset.id, ref.at, null, ref.region);
     const refStats = colorStats(rp.data, rp.channels);
     const tStats: ColorStats[] = [];
     for (const c of targets.slice(0, 8)) {
