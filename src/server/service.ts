@@ -46,6 +46,8 @@ export class Service {
   jobs = new Jobs();
   whisper: WhisperConfig = { bin: null, model: null, vadModel: null, mode: 'whisper' };
   port = 4747;
+  /** Dış servis bağlantıları (index.ts kurar) */
+  conns!: import('./connections').Connections;
 
   constructor(home: string) {
     this.store = new Store(home);

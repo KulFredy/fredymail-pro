@@ -214,6 +214,8 @@ export const VoiceSchema = z.object({
   in: z.number().min(0).default(0),
   out: z.number().positive(),
   gainDb: z.number().min(-40).max(12).default(0),
+  /** Metinden üretildiyse (ElevenLabs): metin değişince aynı yere yeniden üretilir */
+  tts: z.object({ provider: z.string(), text: z.string(), voiceId: z.string(), voiceName: z.string().default(''), modelId: z.string() }).nullable().default(null),
   /** Yumuşak giriş/çıkış (sn) */
   fadeIn: z.number().min(0).max(5).default(0),
   fadeOut: z.number().min(0).max(5).default(0),
@@ -290,7 +292,9 @@ export const AssetSchema = z.object({
   sha256: z.string(),
   kind: z.enum(['video', 'image', 'audio']),
   /** media: normal kaynak · voiceover: uygulamada kaydedilen dış ses */
-  role: z.enum(['media', 'voiceover', 'reference']).default('media'),
+  role: z.enum(['media', 'voiceover', 'reference', 'uretim']).default('media'),
+  /** Bir servisle üretildiyse: hangi servis/model/talimat (onaylanana kadar rolü 'uretim', Medya'da görünmez) */
+  generated: z.object({ provider: z.string(), model: z.string(), prompt: z.string(), sourceAssetId: z.string().nullable().default(null), genId: z.string() }).nullable().default(null),
   /** Saydam görsel (PNG/SVG): önizleme/render kopyaları PNG tutulur */
   alpha: z.boolean().default(false),
   /** Müzik vuruşları (ses dosyalarında, yerelde hesaplanır) */

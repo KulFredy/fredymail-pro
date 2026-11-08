@@ -167,7 +167,7 @@ export const planWithClaude = async (opts: {
   opCtx: OpContext;
   luts?: AiLut[];
 }): Promise<Plan & { source: 'claude'; usage?: AiUsage }> => {
-  const client = new Anthropic({ apiKey: opts.apiKey, timeout: 60_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: opts.apiKey, authToken: null, timeout: 60_000, maxRetries: 1 });
   const context = buildContext(opts.project, opts.assets, opts.playhead, opts.selectedClipId, opts.luts ?? []);
   const fail = (summary: string, hint?: string): Plan & { source: 'claude'; usage?: AiUsage } => ({ understood: false, summary, ops: [], ranges: [], candidates: [], hint, source: 'claude' });
   const base = {

@@ -98,9 +98,11 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('overlay.add'), assetId: z.string(), at: z.number().min(0), duration: z.number().positive(), in: z.number().min(0).optional() }),
   z.object({ type: z.literal('overlay.update'), id: z.string(), patch: patchOf(OverlaySchema.omit({ id: true, assetId: true })) }),
   z.object({ type: z.literal('overlay.remove'), id: z.string() }),
-  z.object({ type: z.literal('voice.add'), assetId: z.string(), at: z.number().min(0) }),
+  z.object({ type: z.literal('voice.add'), assetId: z.string(), at: z.number().min(0), tts: VoiceSchema.shape.tts.optional() }),
   z.object({ type: z.literal('voice.update'), id: z.string(), patch: patchOf(VoiceSchema.omit({ id: true, assetId: true })) }),
   z.object({ type: z.literal('voice.remove'), id: z.string() }),
+  /** Dış sesin kaydını değiştir (metinden yeniden üretim); yer ve ses ayarları korunur */
+  z.object({ type: z.literal('voice.setAsset'), id: z.string(), assetId: z.string(), tts: VoiceSchema.shape.tts.optional() }),
   z.object({ type: z.literal('reference.add'), assetId: z.string(), at: z.number().min(0).optional() }),
   z.object({ type: z.literal('reference.update'), id: z.string(), patch: patchOf(ReferenceSchema.omit({ id: true, assetId: true })) }),
   z.object({ type: z.literal('reference.remove'), id: z.string() }),
@@ -399,7 +401,7 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
     case 'voice.add': {
       const a = ctx.assets[op.assetId];
       if (!a || a.kind === 'image') throw new OpError('Dış ses için ses kaydı gerekli');
-      p.voice = [...p.voice, VoiceSchema.parse({ id: ctx.newId('s'), assetId: op.assetId, at: op.at, in: 0, out: Math.max(0.1, a.duration) })];
+      p.voice = [...p.voice, VoiceSchema.parse({ id: ctx.newId('s'), assetId: op.assetId, at: op.at, in: 0, out: Math.max(0.1, a.duration), tts: op.tts ?? null })];
       break;
     }
     case 'voice.update': {
@@ -411,6 +413,17 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
     case 'voice.remove':
       p.voice = p.voice.filter((v) => v.id !== op.id);
       break;
+    case 'voice.setAsset': {
+      const v = p.voice.find((x) => x.id === op.id);
+      const a = ctx.assets[op.assetId];
+      if (!v) throw new OpError('Dış ses bulunamadı');
+      if (!a || a.kind !== 'audio') throw new OpError('Dış ses için bir ses dosyası gerekli');
+      v.assetId = op.assetId;
+      v.in = 0;
+      v.out = Math.max(0.1, a.duration);
+      if (op.tts !== undefined) v.tts = op.tts;
+      break;
+    }
     case 'reference.add': {
       const a = ctx.assets[op.assetId];
       if (!a || a.kind === 'audio') throw new OpError('Referans olarak fotoğraf veya video eklenebilir');
@@ -495,6 +508,7 @@ export const describeOp = (op: OpInput): string => {
     case 'voice.add': return 'Dış ses eklendi';
     case 'voice.update': return 'Dış ses düzenlendi';
     case 'voice.remove': return 'Dış ses silindi';
+    case 'voice.setAsset': return 'Dış ses yeniden üretildi';
     case 'reference.add': return 'Referans eklendi';
     case 'reference.update': return 'Referans karesi değişti';
     case 'reference.remove': return 'Referans kaldırıldı';

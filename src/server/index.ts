@@ -17,6 +17,10 @@ import { buildRefs } from '../core/refs';
 import { OpError, OpSchema, patchOf } from '../core/ops';
 import { UiStateSchema } from '../core/schema';
 import { LutPatchSchema } from '../core/lutlib';
+import { Connections } from './connections';
+import { GEMINI_IMAGE_MODELS, ProviderError } from './providers';
+import { Generator } from './generate';
+import { createSecrets } from './secrets';
 import { getTools } from '../media/proc';
 import { MOBILE_TOKEN, downloadsPage, lanAddress, uploadPage } from './mobile';
 import { handleStrayError, warmUp } from './render';
@@ -54,7 +58,8 @@ export const createServer = async (home = defaultHome()) => {
 
   app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
     const isZod = err instanceof z.ZodError;
-    const code = err instanceof OpError || isZod ? 400 : (err.statusCode ?? 500);
+    // Dış servis hataları (anahtar, kredi, kota…): kullanıcıya anlaşılır ileti, sunucu hatası sayılmaz
+    const code = err instanceof OpError || isZod ? 400 : err instanceof ProviderError ? (err.kind === 'kredi' ? 402 : err.kind === 'sinir' ? 429 : err.kind === 'ag' || err.kind === 'sunucu' ? 502 : 400) : (err.statusCode ?? 500);
     if (code >= 500) console.error(err);
     reply.code(code).send({ error: isZod ? `Geçersiz istek: ${err.issues.map((i) => i.path.join('.') + ' ' + i.message).join('; ')}` : err.message });
   });
@@ -163,25 +168,31 @@ export const createServer = async (home = defaultHome()) => {
     return { text: '', status: 'error', message: 'Ses gelmedi' };
   });
 
-  // ---------- Ayarlar (Claude ile anlama, isteğe bağlı) ----------
+  // ---------- Ayarlar ve bağlantılar (anahtarlar kasada: Mac'te Anahtar Zinciri) ----------
   const settingsFile = store.p('ayarlar.json');
-  const readSettings = async (): Promise<{ anthropicApiKey?: string; aiModel?: string; aiMode?: 'always' | 'fallback' }> => {
+  const conns = new Connections(home, createSecrets(home));
+  svc.conns = conns;
+  if (await conns.migrateLegacy(settingsFile).catch(() => false)) console.log(`  Claude anahtarı ${conns.secrets.kind === 'anahtarlik' ? 'Anahtar Zinciri\'ne' : 'gizli dosyaya'} taşındı.`);
+  const readSettings = async (): Promise<{ aiModel?: string; aiMode?: 'always' | 'fallback' }> => {
     try {
       return JSON.parse(await readFile(settingsFile, 'utf8'));
     } catch {
       return {};
     }
   };
-  const aiKey = async () => (await readSettings()).anthropicApiKey || process.env.ANTHROPIC_API_KEY || null;
+  const aiKey = async () => (await conns.key('anthropic'))?.value ?? null;
   app.get('/api/settings', async () => {
     const st = await readSettings();
+    const k = await conns.key('anthropic');
     return {
-      aiConfigured: !!(st.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
-      keySource: st.anthropicApiKey ? 'uygulama' : process.env.ANTHROPIC_API_KEY ? 'ortam' : null,
+      aiConfigured: !!k,
+      keySource: k ? (k.source === 'kasa' ? 'uygulama' : 'ortam') : null,
+      keyStore: conns.secrets.kind,
       aiModel: st.aiModel || DEFAULT_AI_MODEL,
       /** always: her komut Claude'a gider · fallback: yalnız kurallar anlamazsa */
       aiMode: st.aiMode ?? 'always',
       models: AI_MODELS,
+      usage: await conns.usage(),
     };
   });
   app.put('/api/settings', async (req) => {
@@ -194,21 +205,73 @@ export const createServer = async (home = defaultHome()) => {
       .parse(req.body);
     const st = await readSettings();
     if (body.anthropicApiKey !== undefined) {
-      if (body.anthropicApiKey) st.anthropicApiKey = body.anthropicApiKey;
-      else delete st.anthropicApiKey;
+      if (body.anthropicApiKey) await conns.secrets.set('anthropic', body.anthropicApiKey);
+      else await conns.remove('anthropic');
     }
     if (body.aiModel) st.aiModel = body.aiModel;
     if (body.aiMode) st.aiMode = body.aiMode;
     await writeFile(settingsFile, JSON.stringify(st, null, 2), { mode: 0o600 });
-    return { ok: true, aiConfigured: !!(st.anthropicApiKey || process.env.ANTHROPIC_API_KEY) };
+    return { ok: true, aiConfigured: !!(await conns.key('anthropic')) };
   });
+
+  // Bağlantılar: durum, anahtar ekle/test/kaldır, servis ayarları. Anahtarın kendisi asla dönmez.
+  const ConnIdSchema = z.enum(['anthropic', 'elevenlabs', 'gemini', 'higgsfield']);
+  app.get('/api/connections', async (req) => conns.list((req.query as { test?: string }).test === '1'));
+  app.put('/api/connections/:id', async (req) => {
+    const id = ConnIdSchema.parse((req.params as { id: string }).id);
+    const { key } = z.object({ key: z.string().min(4).max(400) }).parse(req.body);
+    const status = await conns.set(id, key);
+    return { status, connections: await conns.list() };
+  });
+  app.post('/api/connections/:id/test', async (req) => conns.test(ConnIdSchema.parse((req.params as { id: string }).id)));
+  app.delete('/api/connections/:id', async (req) => {
+    await conns.remove(ConnIdSchema.parse((req.params as { id: string }).id));
+    return { connections: await conns.list() };
+  });
+  app.put('/api/connections-settings', async (req) => {
+    const body = z
+      .object({
+        elevenlabs: z.object({ voiceId: z.string().optional(), modelId: z.string().optional() }).optional(),
+        gemini: z.object({ model: z.enum(GEMINI_IMAGE_MODELS.map((m) => m.id) as [string, ...string[]]).optional() }).optional(),
+      })
+      .parse(req.body);
+    return conns.saveSettings(body);
+  });
+
+  // ---------- Üretim (ücretli servisler; önce tahmin, sonra onaylı üretim) ----------
+  const gen = new Generator(svc);
+  app.get('/api/uret/dis-ses/katalog', async (req) => gen.elCatalog((req.query as { yenile?: string }).yenile === '1'));
+  app.post('/api/uret/dis-ses/tahmin', async (req) => {
+    const b = z.object({ text: z.string().min(1).max(10000), voiceId: z.string().optional(), modelId: z.string().optional() }).parse(req.body);
+    return gen.ttsEstimate(b.text, b.voiceId, b.modelId);
+  });
+  app.post('/api/uret/dis-ses/ornek', async (req) => {
+    const b = z.object({ text: z.string().min(1), voiceId: z.string(), modelId: z.string() }).parse(req.body);
+    return gen.ttsSample(b.text, b.voiceId, b.modelId);
+  });
+  app.post('/api/projects/:id/uret/dis-ses', async (req) => {
+    const { id } = req.params as { id: string };
+    const b = z.object({ text: z.string().min(1).max(10000), voiceId: z.string(), modelId: z.string(), at: z.number().min(0).default(0), voiceItemId: z.string().nullable().optional() }).parse(req.body);
+    return gen.tts(id, b);
+  });
+  app.post('/api/projects/:id/uret/arka-plan', async (req) => {
+    const { id } = req.params as { id: string };
+    const b = z.object({ assetId: z.string(), prompt: z.string().min(3).max(600), aspectRatio: z.enum(['1:1', '4:5', '9:16', '16:9', '3:4', '4:3']).nullable().optional(), count: z.number().int().min(1).max(4).optional() }).parse(req.body);
+    return gen.backgrounds(id, b);
+  });
+  app.get('/api/projects/:id/uretimler', async (req) => gen.list((req.params as { id: string }).id));
+  app.post('/api/uretimler/:id/onayla', async (req) => {
+    const b = z.object({ assetIds: z.array(z.string()).min(1) }).parse(req.body);
+    return gen.approve((req.params as { id: string }).id, b.assetIds);
+  });
+
   app.post('/api/projects/:id/command/ai', async (req) => {
     const { id } = req.params as { id: string };
     const body = z.object({ text: z.string().min(1), playhead: z.number().default(0), selectedClipId: z.string().nullable().optional() }).parse(req.body);
     const key = await aiKey();
     if (!key) return { understood: false, summary: 'Claude ile anlama kapalı.', hint: 'Komut panelindeki “Claude” düğmesinden API anahtarı ekleyin.', ops: [], ranges: [], candidates: [] };
     const project = await store.getProject(id);
-    return planWithClaude({
+    const plan = await planWithClaude({
       apiKey: key,
       model: (await readSettings()).aiModel || DEFAULT_AI_MODEL,
       text: body.text,
@@ -221,6 +284,8 @@ export const createServer = async (home = defaultHome()) => {
         .filter((l) => l.meta)
         .map((l) => ({ id: l.id, ad: l.meta!.name, tur: l.meta!.kind, giris: l.meta!.input, etiketler: l.meta!.tags, favori: l.meta!.favorite })),
     });
+    if (plan.usage) await conns.recordUsage({ at: new Date().toISOString(), model: plan.usage.model, input: plan.usage.input, output: plan.usage.output, usd: plan.usage.usd }).catch(() => undefined);
+    return plan;
   });
 
   // Yazılı/sesli komut → işlem planı (arayüz aynı planı yerelde de hesaplar; MCP ve testler için)
