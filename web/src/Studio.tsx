@@ -7,7 +7,7 @@ import type { OpInput } from '../../src/core/ops';
 import { COMMAND_EXAMPLES, planCommand, type Plan, type PlanCandidate } from '../../src/core/commands';
 import { describeImpact } from '../../src/core/impact';
 import { FPS } from '../../src/core/schema';
-import { formatTime, layoutClips, toFrames } from '../../src/core/timeline';
+import { formatTime, layoutClips, toFrames, voiceFreeAt, voiceOverlaps } from '../../src/core/timeline';
 import { api, fileHref, upload } from './api';
 import { Preview } from './Preview';
 import { FramingControls } from './FramingControls';
@@ -728,12 +728,28 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void; onRegen?:
             </button>
           </div>
         ) : null}
+        {(() => {
+          const over = voiceOverlaps(project.voice, v.id);
+          if (!over.length) return null;
+          const others = project.voice.filter((x) => x.id !== v.id);
+          const free = voiceFreeAt(others, v.at);
+          return (
+            <div className="impact-warn" data-testid="voice-overlap">
+              Bu ses {over.length === 1 ? 'başka bir dış sesle' : `${over.length} dış sesle`} üst üste çalıyor ({over.map((o) => formatTime(o.at)).join(', ')}).
+              <div className="row-wrap">
+                <button className="btn tiny" onClick={() => apply([{ type: 'voice.update', id: v.id, patch: { at: free } }])}>
+                  Boş yere taşı · {formatTime(free)}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
         <audio controls src={fileHref(library.get(v.assetId)?.preview ?? null)} style={{ width: '100%' }} />
         <Slider label="Başlangıç" value={v.at} min={0} max={Math.max(0.1, layoutClips(project).at(-1)?.end ?? 1)} step={0.05} format={fmtSec} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { at: x } }], { key: `vat:${v.id}` })} />
         <Slider label="Ses" value={v.gainDb} min={-30} max={6} step={1} format={fmtDb} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { gainDb: x } }], { key: `vg:${v.id}` })} />
         <Slider label="Yumuşak giriş" value={v.fadeIn ?? 0} min={0} max={Math.min(5, (v.out - v.in) / 2)} step={0.05} format={fmtSec} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { fadeIn: x } }], { key: `vfi:${v.id}` })} />
         <Slider label="Yumuşak çıkış" value={v.fadeOut ?? 0} min={0} max={Math.min(5, (v.out - v.in) / 2)} step={0.05} format={fmtSec} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { fadeOut: x } }], { key: `vfo:${v.id}` })} />
-        <button className="btn tiny danger" onClick={() => (apply([{ type: 'voice.remove', id: v.id }]), onClear())}>
+        <button className="btn tiny danger" onClick={() => (apply([{ type: 'voice.remove', id: v.id }]), onClear())} title="Zaman çizelgesinden kaldır (⌫)">
           <Trash2 size={13} /> Kaldır
         </button>
       </div>
@@ -847,6 +863,20 @@ export const Studio: React.FC = () => {
       else if ((key === 'backspace' || key === 'delete') && marks.in !== null && marks.out !== null) {
         e.preventDefault();
         deleteMarks();
+      } else if ((key === 'backspace' || key === 'delete') && selection && selection.kind !== 'clip') {
+        // Seçili dış ses / üst iz / yazı / logo silinir (klip silme kurguyu kaydırdığı için Inspector'dan)
+        e.preventDefault();
+        const op =
+          selection.kind === 'voice'
+            ? ({ type: 'voice.remove', id: selection.id } as const)
+            : selection.kind === 'overlay'
+              ? ({ type: 'overlay.remove', id: selection.id } as const)
+              : selection.kind === 'logo'
+                ? ({ type: 'logo.remove', id: selection.id } as const)
+                : ({ type: 'text.remove', id: selection.id } as const);
+        apply([op]);
+        setSelection(null);
+        toast(selection.kind === 'voice' ? 'Dış ses kaldırıldı (geri almak için ⌘Z)' : 'Kaldırıldı (geri almak için ⌘Z)');
       }
     };
     window.addEventListener('keydown', k);

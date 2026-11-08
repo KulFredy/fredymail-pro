@@ -299,3 +299,42 @@ export const formatTime = (sec: number) => {
   const r = s - m * 60;
   return `${m}:${r.toFixed(1).padStart(4, '0')}`;
 };
+
+/** Dış ses öğesinin zaman çizelgesindeki aralığı */
+export const voiceSpan = (v: { at: number; in: number; out: number }) => ({ start: v.at, end: v.at + Math.max(0, v.out - v.in) });
+
+/**
+ * Çakışan öğeleri alt satırlara dağıtır (zaman çizelgesinde üst üste binip tıklanamaz olmasınlar).
+ * Her öğe, kendisiyle çakışmayan en üst satıra yerleşir; sıra girdi sırasıyla aynıdır.
+ */
+export const stackRows = (spans: { start: number; end: number }[], eps = 1e-3): { rows: number[]; count: number } => {
+  const order = spans.map((s, i) => i).sort((a, b) => spans[a].start - spans[b].start || a - b);
+  const rowEnd: number[] = [];
+  const rows = new Array<number>(spans.length).fill(0);
+  for (const i of order) {
+    let r = rowEnd.findIndex((end) => end <= spans[i].start + eps);
+    if (r < 0) r = rowEnd.length;
+    rowEnd[r] = spans[i].end;
+    rows[i] = r;
+  }
+  return { rows, count: Math.max(1, rowEnd.length) };
+};
+
+/** t anında çalan dış sesler bitince gelen ilk boş an (yeni dış ses öncekilerin üstüne binmesin). */
+export const voiceFreeAt = (voice: { at: number; in: number; out: number }[], t: number, eps = 1e-3): number => {
+  let at = t;
+  for (let guard = 0; guard <= voice.length; guard++) {
+    const hit = voice.map(voiceSpan).find((s) => s.start <= at + eps && s.end > at + eps);
+    if (!hit) return at;
+    at = hit.end;
+  }
+  return at;
+};
+
+/** Verilen dış sesle zaman olarak çakışan diğer dış sesler */
+export const voiceOverlaps = <T extends { id: string; at: number; in: number; out: number }>(voice: T[], id: string, eps = 1e-3): T[] => {
+  const me = voice.find((v) => v.id === id);
+  if (!me) return [];
+  const a = voiceSpan(me);
+  return voice.filter((v) => v.id !== id && voiceSpan(v).start < a.end - eps && voiceSpan(v).end > a.start + eps);
+};

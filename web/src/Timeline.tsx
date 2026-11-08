@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Captions, Film, Hexagon, Layers, Loader2, Mic, Music2, Plus, Scissors, Type, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
 import { logoSpan } from '../../src/core/graphics';
-import { captionPages, edgeGain, formatTime, layoutClips, timelineWords, toFrames, totalDuration } from '../../src/core/timeline';
+import { captionPages, edgeGain, formatTime, layoutClips, stackRows, timelineWords, toFrames, totalDuration, voiceSpan } from '../../src/core/timeline';
 import { fileHref } from './api';
 import { useApp, useProject } from './state';
 
@@ -162,6 +162,10 @@ export const Timeline: React.FC<{
   };
 
   const music = project.music ? library.get(project.music.assetId) : undefined;
+  /** Çakışan dış sesler alt alta satırlara dağılır; iz yüksekliği satır sayısına göre büyür */
+  const vStack = useMemo(() => stackRows(project.voice.map(voiceSpan)), [project.voice]);
+  const V_ROW = compact ? 16 : 22;
+  const laneStyle = (key: string): React.CSSProperties | undefined => (key === 'a2' && vStack.count > 1 ? { height: 6 + vStack.count * V_ROW } : undefined);
   /** İz başlıkları: kurgu programlarındaki gibi kod (V1, A1…) + ad; tür rengiyle */
   const lanes: { key: string; code: string; kind: 'v' | 'a' | 's' | 't' | 'g'; label: string; show: boolean }[] = [
     { key: 'v1', code: 'V1', kind: 'v', label: 'Video', show: true },
@@ -217,12 +221,12 @@ export const Timeline: React.FC<{
           <div className="tl-ruler-label" />
           {lanes.filter((l) => l.show).map((l) =>
             onLaneAction ? (
-              <button key={l.key} className={`tl-label lane-${l.key} trk-${l.kind} action`} title={LANE_ACTION[l.key]} onClick={() => onLaneAction(l.key)}>
+              <button key={l.key} className={`tl-label lane-${l.key} trk-${l.kind} action`} style={laneStyle(l.key)} title={LANE_ACTION[l.key]} onClick={() => onLaneAction(l.key)}>
                 <LaneHead l={l} />
                 <Plus size={12} className="trk-add" />
               </button>
             ) : (
-              <div key={l.key} className={`tl-label lane-${l.key} trk-${l.kind}`}>
+              <div key={l.key} className={`tl-label lane-${l.key} trk-${l.kind}`} style={laneStyle(l.key)}>
                 <LaneHead l={l} />
               </div>
             ),
@@ -248,7 +252,7 @@ export const Timeline: React.FC<{
             </div>
 
             {lanes.filter((l) => l.show).map((l) => (
-              <div key={l.key} className={`tl-lane lane-${l.key}`} onPointerDown={(e) => e.target === e.currentTarget && seekToX(e.clientX, e.currentTarget)}>
+              <div key={l.key} className={`tl-lane lane-${l.key}`} style={laneStyle(l.key)} onPointerDown={(e) => e.target === e.currentTarget && seekToX(e.clientX, e.currentTarget)}>
                 {l.key === 'v1'
                   ? layout.map((item, i) => {
                       const a = library.get(item.clip.assetId);
@@ -314,12 +318,18 @@ export const Timeline: React.FC<{
                         );
                       })
                     : l.key === 'a2'
-                      ? project.voice.map((v) => (
+                      ? project.voice.map((v, vi) => (
                           <div
                             key={v.id}
-                            className={`tl-item voice ${selection?.kind === 'voice' && selection.id === v.id ? 'sel' : ''}`}
-                            style={{ left: x(v.at), width: Math.max(2, x(v.out - v.in) - 1) }}
+                            data-voice={v.id}
+                            className={`tl-item voice ${selection?.kind === 'voice' && selection.id === v.id ? 'sel' : ''} ${vStack.count > 1 ? 'stacked' : ''}`}
+                            style={{
+                              left: x(v.at),
+                              width: Math.max(2, x(v.out - v.in) - 1),
+                              ...(vStack.count > 1 ? { top: 3 + vStack.rows[vi] * V_ROW, bottom: 'auto', height: V_ROW - 2 } : {}),
+                            }}
                             onClick={() => select({ kind: 'voice', id: v.id })}
+                            title={`${library.get(v.assetId)?.name ?? 'Dış ses'} · ${formatTime(v.at)}–${formatTime(v.at + v.out - v.in)}${v.tts ? ` · “${v.tts.text.slice(0, 60)}”` : ''}`}
                           >
                             <span className="tl-name">🎙 {library.get(v.assetId)?.name}</span>
                             <Wave file={library.get(v.assetId)?.waveform} from={v.in} to={v.out} width={x(v.out - v.in)} fadeIn={v.fadeIn} fadeOut={v.fadeOut} />

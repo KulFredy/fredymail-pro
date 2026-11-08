@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Image as ImageIcon, Layers, Loader2, Mic2, Play, Plug, Sparkles } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
-import { formatTime } from '../../src/core/timeline';
+import { formatTime, voiceFreeAt, voiceSpan } from '../../src/core/timeline';
 import { api, fileHref, type Generation, type TtsCatalog } from './api';
 import { useApp, useProject } from './state';
 import { Segmented } from './ui';
@@ -139,14 +139,20 @@ const VoiceForm: React.FC<{ playhead: number; regen: RegenRequest | null; onDone
       </p>
     );
   const targetItem = target ? project.voice.find((v) => v.id === target) : null;
+  // İmleçte başka dış ses çalıyorsa yenisi onun bitişine eklenir (üst üste binmesin)
+  const busyHere = project.voice.find((v) => {
+    const sp = voiceSpan(v);
+    return sp.start <= playhead + 1e-3 && sp.end > playhead + 1e-3;
+  });
+  const addAt = voiceFreeAt(project.voice, playhead);
   const tooLong = est?.model.maxChars ? est.chars > est.model.maxChars : false;
   const noCredit = est && est.remaining !== null && est.credits > est.remaining;
   const run = async () => {
     setBusy('Dış ses üretiliyor…');
     try {
-      const r = await api.tts(project.id, { text, voiceId, modelId, at: targetItem ? targetItem.at : playhead, voiceItemId: target });
+      const r = await api.tts(project.id, { text, voiceId, modelId, at: targetItem ? targetItem.at : addAt, voiceItemId: target });
       if (r.running) toast('Bu metin zaten üretiliyor; birazdan dış ses izinde görünecek.');
-      else toast(r.reused ? 'Bu metin daha önce üretilmişti; kredi harcanmadan eklendi.' : targetItem ? 'Dış ses yeniden üretildi.' : `Dış ses ${formatTime(playhead)}'a eklendi.`);
+      else toast(r.reused ? 'Bu metin daha önce üretilmişti; kredi harcanmadan eklendi.' : targetItem ? 'Dış ses yeniden üretildi.' : `Dış ses ${formatTime(addAt)}'a eklendi.`);
       setTarget(null);
       onDone();
     } catch (e) {
@@ -162,6 +168,13 @@ const VoiceForm: React.FC<{ playhead: number; regen: RegenRequest | null; onDone
           Seçili dış ses yeniden üretilecek ({formatTime(targetItem.at)}).{' '}
           <button className="link small" onClick={() => setTarget(null)}>
             Yeni dış ses olarak ekle
+          </button>
+        </div>
+      ) : busyHere ? (
+        <div className="impact-warn" data-testid="voice-busy">
+          İmleçte ({formatTime(playhead)}) başka bir dış ses çalıyor; yenisi onun bitişine ({formatTime(addAt)}) eklenecek.{' '}
+          <button className="link small" onClick={() => setTarget(busyHere.id)}>
+            Bunun yerine o sesi değiştir
           </button>
         </div>
       ) : null}
@@ -217,7 +230,7 @@ const VoiceForm: React.FC<{ playhead: number; regen: RegenRequest | null; onDone
           <Play size={13} /> Örneği dinle
         </button>
         <button className="btn primary tiny" disabled={!text.trim() || !!busy || !!noCredit || tooLong} onClick={() => void run()}>
-          <Mic2 size={13} /> {targetItem ? 'Yeniden üret' : `Üret ve ${formatTime(playhead)}'a ekle`}
+          <Mic2 size={13} /> {targetItem ? 'Yeniden üret' : `Üret ve ${formatTime(addAt)}'a ekle`}
         </button>
       </div>
       {sample ? <audio src={sample} controls autoPlay style={{ width: '100%' }} /> : null}
