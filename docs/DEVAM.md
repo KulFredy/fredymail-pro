@@ -1,4 +1,4 @@
-# Devam notları (son güncelleme: 7 Kasım 2026)
+# Devam notları (son güncelleme: 8 Kasım 2026)
 
 ## Durum
 - **Faz 1 · Instagram Hızlı Edit — tamam.** 8 adım: Ekle (QR ile telefondan) · Biçim (9:16, 4:5, 1:1, 16:9; video/fotoğraf) · Sırala & kısalt · Kadraj (doldur/sığdır, %10–%400 boyut, köşeye) · Renk & ışık (görünümler, ayarlar, .cube LUT, 12 kamera log dönüşümü) · Ses & müzik (3 mod) · Yazı & altyazı (yerel Whisper, kelime düzeltme) · Teslim (720p–4K, doğrulama, müziksiz sürüm, telefona indir, sürümler).
@@ -6,7 +6,9 @@
 - **Faz 3 · Yerel Stüdyo ve ince kurgu — tamam (8 Kasım, kullanıcının Mac'inde gerçek videoyla doğrulandı: transkript senkronu, altyazı düzeltme + cümle kesme + geri al, çevrimdışı teslim).** Transkript paneli, sağda Komut/Seçili öğe, komut etkisi (klip, aralık, kapsam, yan etkiler), ses dalgası, I/O kesim, S bölme, yumuşak ses geçişleri, internetsiz çalışma testi.
 - **Faz 2 · Kurgu Stüdyosu — tamam.** Çok izli zaman çizelgesi (görüntü, üst iz, dış ses, müzik, altyazı, yazı; iz adlarında "+"), sekmeli sol panel (Komut · Medya · Seçili öğe), mikrofon/yazı ile Türkçe komut → plan → önizle/uygula, adaylar zaman koduyla, talimat ≠ dış ses, kişisel stil vs proje notu, tam ekran, render çözünürlüğü.
 - **Claude ile komut (isteğe bağlı):** Ayarlar'da "Her komutta" (varsayılan) veya "Yalnız kalıplar anlamazsa"; model Opus 5.5 / Sonnet 5.5 / Haiku 5.5; komut başına maliyet gösterilir; ulaşılamazsa yerel anlayıcı.
-- **Testler (son çalıştırma):** birim 78/78 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 39/39 · `npm run e2e:lut` 16/16 · `npm run e2e:ref` 8/8 · `npm run e2e:grafik` 9/9.
+- **Faz 4 · Referanslar, LUT ve hareket — tamam** (LUT'lar Mac'te doğrulandı; logo/hareket/müziğe oturtma Mac'te denenmedi).
+- **Faz 5 · Bağlantılar — tamam (bulutta sahte servislerle doğrulandı; gerçek ElevenLabs/Gemini anahtarıyla doğrulanmadı).**
+- **Testler (son çalıştırma):** birim 87/87 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 40/40 · `npm run e2e:lut` 16/16 · `npm run e2e:ref` 8/8 · `npm run e2e:grafik` 9/9 · `npm run e2e:ritim` 6/6 · `npm run e2e:baglanti` 23/23.
 - **Kullanıcının Mac'i:** kurulum yapıldı (`scripts/setup-mac.sh`), güncelleme `bash scripts/guncelle.sh`. Gerçek Türkçe altyazı Mac'te çalıştı. Render için Chrome indirilemediğinde sistem Google Chrome'u kullanılıyor.
 
 ## Doğrulanmayanlar (kullanıcıyla kontrol et)
@@ -14,16 +16,18 @@ Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
 - **4K video render'ı** (4K fotoğraf test edildi).
 - **Gerçek Android telefondan Wi-Fi ile yükleme** (QR).
 - Mac'te sesli komutların gerçek kullanımda doğruluğu.
+- **Gerçek ElevenLabs ve Gemini çağrıları** (anahtar gerekir; sahte sunucuyla API biçimi resmi SDK kaynaklarından birebir alındı). Gemini görsel fiyatı doğrulanmadı.
+- **Mac Anahtar Zinciri** (`security` komutu) gerçek Mac'te denenmedi; bulutta gizli dosya kullanıldı.
+- **Higgsfield** uç noktaları doğrulanmadı (belgelere erişilemedi); yalnız anahtar saklanıyor.
 
-### Mac'te test listesi (Faz 3, ~15 dk)
-Önce güncelle: `bash scripts/guncelle.sh claude/kind-davinci-9kuqyj` (eski betik varsayılan olarak eski dalı indiriyordu; bir kez dal adıyla çalıştırınca yeni betik gelir, sonrasında `bash scripts/guncelle.sh` yeter). Açık uygulamayı Ctrl+C ile kapatıp `npm run fabrika` ile yeniden başlat, tarayıcıda ⌘R.
-1. **İnternetsiz:** Wi-Fi'yi kapat. Terminalde `npm run e2e:offline` → sonda "13/13 kontrol geçti" görmelisin. Ardından uygulamada eski bir projeyi aç, bir klip ekle, kes, LUT uygula, altyazıda bir kelimeyi düzelt, uygulamayı kapatıp aç; 1080p MP4 ve bir JPEG al. Dış ses kaydı olan bir projede MP4'te dış sesin duyulduğunu dinle. Wi-Fi'yi aç.
-2. **Transkript:** kendi konuşmalı videonu Stüdyo'ya ekle. Transkript sekmesinde bir cümlenin zamanına tıkla → önizleme ve zaman çizelgesi aynı anda mı? Bir kelimeye tıkla → tam o kelimeye mi gitti? Bir cümleyi **Cümleyi kes** ile çıkar, dinle: hece yutuluyor mu, nefes/boşluk doğal mı? Sonraki cümleye tıkla: hâlâ doğru yerde mi? **Altyazıyı düzelt** ile bir kelimeyi değiştir: süre değişmemeli.
-3. **İnce kurgu:** I ile giriş, birkaç kez → ile kare kare ilerle, O ile çıkış, ⌫ ile sil. S ile imleçte böl. Seçili klipte "Ses girişi/çıkışı (yumuşak)" ayarla ve dinle. Ses dalgası kliplerde görünüyor mu?
-4. **Komut:** "Buradan sonraki üç saniyeyi kes" de veya yaz. Sağ panelde klip, aralık ve kapsam görünüyor mu? Önizle → Vazgeç → tekrar → Uygula → Geri al.
-5. **Claude (anahtarın varsa):** aynı komutu Claude açıkken dene; cevap ve maliyet görünüyor mu? Hata olursa terminaldeki `[claude] …` satırını bana gönder.
-6. **4K video:** Teslim'de 4K seç, kısa bir video çıktısı al; süreyi not et.
-7. **Android:** Mac ile aynı Wi-Fi'de, "Telefondan ekle" QR'ını Android kamerayla okut, bir video yükle; Medya'ya geldi mi?
+### Mac'te test listesi (Faz 4–5, ~20 dk)
+Önce güncelle: `bash scripts/guncelle.sh`, uygulamayı Ctrl+C ile kapatıp `npm run fabrika`, tarayıcıda ⌘R. (Faz 3 listesi 8 Kasım'da tamamlandı.)
+1. **Anahtar taşıma:** ⚙ → Bağlantılar. Claude satırında “Anahtar: ••••xxxx · Mac Anahtar Zinciri” yazmalı (Mac bir kez izin isteyebilir → *Her Zaman İzin Ver*). Terminalde `grep -c anthropicApiKey ~/İçerik\ Fabrikası/ayarlar.json` → `0` olmalı. Bir Claude komutu dene: çalışmalı.
+2. **Logo:** Medya'dan saydam PNG logo yükle → LOGO izine ekle; “logoyu sol alta al”, Story sekmesinde ızgaradan sağ üst; Dışa aktar'da uyarı çıkıyor mu?
+3. **Hareket ve ritim:** bir fotoğrafa “girişte yavaşça yakınlaş”; müzik ekleyip “kesimleri müziğe oturt”. MÜZİK izinde vuruş çizgileri ve BPM görünüyor mu, kesimler vuruşta mı?
+4. **ElevenLabs (anahtar varsa):** Bağlantılar → ElevenLabs → Anahtar ekle → kalan karakter görünmeli. Üret → Dış ses: kısa bir Türkçe metin, *Örneği dinle*, sonra *Üret ve ekle*. Türkçe telaffuz nasıl? Aynı metni tekrar üret: kredi düşmemeli.
+5. **Gemini (anahtar varsa):** aistudio.google.com'dan anahtar, Üret → Ürün arka planı: bir ürün fotoğrafı + “mermer tezgah, yumuşak ışık”. Onay kutusunu oku → üret. 2 seçenekte ürün/etiket bozulmuş mu? Birini onayla → Ana ize.
+6. Hata olursa terminaldeki satırı bana gönder (anahtar loglara yazılmaz).
 
 ## Sıradaki işler
 Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). **Faz 3 · Yerel Stüdyo ve ince kurgu** (tamamlandı):
@@ -36,7 +40,7 @@ Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). **Faz 3 · Yerel Stüdyo v
 6. ✅ Zaman çizelgesi: ses dalgası (klip + dış ses), I/O ile kare hassasiyetinde aralık silme, S / ⌘B ile imleçte bölme, klip ve dış seste ayarlanabilir yumuşak ses girişi/çıkışı (`edgeGain`).
 7. ✅ Konuşmalı içerikte uçtan uca deneme (bulutta sentetik ses) + Mac/Android test listesi (yukarıda).
 
-**Faz 4 · Referanslar, LUT ve hareket** (sürüyor):
+**Faz 4 · Referanslar, LUT ve hareket** (tamamlandı):
 1. ✅ LUT Kütüphanem (`src/core/lutlib.ts`, `web/src/LutPanel.tsx`): toplu içe aktarma (.cube, .3dl → .cube, .zip; klasör seçimi; sürükle-bırak), dosya başına rapor, aynı içerik tekrar eklenmez, dosya adından görünüm/teknik + giriş tahmini, etiket/favori/ad düzenleme, silme (kullanım sayısıyla uyarı), küçük önizlemeler (kamera dönüşümü dahil, yaklaşık), ana önizlemede kaydetmeden deneme, yoğunluk, seçili klip / tüm kurgu, önce/sonra + 4'e kadar karşılaştırma, teknik LUT uyuşmazlık uyarıları ve tek tıkla düzeltme. Testler: `e2e:lut`, `e2e:ui`. Kullanıcının LUT kaynakları: Photoshop 3DLUTs (.cube + .3DL), Magic Bullet LUTs, DaVinci Resolve LUT (çoğu teknik).
 2. ✅ Referanstan renk eşleme (`src/core/colormatch.ts`, `web/src/ReferencePanel.tsx`): proje referansları (kurguya girmez; `reference.*` işlemleri), video referansta kare seçimi, Lab istatistikleriyle sınırlı (±20) Reinhard eşleme LUT'u (siyah/beyaz korunur), log klipte kamera dönüşümünden sonra ölçüm, Türkçe özet + renk örnekleri, önce/sonra, yoğunluk (%80), önizle/uygula/vazgeç. LUT'larım'a #referans. Testler: `e2e:ref` (render'da referansa uzaklık 43.7 → 19.1), `e2e:ui`. Ayrıca yerel komut "orijinal haline dön" (`project.restoreOriginal`).
 3. ✅ Başlık ve logo (`src/core/graphics.ts`, `web/src/ElementInspector.tsx`): saydam PNG/SVG içe aktarma (alpha korunur), logolar (`logo.*`), yazı/logoda 9 noktalı yerleşim her oranın güvenli alanı içinde, orana özel yerleşim (`element.place`), giriş/çıkış animasyonu, güvenli alan uyarıları + “güvenli alana al” (Stüdyo ve Dışa aktar), JPEG post'ta logo, LOGO izi, yerel logo komutları, Claude/MCP'ye tanıtıldı. Testler: `e2e:grafik` (piksel ölçümü), `e2e:ui`. Zaman çizelgesinde iz adlarının kayması düzeltildi.
@@ -44,9 +48,17 @@ Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). **Faz 3 · Yerel Stüdyo v
 
 Mac'te gerçek LUT'larla doğrulandı (8 Kasım): Photoshop .cube + .3DL, Magic Bullet, Resolve Sony; `npm run lut-ekle` ile toplu ekleme, küçük resimler ve canlı deneme.
 
-**Sıradaki somut iş:** Faz 5 · Bağlantılar (Ayarlar → Bağlantılar, anahtarların güvenli saklanması, ElevenLabs dış ses, görsel üretimi, Higgsfield). Kullanıcı Mac'te Faz 4 özelliklerini (logo, hareket, müziğe oturtma) dener.
+**Faz 5 · Bağlantılar** (tamamlandı, gerçek servislerle doğrulanmadı):
+1. ✅ Anahtar kasası (`src/server/secrets.ts`): Mac'te Anahtar Zinciri (`security`, hizmet `icerik-fabrikasi`), diğerlerinde `gizli.json` (600). Eski `ayarlar.json` Claude anahtarı geri okunup doğrulandıktan sonra taşınır. Anahtarlar tarayıcıya/projeye/loglara gitmez (e2e'de bütün yanıtlar ve dosyalar taranır).
+2. ✅ Ayarlar → Bağlantılar (`src/server/connections.ts`, `web/src/Connections.tsx`): durum, Dene, ekle/değiştir/kaldır, Claude kullanım özeti (`kullanim.json`), Gemini model seçimi, ElevenLabs varsayılan ses/model.
+3. ✅ ElevenLabs dış ses (`src/server/providers.ts`, `generate.ts`): ses/model kataloğu (Türkçe destekleyen model varsayılan), karakter ve kredi tahmini + kalan kredi, ilk cümleyle örnek, aynı istek tekrarında kredi harcamama (içerik anahtarı), çift tıklamaya karşı kilit, `voice.add` ile DIŞ SES izine ekleme, “Metni düzenle ve yeniden üret” (`voice.setAsset`).
+4. ✅ Gemini (Nano Banana 2) ürün arka planı: göndermeden önce fotoğraf ve görsel sayısı onayı, 2 seçenek, `uretim` rolünde bekler; onaylanınca Medya'ya geçer. Model seçilebilir (Nano Banana 2 / 2 Lite / Pro).
+5. ⚠ Higgsfield: anahtar saklanır, “doğrulanmadı” rozetiyle; uygulama içi üretim yok.
+Testler: `e2e:baglanti` 23/23 (sahte servis: sızıntı taraması, taşıma, eşzamanlı istek, 402 kredi hatası, Gemini istek gövdesi, onay, tarayıcıda Bağlantılar + Üret akışı).
 
-Sonra: Faz 4 (Referanslar, LUT Kütüphanem, hareket) → Faz 5 (Bağlantılar) → Faz 6 (Marka, kampanya) → Faz 7/8 isteğe bağlı.
+**Sıradaki somut iş:** Faz 6 · Marka, kampanya ve kanal teslimi (`docs/FAZLAR.md`). Kullanıcı Mac'te Faz 4–5 listesini dener; ElevenLabs/Gemini anahtarlarını ekler.
+
+Sonra: Faz 6 → Faz 7 (doğrudan yayın, isteğe bağlı) → Faz 8 (SaaS beta, isteğe bağlı).
 Küçükler (uygun fazda): RAW fotoğraf (LibRaw), kaynak oranında çıktı (ör. 4:3), Premiere'e aktarım (OpenTimelineIO / FCP XML), telefonda düzenleme ekranı, depoyu `main` dalına birleştirme.
 
 ## Bulut oturumu notları

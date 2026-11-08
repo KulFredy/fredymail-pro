@@ -26,6 +26,39 @@ export type Job = {
   error?: string;
   createdAt: string;
 };
+export type Conn = {
+  id: 'anthropic' | 'elevenlabs' | 'gemini' | 'higgsfield';
+  name: string;
+  capabilities: string[];
+  where: string;
+  verified: boolean;
+  note?: string;
+  configured: boolean;
+  source: 'anahtarlik' | 'dosya' | 'ortam' | null;
+  hint: string | null;
+  status: { ok: boolean; detail: string } | null;
+  settings: { voiceId?: string; modelId?: string; model?: string; models?: { id: string; name: string }[] };
+  usage?: { commands: number; usd: number; todayCommands: number; todayUsd: number };
+};
+export type TtsCatalog = {
+  models: { id: string; name: string; tts: boolean; turkish: boolean; costMultiplier: number; maxChars: number | null }[];
+  voices: { id: string; name: string; category: string; labels: Record<string, string>; previewUrl: string | null }[];
+  defaultModelId: string | null;
+  defaultVoiceId: string | null;
+};
+export type Generation = {
+  id: string;
+  kind: 'dis-ses' | 'arka-plan';
+  provider: string;
+  model: string;
+  status: 'calisiyor' | 'bitti' | 'onay-bekliyor' | 'onaylandi' | 'hata';
+  request: Record<string, any>;
+  estimate: { units: number; unit: string; credits?: number; note?: string };
+  resultAssetIds: string[];
+  approvedAssetIds: string[];
+  error?: string;
+  createdAt: string;
+};
 export type Check = { label: string; ok: boolean; detail: string };
 export type ExportEntry = {
   id: string;
@@ -62,6 +95,21 @@ export const api = {
     req<{ luts: LutInfo[] }>('PATCH', `/api/luts/${encodeURIComponent(id)}`, patch),
   colorMatch: (projectId: string, referenceId: string, clipId: string | null) =>
     req<{ lutId: string; name: string; summary: string[]; swatches: { reference: string; target: string }; clips: number; luts: LutInfo[] }>('POST', `/api/projects/${projectId}/color-match`, { referenceId, clipId }),
+  connections: (test = false) => req<Conn[]>('GET', `/api/connections${test ? '?test=1' : ''}`),
+  setConnection: (id: string, key: string) => req<{ status: { ok: boolean; detail: string }; connections: Conn[] }>('PUT', `/api/connections/${id}`, { key }),
+  testConnection: (id: string) => req<{ ok: boolean; detail: string }>('POST', `/api/connections/${id}/test`),
+  removeConnection: (id: string) => req<{ connections: Conn[] }>('DELETE', `/api/connections/${id}`),
+  connectionSettings: (patch: { elevenlabs?: { voiceId?: string; modelId?: string }; gemini?: { model?: string } }) => req('PUT', '/api/connections-settings', patch),
+  ttsCatalog: (refresh = false) => req<TtsCatalog>('GET', `/api/uret/dis-ses/katalog${refresh ? '?yenile=1' : ''}`),
+  ttsEstimate: (text: string, voiceId?: string, modelId?: string) =>
+    req<{ chars: number; credits: number; remaining: number | null; model: { id: string; name: string; turkish: boolean; maxChars: number | null }; voice: { id: string; name: string } }>('POST', '/api/uret/dis-ses/tahmin', { text, voiceId, modelId }),
+  ttsSample: (text: string, voiceId: string, modelId: string) => req<{ file: string; text: string; chars: number }>('POST', '/api/uret/dis-ses/ornek', { text, voiceId, modelId }),
+  tts: (projectId: string, b: { text: string; voiceId: string; modelId: string; at: number; voiceItemId?: string | null }) =>
+    req<{ generation: Generation; reused: boolean; running?: boolean; state: ProjectState | null }>('POST', `/api/projects/${projectId}/uret/dis-ses`, b),
+  backgrounds: (projectId: string, b: { assetId: string; prompt: string; aspectRatio?: string | null; count?: number }) =>
+    req<{ generation: Generation; running?: boolean }>('POST', `/api/projects/${projectId}/uret/arka-plan`, b),
+  generations: (projectId: string) => req<Generation[]>('GET', `/api/projects/${projectId}/uretimler`),
+  approveGeneration: (id: string, assetIds: string[]) => req<Generation>('POST', `/api/uretimler/${id}/onayla`, { assetIds }),
   deleteLut: (id: string) => req<{ luts: LutInfo[] }>('DELETE', `/api/luts/${encodeURIComponent(id)}`),
   jobs: () => req<Job[]>('GET', '/api/jobs'),
   createProject: (name: string, formats: { format: string; kind?: string }[]) => req<ProjectState>('POST', '/api/projects', { name, formats }),

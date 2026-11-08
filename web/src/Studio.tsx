@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   ArrowLeft, Mic, Square, Send, Undo2, Redo2, Zap, Download, Play, Check, X, Scissors, Trash2, Plus, Music2, Layers, Loader2, Wand2, Video, Image as ImageIcon,
-  PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal,
+  PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal, Settings,
 } from 'lucide-react';
 import { COMMAND_EXAMPLES, planCommand, type Plan, type PlanCandidate } from '../../src/core/commands';
 import { describeImpact } from '../../src/core/impact';
@@ -17,6 +17,8 @@ import { TranscriptPanel } from './TranscriptPanel';
 import { LutPanel } from './LutPanel';
 import { LogoInspector, TextInspector } from './ElementInspector';
 import { ReferencePanel } from './ReferencePanel';
+import { ConnectionsModal } from './Connections';
+import { GeneratePanel, type RegenRequest } from './GeneratePanel';
 import { Modal, Segmented, Slider, fmtDb, fmtSec } from './ui';
 
 type HistoryItem = { text: string; summary: string; ok: boolean };
@@ -489,7 +491,7 @@ const MediaBin: React.FC = () => {
   const { library, toast } = useApp();
   const input = useRef<HTMLInputElement>(null);
   const playhead = frame / FPS;
-  const items = [...library.values()].filter((a) => a.role !== 'voiceover' && a.role !== 'reference').sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+  const items = [...library.values()].filter((a) => a.role === 'media').sort((a, b) => b.importedAt.localeCompare(a.importedAt));
   return (
     <div className="bin">
       <div className="row-between">
@@ -575,7 +577,7 @@ const MediaBin: React.FC = () => {
   );
 };
 
-const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ selection, onClear }) => {
+const Inspector: React.FC<{ selection: Selection; onClear: () => void; onRegen?: (r: RegenRequest) => void }> = ({ selection, onClear, onRegen }) => {
   const { project, apply, frame } = useProject();
   const output = project.outputs.find((o) => o.id === project.ui.activeOutputId) ?? project.outputs[0];
   const { library } = useApp();
@@ -695,8 +697,16 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ se
     if (!v) return null;
     return (
       <div className="stack">
-        <b>Dış ses kaydı</b>
+        <b>Dış ses {v.tts ? `· ${v.tts.voiceName || 'ElevenLabs'}` : 'kaydı'}</b>
         <small className="muted">Videoda duyulur; kurgu talimatlarından ayrı tutulur.</small>
+        {v.tts ? (
+          <div className="tts-box">
+            <small className="muted">Metin: “{v.tts.text.length > 140 ? v.tts.text.slice(0, 140) + '…' : v.tts.text}”</small>
+            <button className="btn tiny" onClick={() => onRegen?.({ voiceItemId: v.id, text: v.tts!.text, voiceId: v.tts!.voiceId, modelId: v.tts!.modelId })}>
+              Metni düzenle ve yeniden üret
+            </button>
+          </div>
+        ) : null}
         <audio controls src={fileHref(library.get(v.assetId)?.preview ?? null)} style={{ width: '100%' }} />
         <Slider label="Başlangıç" value={v.at} min={0} max={Math.max(0.1, layoutClips(project).at(-1)?.end ?? 1)} step={0.05} format={fmtSec} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { at: x } }], { key: `vat:${v.id}` })} />
         <Slider label="Ses" value={v.gainDb} min={-30} max={6} step={1} format={fmtDb} onChange={(x) => apply([{ type: 'voice.update', id: v.id, patch: { gainDb: x } }], { key: `vg:${v.id}` })} />
@@ -722,7 +732,7 @@ export const Studio: React.FC = () => {
   const [selection, setSelection] = useState<Selection>(project.ui.selectedClipId ? { kind: 'clip', id: project.ui.selectedClipId } : null);
   const [exporting, setExporting] = useState(false);
   const [name, setName] = useState(project.name);
-  const [leftTab, setLeftTab] = useState<'medya' | 'transkript' | 'luts' | 'referans'>(() => readPref('fabrika.studyo.sol', 'transkript'));
+  const [leftTab, setLeftTab] = useState<'medya' | 'transkript' | 'luts' | 'referans' | 'uret'>(() => readPref('fabrika.studyo.sol', 'transkript'));
   const [rightTab, setRightTab] = useState<'komut' | 'secili'>('komut');
   const [rightOpen, setRightOpen] = useState<boolean>(() => readPref('fabrika.studyo.sag', '1') === '1');
   React.useEffect(() => writePref('fabrika.studyo.sol', leftTab), [leftTab]);
@@ -732,6 +742,8 @@ export const Studio: React.FC = () => {
     setRightOpen(true);
   };
   const [cmdMode, setCmdMode] = useState<'talimat' | 'disses'>('talimat');
+  const [connOpen, setConnOpen] = useState(false);
+  const [regen, setRegen] = useState<RegenRequest | null>(null);
   const [marks, setMarks] = useState<Marks>({ in: null, out: null });
   const deleteMarks = () => {
     if (marks.in === null || marks.out === null) return;
@@ -831,6 +843,9 @@ export const Studio: React.FC = () => {
         />
         <span className="muted save-state">{saving ? 'Kaydediliyor…' : 'Kaydedildi'}</span>
         <div className="spacer" />
+        <button className="icon-btn" onClick={() => setConnOpen(true)} title="Ayarlar → Bağlantılar (Claude, ElevenLabs, Google Gemini…)" aria-label="Bağlantılar">
+          <Settings size={18} />
+        </button>
         <button className="icon-btn" disabled={!canUndo} onClick={undo} title={`Geri al${undoLabel ? ': ' + undoLabel : ''} (⌘Z)`}>
           <Undo2 size={18} />
         </button>
@@ -852,6 +867,7 @@ export const Studio: React.FC = () => {
               ['transkript', 'Transkript'],
               ['luts', "LUT'larım"],
               ['referans', 'Referans'],
+              ['uret', 'Üret'],
             ] as const
           ).map(([k, l]) => (
             <button key={k} role="tab" aria-selected={leftTab === k} className={leftTab === k ? 'on' : ''} onClick={() => setLeftTab(k)}>
@@ -864,6 +880,7 @@ export const Studio: React.FC = () => {
           {leftTab === 'transkript' ? <TranscriptPanel onSelect={setSelection} /> : null}
           {leftTab === 'luts' ? <LutPanel selection={selection} /> : null}
           {leftTab === 'referans' ? <ReferencePanel selection={selection} /> : null}
+          {leftTab === 'uret' ? <GeneratePanel regen={regen} onRegenDone={() => setRegen(null)} openConnections={() => setConnOpen(true)} /> : null}
         </div>
       </aside>
       <main className="studio-center">
@@ -891,7 +908,7 @@ export const Studio: React.FC = () => {
             <div hidden={rightTab !== 'komut'}>
               <CommandPanel mode={cmdMode} setMode={setCmdMode} />
             </div>
-            {rightTab === 'secili' ? <Inspector selection={selection} onClear={() => setSelection(null)} /> : null}
+            {rightTab === 'secili' ? <Inspector selection={selection} onClear={() => setSelection(null)} onRegen={(r) => (setRegen(r), setLeftTab('uret'))} /> : null}
           </div>
         </aside>
       ) : (
@@ -942,6 +959,7 @@ export const Studio: React.FC = () => {
           }
         }}
       />
+      {connOpen ? <ConnectionsModal onClose={() => setConnOpen(false)} /> : null}
       {exporting ? (
         <Modal title="Dışa aktar" onClose={() => setExporting(false)} width={640}>
           <ExportStep />

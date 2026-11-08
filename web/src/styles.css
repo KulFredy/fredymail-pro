@@ -497,7 +497,7 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .cmp-grid { max-height: 26vh; overflow: auto; }
 
 /* Referanslar */
-.studio-left .tabs button { padding: 12px 4px; font-size: 13px; }
+.studio-left .tabs button { padding: 12px 2px; font-size: 12.5px; }
 .refp { display: flex; flex-direction: column; gap: 10px; }
 .ref-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ref-card { background: var(--card); border: 2px solid transparent; border-radius: 9px; padding: 4px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -528,6 +528,32 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .region-picker { position: relative; cursor: crosshair; user-select: none; touch-action: none; margin: 6px 0 4px; border-radius: 6px; overflow: hidden; }
 .region-picker img { width: 100%; display: block; pointer-events: none; }
 .region-rect { position: absolute; border: 2px solid var(--accent); background: rgba(255,122,61,.15); box-shadow: 0 0 0 9999px rgba(0,0,0,.45); pointer-events: none; }
+
+/* Bağlantılar ve Üret */
+.conn-list { display: flex; flex-direction: column; gap: 10px; }
+.conn { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--card); }
+.conn.ok { border-color: rgba(79,209,139,.45); }
+.conn.bad { border-color: rgba(255,93,108,.55); }
+.conn b { display: inline-flex; gap: 6px; align-items: center; }
+.conn-state { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
+.conn.ok .conn-state { color: var(--ok); }
+.conn.bad .conn-state { color: var(--bad); }
+.conn input[type=password] { flex: 1; min-width: 220px; }
+.badge.warn { background: rgba(255,200,87,.2); color: var(--warn); }
+.genp { display: flex; flex-direction: column; gap: 10px; }
+.genp .stack { gap: 8px; }
+.cost.bad { color: var(--bad); }
+.confirm-box { border: 1px solid var(--warn); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 8px; background: rgba(255,200,87,.06); }
+.confirm-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; flex: none; }
+.gen-history summary { cursor: pointer; }
+.gen-row { display: grid; grid-template-columns: 16px 1fr; gap: 2px 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.gen-row > :nth-child(n+3) { grid-column: 2; }
+.gen-row.st-hata { color: #ffb3bb; }
+.gen-results { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; grid-column: 1 / -1; }
+.gen-result { background: var(--card); border: 2px solid transparent; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; gap: 4px; }
+.gen-result.ok { border-color: var(--ok); }
+.gen-result img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 6px; }
+.tts-box { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--card); border-radius: 8px; }
 
 /* Müzik vuruşları */
 .tl-beat { position: absolute; top: 2px; bottom: 2px; width: 1px; background: rgba(255,255,255,.35); pointer-events: none; z-index: 1; }
@@ -566,3 +592,7 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .model.on { border-color: var(--accent); background: #22160f; }
 .model span { display: flex; flex-direction: column; gap: 2px; }
 .model input { margin-top: 3px; accent-color: var(--accent); }
+
+/* Ana ekran başlığı: bağlantılar düğmesi sağda */
+.home-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.gen-pending { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--accent); border-radius: 8px; }

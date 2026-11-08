@@ -9,6 +9,7 @@
  * Gerçek servislerle doğrulama: kullanıcının anahtarlarıyla Mac'te (docs/DEVAM.md).
  * Çalıştırma: npm run e2e:baglanti
  */
+import { createRequire } from 'node:module';
 import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -220,6 +221,61 @@ const main = async () => {
     for (const r of responses) for (const k of Object.values(KEYS)) if (r.includes(k)) leaks.push('API cevabı');
     for (const l of logs) for (const k of Object.values(KEYS)) if (l.includes(k)) leaks.push('log');
     check('Anahtarlar hiçbir API cevabında, dosyada (gizli.json hariç) veya logda yok', leaks.length === 0, leaks.length ? [...new Set(leaks)].join(', ') : `${files.length} dosya, ${responses.length} cevap, ${logs.length} log satırı tarandı`);
+
+    // 5b) Arayüz (tarayıcıda): Bağlantılar penceresi, Üret sekmesi → dış ses ve arka plan
+    const pw = (() => {
+      try {
+        return createRequire(import.meta.url)('playwright');
+      } catch {
+        try {
+          return createRequire(path.join(process.env.NODE_PATH ?? '/usr/lib/node_modules', 'x.js'))('playwright');
+        } catch {
+          return null;
+        }
+      }
+    })();
+    if (pw) {
+      await runOk('npx', ['vite', 'build', '--config', 'web/vite.config.ts', '--logLevel', 'error']);
+      const browser = await pw.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+      const page = await browser.newPage({ viewport: { width: 1512, height: 950 } });
+      try {
+        await page.goto(`${base}/#/studyo/${pid}`);
+        await page.getByRole('button', { name: 'Bağlantılar' }).first().click();
+        await page.waitForSelector('[data-conn=elevenlabs] .conn-state');
+        await page.waitForFunction(() => !document.querySelector('.conn-list .spin'));
+        const states = await page.locator('.conn').allInnerTexts();
+        const html = await page.content();
+        check('Arayüz: Bağlantılar penceresi durumları gösteriyor, anahtar sayfada yok', /kalan 99\.000/.test(states.join(' ')) && /doğrulanmadı/.test(states.join(' ')) && !Object.values(KEYS).some((k) => html.includes(k)), states.map((x: string) => x.split('\n')[0]).join(' | '));
+        await page.getByRole('button', { name: 'Kapat' }).first().click().catch(() => page.keyboard.press('Escape'));
+        await page.keyboard.press('Escape');
+        await page.getByRole('tab', { name: 'Üret' }).click();
+        await page.getByLabel('Dış ses metni').fill('Arayüzden üretilen dış ses, hafta sonu bekliyoruz.');
+        await page.waitForSelector('[data-testid=tts-estimate]');
+        const estTxt = await page.locator('[data-testid=tts-estimate]').innerText();
+        const n0 = calls.tts;
+        await page.getByRole('button', { name: /Üret ve/ }).click();
+        const v0 = (await api("GET", `/api/projects/${pid}`)).j.project.voice.length;
+        for (let i = 0; i < 60 && calls.tts === n0; i++) await new Promise((r) => setTimeout(r, 250));
+        await page.waitForSelector('.toast', { timeout: 15000 }).catch(() => undefined);
+        await new Promise((r) => setTimeout(r, 500));
+        const v1 = (await api("GET", `/api/projects/${pid}`)).j.project.voice.length;
+        check('Arayüz: maliyet tahmini görünür; “Üret” dış ses izine ekler', /karakter · ≈ \d+ kredi · kalan/.test(estTxt) && calls.tts === n0 + 1 && v1 === v0 + 1, `${estTxt} · ses izi ${v0}→${v1}`);
+        await page.getByRole('button', { name: 'Ürün arka planı' }).click();
+        await page.getByLabel('Arka plan tarifi').fill('mermer tezgah, yumuşak ışık');
+        await page.getByRole('button', { name: /2 seçenek üret/ }).click();
+        const conf = await page.locator('.confirm-box').innerText();
+        const g0 = calls.gen;
+        await page.getByRole('button', { name: /Onaylıyorum, üret/ }).click();
+        for (let k = 0; k < 120 && calls.gen < g0 + 2; k++) await new Promise((r) => setTimeout(r, 250));
+        await page.waitForSelector('.gen-result button', { timeout: 15000 });
+        check('Arayüz: göndermeden önce fotoğraf ve görsel sayısı gösterilir; 2 seçenek gelir', /Google'a gönderilecek/.test(conf) && /2 görsel/.test(conf) && calls.gen === g0 + 2, conf.replace(/\n+/g, ' ').slice(0, 120));
+      } catch (e) {
+        await page.screenshot({ path: path.join(work, 'arayuz-hata.png') }).catch(() => undefined);
+        check('Arayüz akışı tamamlandı', false, (e as Error).message.split('\n')[0]);
+      } finally {
+        await browser.close();
+      }
+    } else console.log('(Playwright yok: arayüz kontrolleri atlandı)');
 
     // 6) Kaldırma
     await api('DELETE', '/api/connections/elevenlabs');

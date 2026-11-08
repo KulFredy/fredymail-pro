@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Clapperboard, Zap, Play, Trash2, Mic, Cpu, FolderOpen, Smartphone } from 'lucide-react';
+import { Clapperboard, Zap, Play, Trash2, Mic, Cpu, FolderOpen, Smartphone, Plug } from 'lucide-react';
+import { ConnectionsModal } from './Connections';
 import { FORMATS } from '../../src/core/formats';
 import type { FormatId } from '../../src/core/schema';
 import { api, fileHref, type ProjectSummary } from './api';
@@ -72,6 +73,7 @@ export const Home: React.FC = () => {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [last, setLast] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [conns, setConns] = useState(false);
   const { health, library } = useApp();
   const load = () =>
     api.state().then((s) => {
@@ -92,7 +94,11 @@ export const Home: React.FC = () => {
             <p className="muted">Telefondan gelen çekimleri dakikalar içinde Instagram'a hazırlayın.</p>
           </div>
         </div>
+        <button className="btn ghost" onClick={() => setConns(true)} title="Claude, ElevenLabs, Google Gemini…">
+          <Plug size={15} /> Bağlantılar
+        </button>
       </header>
+      {conns ? <ConnectionsModal onClose={() => setConns(false)} /> : null}
 
       {lastProject ? (
         <a className="continue" href={`#/proje/${lastProject.id}`}>

@@ -82,7 +82,26 @@ Anlaşılan komutlar (örnekler):
 
 Komut anlayıcı önce kendi kurallarıyla, tamamen yerel ve ücretsiz çalışır. Yön belirtmediğiniz komutlarda (ör. "altyazıları kaydır") seçenek sunar. "Geri al" / "yinele" de sesle çalışır.
 
-**Komutları Claude ile anla (isteğe bağlı):** Komut panelindeki **Claude** düğmesinden Anthropic API anahtarınızı girin (console.anthropic.com → API Keys; hesapta kredi olmalı). Varsayılan **Her komutta**: söylediğiniz veya yazdığınız her komutu Claude yorumlar, kayıtlı kalıplara bağlı kalmazsınız (yalnız anlık "geri al / yinele" yerelde kalır). İnternet veya kredi sorunu olursa komut yerel anlayıcıyla yine yapılır. Model seçilebilir: Claude Opus 5.5 (en iyi anlama, komut başına ≈ 3–5 sent), Sonnet 5.5 (≈ 1,5–2,5 sent), Haiku 5.5 (≈ 0,1 sent); her komutun gerçek maliyeti komutun altında gösterilir. Anahtar yalnız bu Mac'te `~/İçerik Fabrikası/ayarlar.json` dosyasında saklanır. Claude yalnız plan önerir; her işlem uygulamanın kendi kurallarıyla doğrulanır, önizlenir ve onayınızla uygulanır. Claude Code kullanıyorsanız MCP `komut` / `islem_uygula` araçları aynı işi aboneliğinizle yapar.
+**Komutları Claude ile anla (isteğe bağlı):** Komut panelindeki **Claude** düğmesinden Anthropic API anahtarınızı girin (console.anthropic.com → API Keys; hesapta kredi olmalı). Varsayılan **Her komutta**: söylediğiniz veya yazdığınız her komutu Claude yorumlar, kayıtlı kalıplara bağlı kalmazsınız (yalnız anlık "geri al / yinele" yerelde kalır). İnternet veya kredi sorunu olursa komut yerel anlayıcıyla yine yapılır. Model seçilebilir: Claude Opus 5.5 (en iyi anlama, komut başına ≈ 3–5 sent), Sonnet 5.5 (≈ 1,5–2,5 sent), Haiku 5.5 (≈ 0,1 sent); her komutun gerçek maliyeti komutun altında gösterilir. Anahtar yalnız bu Mac'te, **Anahtar Zinciri**'nde saklanır (eski sürümde `ayarlar.json`'da duran anahtar ilk açılışta otomatik taşınır ve dosyadan silinir). Claude yalnız plan önerir; her işlem uygulamanın kendi kurallarıyla doğrulanır, önizlenir ve onayınızla uygulanır. Claude Code kullanıyorsanız MCP `komut` / `islem_uygula` araçları aynı işi aboneliğinizle yapar.
+
+## Bağlantılar ve üretim (isteğe bağlı, ücretli servisler)
+
+Temel kurgu hiçbir bağlantı gerektirmez. **Ayarlar → Bağlantılar** (ana ekranda veya Stüdyo'da ⚙) dış servisleri gösterir:
+
+| Servis | Ne için | Anahtar nereden |
+|---|---|---|
+| Claude (Anthropic API) | Serbest Türkçe kurgu komutları | console.anthropic.com → API Keys |
+| ElevenLabs | Metinden Türkçe dış ses, kısa örnek, kalan karakter | elevenlabs.io → profil → API Keys |
+| Google Gemini · Nano Banana 2 | Ürün fotoğrafına yeni arka plan (ürün/logo/etiket korunur) | aistudio.google.com → Get API key |
+| Higgsfield | Görselden video — **doğrulanmadı**: anahtar saklanır, üretim şimdilik Higgsfield sitesinde | cloud.higgsfield.ai → API Keys (`KEY_ID:SECRET`) |
+
+- Anahtarlar Mac **Anahtar Zinciri**'nde (`icerik-fabrikasi` hizmeti) saklanır; tarayıcıya, proje dosyalarına, GitHub'a ve loglara yazılmaz. Arayüzde yalnız son 4 hanesi görünür. Mac dışında `~/İçerik Fabrikası/gizli.json` (yalnız kullanıcı okuyabilir). Ortam değişkenleri (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `GEMINI_API_KEY`) de okunur.
+- Her bağlantıda **Dene**: anahtar geçerli mi, ElevenLabs'te kalan karakter.
+- Stüdyo'da sol panel **Üret** sekmesi:
+  - **Dış ses:** metin, ses (marka sesleri işaretli) ve model seçilir; göndermeden önce karakter sayısı, tahmini kredi ve kalan kredi görünür. *Örneği dinle* yalnız ilk cümleyi üretir. *Üret ve ekle* sesi imleçteki yere DIŞ SES izine koyar. Aynı metin/ses/model tekrar istenirse kredi harcanmaz. Üretilmiş dış seste *Seçili öğe → Metni düzenle ve yeniden üret*.
+  - **Ürün arka planı:** Medya'daki bir ürün fotoğrafı + tarif + oran. Göndermeden önce hangi fotoğrafın gideceği ve kaç görsel üretileceği gösterilir, onayınız istenir. 2 seçenek gelir; **onaylamadan Medya'ya eklenmez**. Onaylananı *Ana ize* veya *Üst ize* koyun.
+- Üretilen her şey yerel medya olarak saklanır; servis kapansa da proje açılır. Kayıtlar: `~/İçerik Fabrikası/uretimler.json`.
+- Claude kullanımı (uygulama içi komut sayısı ve tahmini maliyet) Claude satırında görünür. Claude Code ise kendi aboneliğinizle MCP üzerinden çalışır.
 
 ## Kendi dosyalarınızla kabul testi
 
@@ -162,6 +181,9 @@ Arayüz (React)   MCP (Claude)   [Faz 2] ses/yazı komutu
   projeler/<id>/         project.json, history.json, ops.jsonl, versions/, exports/
   modeller/              Whisper modelleri
   stil/kisisel.json      kalıcı kişisel tercihler (altyazı stili)
+  baglantilar.json       bağlantı ayarları (anahtar yok)
+  uretimler.json         dış ses / görsel üretim kayıtları
+  kullanim.json          uygulama içi Claude kullanımı
 ```
 
 ## Geliştirme
@@ -178,6 +200,7 @@ npm run e2e:ritim  # Faz 4.4: vuruş algılama (128 BPM), kesimlerin vuruşa otu
 npm run e2e:grafik # Faz 4.3: logo/başlık render'ı — köşe, saydamlık, Story güvenli alanı, animasyon, orana özel yerleşim
 npm run e2e:ref    # Faz 4.2: referanstan renk eşleme, render'da renk farkı ölçümü
 npm run e2e:lut    # Faz 4: LUT toplu içe aktarma (.cube/.3dl/zip/bozuk), tür tahmini, render'da piksel ölçümü
+npm run e2e:baglanti # Faz 5: sahte ElevenLabs/Gemini/Claude sunucusuyla anahtar güvenliği, taşıma, maliyet, onay, arayüz
 npm run typecheck
 ```
 
