@@ -51,7 +51,18 @@ Geri al / yinele: ⌘Z / ⇧⌘Z.
 
 Ana ekranda **Kurgu Stüdyosu** yeni bir yatay proje açar; Hızlı Edit'teki her proje de **Stüdyoda aç** ile aynı zaman çizelgesinde açılır.
 
-- **Düzen:** solda **Medya** ve **Transkript**, ortada geniş önizleme, sağda **Komut** ve **Seçili öğe**. Sağ paneli köşedeki düğmeyle kapatınca önizleme genişler.
+- **Düzen (kurgu programlarındaki gibi):** solda dikey panel rayı (**Media**, **Transcript**, **Color**, **Gallery**, **AI Tools**), ortada izleyici, sağda **Command** ve **Inspector**, altta kodlu izlerle zaman çizelgesi. Sağ paneli köşedeki düğmeyle kapatınca önizleme genişler. Üst çubukta **Deliver** (kanal paketi) ve **Export** (tek çıktı).
+
+  | Stüdyo'da | Ne işe yarar | Eski adı |
+  |---|---|---|
+  | Media (Media Pool) | Dosyalar; **V1** ana ize, **V2** üst ize, **Gallery** referansa, **Logo**, **A2 · Music** | Medya |
+  | Transcript | Konuşma metni; cümle kesme, altyazı düzeltme | Transkript |
+  | Color (LUT Library) | LUT'lar: dene, karşılaştır, uygula | LUT'larım |
+  | Gallery (Shot Match) | Referans görüntüden renk eşleme | Referans |
+  | AI Tools | Voice Over (ElevenLabs), Product Shot (Gemini) | Üret |
+  | Command / Inspector | Sesli-yazılı komut / seçili öğenin ayarları | Komut / Seçili öğe |
+  | Deliver / Export | Kanal paketi / tek dosya dışa aktarma | Kanal paketi / Dışa aktar |
+  | İzler | **V1** Video · **V2** Overlay · **A1** Voice Over · **A2** Music · **ST** Subtitles · **T1** Titles · **G1** Logo | Görüntü, Üst iz, Dış ses, Müzik, Altyazı, Yazı, Logo |
 - **Transkript:** konuşmalı her klibin ve dış sesin Türkçe metni, kurgudaki zamanıyla. Zamana tıklayınca cümlenin başına, kelimeye tıklayınca tam o kelimeye gidilir; klip zaman çizelgesinde seçilir. Arama kutusuyla metinde arayın. Seçili cümlede iki ayrı eylem var: **Cümleyi kes** (kurgudan çıkarır, boşluk kapanır) ve **Altyazıyı düzelt** (yalnız yazıyı değiştirir, kurguya dokunmaz). Kesilen cümleler soluk ve üstü çizili kalır; ⌘Z ile geri gelir.
 - **Zaman çizelgesi:** görüntü, üst iz (B-roll), dış ses, müzik, altyazı ve yazı ayrı izlerde; klip ve dış seste ses dalgası görünür. Cetvele tıklayıp sürükleyerek imleci taşıyın; klipleri sürükleyerek sıralayın. İz adlarındaki **+** ile o ize ekleme yapılır.
 - **Kısayollar:** boşluk oynat/durdur · ← → bir kare · ⇧← → bir saniye · **I** giriş, **O** çıkış işareti, **⌫** işaretli aralığı sil (Esc temizler) · **S** veya ⌘B imleçte böl · ⌘Z geri al · F tam ekran.

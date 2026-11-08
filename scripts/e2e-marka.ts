@@ -255,7 +255,7 @@ const main = async () => {
         // Stüdyo: marka etiketi ve kanal paketi
         await page.goto(`${base}/#/studyo/${pid}`);
         const chip = await page.getByTestId('brand-chip').innerText();
-        await page.getByRole('button', { name: /Kanal paketi/ }).click();
+        await page.getByRole('button', { name: /Deliver/ }).click();
         await page.waitForSelector('[data-testid=checks] .check-row');
         await page.locator('.dl-ch', { hasText: 'YouTube video' }).locator('.dl-ch-name').click();
         const title = page.getByLabel('Başlık', { exact: true });

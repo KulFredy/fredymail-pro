@@ -188,7 +188,7 @@ const main = async () => {
     await goHome();
     await page.getByTestId('last-project').getByRole('button', { name: /telefondan ekle/i }).click();
     const preChecked = await page.getByTestId('phone-target').locator('input[type=radio]').first().isChecked();
-    const preName = await page.getByTestId('phone-target').locator('.target').first().innerText();
+    const preName = await page.getByTestId('phone-target').locator('.ptarget').first().innerText();
     await page.getByRole('button', { name: /QR kodu göster/ }).click();
     await page.waitForSelector('[data-testid=phone-qr] .qr svg');
     const qrB = await page.locator('.qr-url').innerText();
@@ -310,7 +310,7 @@ const main = async () => {
     await goHome();
     const layout = await page.evaluate(() => {
       const cards = [...document.querySelectorAll('.project-card')].map((c) => c.getBoundingClientRect());
-      const acts = [...document.querySelectorAll('.action')].map((c) => c.getBoundingClientRect());
+      const acts = [...document.querySelectorAll('.home-action')].map((c) => c.getBoundingClientRect());
       return { overflow: document.documentElement.scrollWidth - window.innerWidth, oneCol: cards.every((r, i) => i === 0 || r.top > cards[i - 1].top), actionsStack: acts.every((r, i) => i === 0 || r.top > acts[i - 1].top), widths: cards.map((r) => Math.round(r.width)) };
     });
     await page.screenshot({ path: path.join(work, 'dar-ekran.png'), fullPage: true });

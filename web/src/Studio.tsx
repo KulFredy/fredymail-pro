@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   ArrowLeft, Mic, Square, Send, Undo2, Redo2, Zap, Download, Play, Check, X, Scissors, Trash2, Plus, Music2, Layers, Loader2, Wand2, Video, Image as ImageIcon,
-  PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal, Settings, Package, Tag,
+  PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal, Settings, Package, Tag, FolderOpen, FileText, Palette, Pipette, Sparkles,
 } from 'lucide-react';
 import { COMMAND_EXAMPLES, planCommand, type Plan, type PlanCandidate } from '../../src/core/commands';
 import { describeImpact } from '../../src/core/impact';
@@ -497,7 +497,7 @@ const MediaBin: React.FC = () => {
   return (
     <div className="bin">
       <div className="row-between">
-        <h4>Medya</h4>
+        <h4 lang="en">Media Pool</h4>
         <button className="btn tiny" onClick={() => input.current?.click()}>
           <Plus size={13} /> Yükle
         </button>
@@ -534,29 +534,30 @@ const MediaBin: React.FC = () => {
               </span>
               <div className="row">
                 {a.kind === 'audio' ? (
-                  <button className="link small" onClick={() => apply([{ type: 'music.set', music: { assetId: a.id } }])}>
-                    Müzik yap
+                  <button className="trk-btn a" title="Müzik izine (A2) koy" aria-label="A2 müzik yap" onClick={() => apply([{ type: 'music.set', music: { assetId: a.id } }])}>
+                    A2 · Music
                   </button>
                 ) : (
                   <>
-                    <button className="link small" title="Ana izin sonuna ekle" onClick={() => apply([{ type: 'clips.add', assetIds: [a.id] }])}>
-                      Ana ize
+                    <button className="trk-btn v" title="Ana izin (V1) sonuna ekle" aria-label="V1 ana ize ekle" onClick={() => apply([{ type: 'clips.add', assetIds: [a.id] }])}>
+                      V1
                     </button>
-                    <button className="link small" title="Rengini/havasını örnek almak için referans yap (videoya girmez)" onClick={() => apply([{ type: 'reference.add', assetId: a.id }])}>
-                      Referans
+                    <button
+                      className="trk-btn v"
+                      title="Oynatma imlecine üst iz (V2) olarak ekle; ana ses devam eder"
+                      aria-label="V2 üst ize ekle"
+                      onClick={() => apply([{ type: 'overlay.add', assetId: a.id, at: playhead, duration: 2 }])}
+                    >
+                      <Layers size={11} /> V2
+                    </button>
+                    <button className="trk-btn" title="Gallery: rengini/havasını örnek almak için referans (videoya girmez)" aria-label="Gallery referans yap" onClick={() => apply([{ type: 'reference.add', assetId: a.id }])}>
+                      Gallery
                     </button>
                     {a.kind === 'image' ? (
-                      <button className="link small" title="Logo olarak ekle (saydam PNG/SVG önerilir)" onClick={() => apply([{ type: 'logo.add', assetId: a.id }])}>
+                      <button className="trk-btn g" title="Logo izine (G1) ekle; saydam PNG/SVG önerilir" aria-label="G1 logo ekle" onClick={() => apply([{ type: 'logo.add', assetId: a.id }])}>
                         Logo
                       </button>
                     ) : null}
-                    <button
-                      className="link small"
-                      title="Oynatma imlecine üst iz olarak ekle (ana ses devam eder)"
-                      onClick={() => apply([{ type: 'overlay.add', assetId: a.id, at: playhead, duration: 2 }])}
-                    >
-                      <Layers size={11} /> Üst ize
-                    </button>
                   </>
                 )}
               </div>
@@ -785,7 +786,7 @@ export const Studio: React.FC = () => {
   const laneAction = (key: string) => {
     if (key === 'v1' || key === 'v2') {
       setLeftTab('medya');
-      toast(key === 'v1' ? 'Medyada “Ana ize” ile ekleyin' : 'Medyada “Üst ize” ile oynatma imlecine ekleyin');
+      toast(key === 'v1' ? 'Media Pool’da “V1” ile ekleyin' : 'Media Pool’da “V2” ile oynatma imlecine ekleyin');
     } else if (key === 'a2') {
       openRight('komut');
       setCmdMode('disses');
@@ -864,25 +865,26 @@ export const Studio: React.FC = () => {
           <Zap size={15} /> Hızlı Edit
         </a>
         <button className="btn ghost" onClick={() => setDeliveryOpen(true)} title="YouTube, Shorts, Reels, Story, 4:5 reklam: kapak, altyazı dosyası, metinler, kontrol, zip">
-          <Package size={15} /> Kanal paketi
+          <Package size={15} /> Deliver
         </button>
         <button className="btn primary" onClick={() => setExporting(true)}>
-          <Download size={15} /> Dışa aktar
+          <Download size={15} /> Export
         </button>
       </header>
       <aside className="studio-left">
-        <div className="tabs" role="tablist">
+        <div className="tabs rail" role="tablist" aria-orientation="vertical" aria-label="Paneller">
           {(
             [
-              ['medya', 'Medya'],
-              ['transkript', 'Transkript'],
-              ['luts', "LUT'larım"],
-              ['referans', 'Referans'],
-              ['uret', 'Üret'],
+              ['medya', 'Media', FolderOpen],
+              ['transkript', 'Transcript', FileText],
+              ['luts', 'Color', Palette],
+              ['referans', 'Gallery', Pipette],
+              ['uret', 'AI Tools', Sparkles],
             ] as const
-          ).map(([k, l]) => (
-            <button key={k} role="tab" aria-selected={leftTab === k} className={leftTab === k ? 'on' : ''} onClick={() => setLeftTab(k)}>
-              {l}
+          ).map(([k, l, Icon]) => (
+            <button key={k} role="tab" aria-selected={leftTab === k} className={leftTab === k ? 'on' : ''} onClick={() => setLeftTab(k)} title={l}>
+              <Icon size={18} aria-hidden />
+              <span>{l}</span>
             </button>
           ))}
         </div>
@@ -902,12 +904,12 @@ export const Studio: React.FC = () => {
           <div className="tabs" role="tablist">
             {(
               [
-                ['komut', 'Komut'],
-                ['secili', 'Seçili öğe'],
+                ['komut', 'Command'],
+                ['secili', 'Inspector'],
               ] as const
             ).map(([k, l]) => (
               <button key={k} role="tab" aria-selected={rightTab === k} className={rightTab === k ? 'on' : ''} onClick={() => setRightTab(k)}>
-                {l}
+                <span lang="en">{l}</span>
               </button>
             ))}
             <button className="tab-icon" onClick={() => setRightOpen(false)} title="Paneli kapat (önizleme genişler)" aria-label="Sağ paneli kapat">
@@ -930,7 +932,7 @@ export const Studio: React.FC = () => {
           <button className="icon-btn" onClick={() => openRight('komut')} title="Komut">
             <MessageSquareText size={17} />
           </button>
-          <button className="icon-btn" onClick={() => openRight('secili')} title="Seçili öğe">
+          <button className="icon-btn" onClick={() => openRight('secili')} title="Inspector">
             <SlidersHorizontal size={17} />
           </button>
         </aside>
@@ -964,7 +966,7 @@ export const Studio: React.FC = () => {
             const imgs = (r.assets as { id: string; kind: string }[]).filter((a) => a.kind === 'image');
             if (!imgs.length) return toast('Logo için bir görsel seçin (PNG, SVG)', 'error');
             apply(imgs.map((a) => ({ type: 'logo.add' as const, assetId: a.id })), { label: 'Logo eklendi' });
-            toast('Logo sağ üste eklendi; Seçili öğe panelinden konumunu değiştirebilirsiniz');
+            toast('Logo sağ üste eklendi; Inspector panelinden konumunu değiştirebilirsiniz');
           } catch (err) {
             toast((err as Error).message, 'error');
           }
@@ -989,7 +991,7 @@ export const Studio: React.FC = () => {
         </Modal>
       ) : null}
       {exporting ? (
-        <Modal title="Dışa aktar" onClose={() => setExporting(false)} width={640}>
+        <Modal title="Export" onClose={() => setExporting(false)} width={640}>
           <ExportStep />
         </Modal>
       ) : null}

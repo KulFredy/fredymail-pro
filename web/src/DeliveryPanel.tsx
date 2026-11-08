@@ -206,7 +206,7 @@ export const DeliveryModal: React.FC<{ onClose: () => void; openConnections?: ()
   };
 
   return (
-    <Modal title="Kanal paketi" onClose={onClose} width={1040}>
+    <Modal title="Deliver · kanal paketi" onClose={onClose} width={1040}>
       <div className="delivery">
         <div className="dl-left">
           <small className="muted">Pakete girecek kanallar</small>

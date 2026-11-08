@@ -277,7 +277,7 @@ const main = async () => {
         check('Arayüz: Bağlantılar penceresi durumları gösteriyor, anahtar sayfada yok', /kalan 99\.000/.test(states.join(' ')) && /doğrulanmadı/.test(states.join(' ')) && !Object.values(KEYS).some((k) => html.includes(k)), states.map((x: string) => x.split('\n')[0]).join(' | '));
         await page.getByRole('button', { name: 'Kapat' }).first().click().catch(() => page.keyboard.press('Escape'));
         await page.keyboard.press('Escape');
-        await page.getByRole('tab', { name: 'Üret' }).click();
+        await page.getByRole('tab', { name: 'AI Tools' }).click();
         await page.getByLabel('Dış ses metni').fill('Arayüzden üretilen dış ses, hafta sonu bekliyoruz.');
         await page.waitForSelector('[data-testid=tts-estimate]');
         const estTxt = await page.locator('[data-testid=tts-estimate]').innerText();
@@ -289,7 +289,7 @@ const main = async () => {
         await new Promise((r) => setTimeout(r, 500));
         const v1 = (await api("GET", `/api/projects/${pid}`)).j.project.voice.length;
         check('Arayüz: maliyet tahmini görünür; “Üret” dış ses izine ekler', /karakter · ≈ \d+ kredi · kalan/.test(estTxt) && calls.tts === n0 + 1 && v1 === v0 + 1, `${estTxt} · ses izi ${v0}→${v1}`);
-        await page.getByRole('button', { name: 'Ürün arka planı' }).click();
+        await page.getByRole('button', { name: 'Product Shot' }).click();
         await page.getByLabel('Arka plan tarifi').fill('mermer tezgah, yumuşak ışık');
         await page.getByRole('button', { name: /2 seçenek üret/ }).click();
         const conf = await page.locator('.confirm-box').innerText();

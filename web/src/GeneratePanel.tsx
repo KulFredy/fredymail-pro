@@ -29,8 +29,8 @@ export const GeneratePanel: React.FC<{ regen: RegenRequest | null; onRegenDone: 
   return (
     <div className="genp">
       <div className="row-between">
-        <h4>
-          <Sparkles size={14} /> Üret
+        <h4 lang="en">
+          <Sparkles size={14} /> AI Tools
         </h4>
         <button className="btn tiny ghost" onClick={openConnections} title="Ayarlar → Bağlantılar">
           <Plug size={13} /> Bağlantılar
@@ -41,8 +41,8 @@ export const GeneratePanel: React.FC<{ regen: RegenRequest | null; onRegenDone: 
         value={mode}
         onChange={setMode}
         options={[
-          { value: 'ses', label: 'Dış ses', hint: 'ElevenLabs ile metinden Türkçe dış ses' },
-          { value: 'gorsel', label: 'Ürün arka planı', hint: 'Nano Banana 2 ile ürün fotoğrafına yeni arka plan' },
+          { value: 'ses', label: 'Voice Over', hint: 'ElevenLabs ile metinden Türkçe dış ses' },
+          { value: 'gorsel', label: 'Product Shot', hint: 'Nano Banana 2 ile ürün fotoğrafına yeni arka plan' },
         ]}
       />
       {mode === 'ses' ? (
@@ -327,10 +327,10 @@ const Results: React.FC<{ gen: Generation; library: Map<string, import('../../sr
             {approved ? (
               <div className="row-wrap">
                 <button className="link small" onClick={() => apply([{ type: 'clips.add', assetIds: [id] }])}>
-                  Ana ize
+                  V1
                 </button>
                 <button className="link small" onClick={() => apply([{ type: 'overlay.add', assetId: id, at: frame / FPS, duration: 2 }])}>
-                  <Layers size={11} /> Üst ize
+                  <Layers size={11} /> V2
                 </button>
               </div>
             ) : (

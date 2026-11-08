@@ -132,7 +132,7 @@ export const ReferencePanel: React.FC<{ selection: Selection }> = ({ selection }
     if (previewing) await reload();
     apply(lutOps(project, target === 'klip' ? clip : null, match.lutId, amount), { label: `Renk eşleme: ${match.name}` });
     setPreviewing(false);
-    toast(`Renk eşlendi. LUT'larım'da “${match.name}” olarak duruyor.`);
+    toast(`Renk eşlendi. Color panelinde (LUT Library) “${match.name}” olarak duruyor.`);
     setMatch(null);
   };
   const cancel = async () => {
@@ -144,7 +144,7 @@ export const ReferencePanel: React.FC<{ selection: Selection }> = ({ selection }
   return (
     <div className="refp">
       <div className="row-between">
-        <h4>Referanslar</h4>
+        <h4 lang="en">Shot Match</h4>
         <button className="btn tiny" onClick={() => input.current?.click()} title="Beğendiğiniz bir fotoğraf veya video">
           <Plus size={13} /> Ekle
         </button>

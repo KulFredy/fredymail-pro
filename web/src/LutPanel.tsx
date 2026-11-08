@@ -217,7 +217,7 @@ export const LutPanel: React.FC<{ selection: Selection }> = ({ selection }) => {
       }}
     >
       <div className="row-between">
-        <h4>LUT'larım</h4>
+        <h4 lang="en">LUT Library</h4>
         <div className="row">
           <button className="btn tiny" onClick={() => fileInput.current?.click()} title=".cube, .3dl veya .zip seçin (birden çok)">
             <Upload size={13} /> Dosya

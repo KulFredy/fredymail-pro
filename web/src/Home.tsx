@@ -161,7 +161,7 @@ const CardMenu: React.FC<{ p: ProjectSummary; onRename: () => void; onPin: () =>
         <MoreHorizontal size={17} />
       </button>
       {open ? (
-        <div className="menu" role="menu">
+        <div className="card-menu-list" role="menu">
           <button role="menuitem" onClick={item(onRename)}>
             <Pencil size={14} /> Yeniden adlandır
           </button>
@@ -293,7 +293,7 @@ export const Home: React.FC = () => {
       </header>
 
       <section className="actions" aria-label="Ana eylemler">
-        <div className={`action action-last ${lastProject ? '' : 'empty-last'}`} data-testid="last-project">
+        <div className={`home-action action-last ${lastProject ? '' : 'empty-last'}`} data-testid="last-project">
           {lastProject ? (
             <>
               <a className="last-cover" href={editorHash(lastProject.editor, lastProject.id)} style={{ backgroundImage: lastProject.poster ? `url(${fileHref(lastProject.poster)})` : undefined }} aria-label={`${lastProject.name} projesine dön`}>
@@ -329,7 +329,7 @@ export const Home: React.FC = () => {
             </div>
           )}
         </div>
-        <div className="action action-new" data-testid="new-actions">
+        <div className="home-action action-new" data-testid="new-actions">
           <span className="action-title">
             <Plus size={20} /> Yeni proje
           </span>
@@ -351,7 +351,7 @@ export const Home: React.FC = () => {
             <Megaphone size={12} /> Marka kampanyası
           </button>
         </div>
-        <button className="action action-phone" onClick={() => setDialog({ kind: 'telefon' })}>
+        <button className="home-action action-phone" onClick={() => setDialog({ kind: 'telefon' })}>
           <Smartphone size={28} />
           <b>Telefondan ekle</b>
           <span>QR ile aynı Wi-Fi'den fotoğraf, video, müzik</span>

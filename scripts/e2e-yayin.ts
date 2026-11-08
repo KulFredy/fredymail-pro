@@ -224,7 +224,7 @@ const main = async () => {
       page.on('pageerror', (e: Error) => errors.push(e.message));
       try {
         await page.goto(`${base}/#/studyo/${pid}`);
-        await page.getByRole('button', { name: /Kanal paketi/ }).click();
+        await page.getByRole('button', { name: /Deliver/ }).click();
         await page.waitForSelector('[data-testid=packages] .dl-pkg');
         const linkTxt = await page.locator('[data-testid=yt-pub]').filter({ hasText: 'youtu.be' }).first().innerText();
         await page.keyboard.press('Escape');

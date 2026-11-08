@@ -95,14 +95,14 @@ export const PhoneTransferModal: React.FC<{
         <div className="stack" data-testid="phone-target">
           <p className="hint">Telefondaki fotoğraf, video ve müzikler hangi projeye gitsin?</p>
           <div className="target-list" role="radiogroup" aria-label="Hedef proje">
-            <label className={`target ${kind === 'son' ? 'on' : ''} ${last ? '' : 'disabled'}`}>
+            <label className={`ptarget ${kind === 'son' ? 'on' : ''} ${last ? '' : 'disabled'}`}>
               <input type="radio" name="hedef" checked={kind === 'son'} disabled={!last} onChange={() => setKind('son')} />
               <span>
                 <b>Son proje</b>
                 <small className="muted">{last ? last.name : 'Henüz proje yok'}</small>
               </span>
             </label>
-            <label className={`target ${kind === 'proje' ? 'on' : ''} ${others.length ? '' : 'disabled'}`}>
+            <label className={`ptarget ${kind === 'proje' ? 'on' : ''} ${others.length ? '' : 'disabled'}`}>
               <input type="radio" name="hedef" checked={kind === 'proje'} disabled={!others.length} onChange={() => setKind('proje')} />
               <span>
                 <b>Başka bir mevcut proje</b>
@@ -119,7 +119,7 @@ export const PhoneTransferModal: React.FC<{
                 )}
               </span>
             </label>
-            <label className={`target ${kind === 'yeni' ? 'on' : ''}`}>
+            <label className={`ptarget ${kind === 'yeni' ? 'on' : ''}`}>
               <input type="radio" name="hedef" checked={kind === 'yeni'} onChange={() => setKind('yeni')} />
               <span>
                 <b>Yeni proje</b>

@@ -36,7 +36,7 @@ export const GUIDE: GuideSection[] = [
     id: 'komut',
     title: 'Stüdyo’da sesli komutu önizleyip uygulama',
     steps: [
-      <>Sağ panelde <B>Komut</B> sekmesi ve <B>Talimat</B> seçili olsun (Dış ses değil).</>,
+      <>Sağ panelde <B>Command</B> sekmesi ve <B>Talimat</B> seçili olsun (Dış ses değil).</>,
       <>Mikrofon düğmesine basıp konuşun (“Buradan sonraki üç saniyeyi kes”), bitince yeniden basın; ya da yazıp Enter.</>,
       <>Panel hangi klibin, hangi aralığın değişeceğini gösterir. <B>Önizle</B> ile deneyin; beğenirseniz <B>Uygula</B>, beğenmezseniz <B>Vazgeç</B>.</>,
       <>Uyguladıktan sonra fikriniz değişirse <B>Geri al</B> (⌘Z).</>,
@@ -46,7 +46,7 @@ export const GUIDE: GuideSection[] = [
     id: 'transkript',
     title: 'Cümleyi kes ile Altyazıyı düzelt farkı',
     steps: [
-      <>Solda <B>Transkript</B> sekmesini açın; bir cümleye tıklayınca imleç oraya gider.</>,
+      <>Soldaki panel rayında <B>Transcript</B>’i açın; bir cümleye tıklayınca imleç oraya gider.</>,
       <><B>Cümleyi kes</B>: o cümleyi videodan çıkarır, sonrası kayar. Görüntü ve ses kısalır.</>,
       <><B>Altyazıyı düzelt</B>: yalnız ekrandaki yazıyı değiştirir (yanlış duyulan kelime). Video süresi değişmez.</>,
     ],
@@ -56,7 +56,7 @@ export const GUIDE: GuideSection[] = [
     id: 'lut',
     title: 'LUT seçip karşılaştırma',
     steps: [
-      <>Stüdyo’da solda <B>LUT’larım</B> sekmesini açın; LUT’larınızı <B>Klasör</B> veya <B>Dosya</B> ile ekleyin.</>,
+      <>Stüdyo’da soldaki panel rayında <B>Color</B>’ı açın (LUT Library); LUT’larınızı <B>Klasör</B> veya <B>Dosya</B> ile ekleyin.</>,
       <>Bir LUT’a tıklayın: ana önizlemede hemen denenir, kaydedilmez. <B>Yoğunluk</B> ile ayarlayın.</>,
       <><B>Karşılaştır</B> ile aynı karede önce/sonra ve en çok 4 LUT’u yan yana görün.</>,
       <>Hedefi seçin (<B>Seçili klip</B> veya <B>Tüm kurgu</B>) ve <B>Uygula</B>.</>,

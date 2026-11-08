@@ -64,7 +64,7 @@ const main = async () => {
     const pid = (await api('GET', '/api/projects')).find((p: any) => p.name === 'Eski Faz 2 projesi').id;
     const before = (await api('GET', `/api/projects/${pid}`)).project;
     await page.goto(`${base}/#/studyo/${pid}`);
-    await page.getByRole('tab', { name: 'Transkript' }).click();
+    await page.getByRole('tab', { name: 'Transcript' }).click();
     await page.waitForSelector('.tr-sen');
 
     /** Ekrandaki durum: imleç zamanı, önizleme saati, seçili klip */
@@ -226,8 +226,8 @@ const main = async () => {
     const empty = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Boş', formats: [{ format: 'landscape' }] }) })).json();
     await page.goto(`${base}/#/studyo/${empty.project.id}`);
     await page.waitForSelector('.strip-empty');
-    await page.getByRole('tab', { name: 'Medya' }).click();
-    await page.getByRole('button', { name: 'Ana ize' }).first().click();
+    await page.getByRole('tab', { name: 'Media' }).click();
+    await page.getByRole('button', { name: 'V1 ana ize ekle' }).first().click();
     await page.waitForSelector('.tl-item.clip');
     await page.waitForTimeout(400);
     const fill = await page.evaluate(() => {
@@ -250,7 +250,7 @@ const main = async () => {
 
     // 10) LUT'larım: dosyadan içe aktar (bir bozuk), küçük önizlemeler, ana önizlemede dene, uyarı, uygula, geri al, karşılaştır
     await page.goto(`${base}/#/studyo/${pid}`);
-    await page.getByRole('tab', { name: "LUT'larım" }).click();
+    await page.getByRole('tab', { name: 'Color' }).click();
     const cubeTxt = (f: (r: number, g: number, b: number) => number[]) => {
       const l = ['LUT_3D_SIZE 2'];
       for (let b = 0; b < 2; b++) for (let g = 0; g < 2; g++) for (let r = 0; r < 2; r++) l.push(f(r, g, b).join(' '));
@@ -304,7 +304,7 @@ const main = async () => {
     // 11) Referans: sıcak bir fotoğraf ekle → rengi eşle → önizleme kaydetmez → uygula → geri al
     const sharpMod = (await import('sharp')).default;
     const warm = await sharpMod({ create: { width: 600, height: 400, channels: 3, background: { r: 215, g: 150, b: 90 } } }).jpeg().toBuffer();
-    await page.getByRole('tab', { name: 'Referans' }).click();
+    await page.getByRole('tab', { name: 'Gallery' }).click();
     await page.locator('.refp input[type=file]').setInputFiles([{ name: 'sicak.jpg', mimeType: 'image/jpeg', buffer: warm }]);
     await page.waitForSelector('.ref-card img', { timeout: 60000 });
     const refs = (await api('GET', `/api/projects/${pid}`)).project.references;
@@ -332,11 +332,15 @@ const main = async () => {
     for (let i = 0; i < 200 * 100; i++) if (i % 200 < 100) lpx.set([230, 20, 20, 255], i * 4);
     const logoPng = await sharpMod(lpx, { raw: { width: 200, height: 100, channels: 4 } }).png().toBuffer();
     await page.locator('[data-testid=logo-input]').setInputFiles([{ name: 'marka.png', mimeType: 'image/png', buffer: logoPng }]);
-    await page.waitForSelector('.tl-item.logo', { timeout: 60000 });
+    await page.waitForSelector('.tl-item.logo', { timeout: 60000 }).catch(async (e) => {
+      await page.screenshot({ path: path.join(work, 'logo-hata.png') });
+      console.log('logo yok:', JSON.stringify((await api('GET', `/api/projects/${pid}`)).project.logos), await page.locator('.toast').allInnerTexts());
+      throw e;
+    });
     let pl = (await api('GET', `/api/projects/${pid}`)).project;
     check('Logo eklendi: sağ üst, videonun tamamı', pl.logos.length === 1 && pl.logos[0].anchor === 'tr' && pl.logos[0].full === true);
     await page.locator('.tl-item.logo').click();
-    await page.getByRole('tab', { name: 'Seçili öğe' }).click().catch(() => undefined);
+    await page.getByRole('tab', { name: 'Inspector' }).click().catch(() => undefined);
     await page.waitForSelector('.anchor-grid');
     await page.getByRole('button', { name: 'sol alt', exact: true }).click();
     await page.waitForTimeout(500);
@@ -355,7 +359,7 @@ const main = async () => {
     await page.reload();
     await page.waitForSelector('.tl-item.text');
     await page.locator('.tl-item.text', { hasText: 'Kampanya' }).click({ force: true });
-    await page.getByRole('tab', { name: 'Seçili öğe' }).click().catch(() => undefined);
+    await page.getByRole('tab', { name: 'Inspector' }).click().catch(() => undefined);
     const warnTxt = await page.locator('.impact-warn').first().innerText({ timeout: 10000 });
     check('Güvenli alan uyarısı gösterildi', /Instagram üst bilgisinin|kenara çok yakın/.test(warnTxt), warnTxt.split('\n')[0]);
     const nWarn = await page.locator('.impact-warn').count();
@@ -368,7 +372,7 @@ const main = async () => {
 
     // 13) Hareket: seçili klipte “Yavaşça yakınlaş”, yalnız girişte
     await page.locator('.tl-item.clip').first().click();
-    await page.getByRole('tab', { name: 'Seçili öğe' }).click().catch(() => undefined);
+    await page.getByRole('tab', { name: 'Inspector' }).click().catch(() => undefined);
     await page.getByText('Hareket (yavaş yakınlaşma / kaydırma)').click();
     await page.getByLabel('Hareket', { exact: true }).selectOption('yakinlas');
     await page.waitForTimeout(400);

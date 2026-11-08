@@ -66,7 +66,7 @@ const Wave: React.FC<{ file: string | null | undefined; from: number; to: number
   );
 };
 
-const LABEL_W = 92;
+const LABEL_W = 132;
 
 /**
  * Çok izli zaman çizelgesi: cetvel, oynatma imleci, görüntü / üst iz / dış ses / müzik / altyazı / yazı izleri.
@@ -143,15 +143,16 @@ export const Timeline: React.FC<{
   };
 
   const music = project.music ? library.get(project.music.assetId) : undefined;
-  const lanes: { key: string; label: string; show: boolean }[] = [
-    { key: 'v1', label: 'Görüntü', show: true },
-    { key: 'v2', label: 'Üst iz', show: !compact || project.overlays.length > 0 },
-    { key: 'a2', label: 'Dış ses', show: !compact || project.voice.length > 0 },
-    { key: 'a1', label: 'Müzik', show: true },
+  /** İz başlıkları: kurgu programlarındaki gibi kod (V1, A1…) + ad; tür rengiyle */
+  const lanes: { key: string; code: string; kind: 'v' | 'a' | 's' | 't' | 'g'; label: string; show: boolean }[] = [
+    { key: 'v1', code: 'V1', kind: 'v', label: 'Video', show: true },
+    { key: 'v2', code: 'V2', kind: 'v', label: 'Overlay', show: !compact || project.overlays.length > 0 },
+    { key: 'a2', code: 'A1', kind: 'a', label: 'Voice Over', show: !compact || project.voice.length > 0 },
+    { key: 'a1', code: 'A2', kind: 'a', label: 'Music', show: true },
     // Stüdyo'da altyazı izi kapalıyken de görünür kalır: yoksa “+” ile kapatılan altyazı geri açılamaz
-    { key: 'c', label: 'Altyazı', show: compact ? project.captions.enabled && pages.length > 0 : true },
-    { key: 't', label: 'Yazı', show: !compact || project.texts.length > 0 },
-    { key: 'g', label: 'Logo', show: !compact || project.logos.length > 0 },
+    { key: 'c', code: 'ST', kind: 's', label: 'Subtitles', show: compact ? project.captions.enabled && pages.length > 0 : true },
+    { key: 't', code: 'T1', kind: 't', label: 'Titles', show: !compact || project.texts.length > 0 },
+    { key: 'g', code: 'G1', kind: 'g', label: 'Logo', show: !compact || project.logos.length > 0 },
   ];
 
   if (!project.clips.length)
@@ -197,13 +198,15 @@ export const Timeline: React.FC<{
           <div className="tl-ruler-label" />
           {lanes.filter((l) => l.show).map((l) =>
             onLaneAction ? (
-              <button key={l.key} className={`tl-label lane-${l.key} action`} title={LANE_ACTION[l.key]} onClick={() => onLaneAction(l.key)}>
-                <span>{l.label}</span>
+              <button key={l.key} className={`tl-label lane-${l.key} trk-${l.kind} action`} title={LANE_ACTION[l.key]} onClick={() => onLaneAction(l.key)}>
+                <span className="trk-code">{l.code}</span>
+                <span className="trk-name">{l.label}</span>
                 <Plus size={12} />
               </button>
             ) : (
-              <div key={l.key} className={`tl-label lane-${l.key}`}>
-                {l.label}
+              <div key={l.key} className={`tl-label lane-${l.key} trk-${l.kind}`}>
+                <span className="trk-code">{l.code}</span>
+                <span className="trk-name">{l.label}</span>
               </div>
             ),
           )}
@@ -321,7 +324,7 @@ export const Timeline: React.FC<{
                                   : null}
                               </div>
                             )
-                          : <span className="tl-empty">Müzik yok</span>
+                          : <span className="tl-empty">Müzik yok · eklemek için soldaki +</span>
                         : l.key === 'c'
                           ? !project.captions.enabled
                             ? [<span key="off" className="tl-empty">Altyazı kapalı · açmak için soldaki +</span>]

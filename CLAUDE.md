@@ -19,7 +19,8 @@ Veri: `~/İçerik Fabrikası/` (`FABRIKA_HOME`): `markalar.json`, `teslim/<marka
 - **zod v4'te `.partial()` varsayılanları doldurur** → kısmi güncellemelerde `patchOf(...)` kullan (`core/ops.ts`), asla `.partial()` değil.
 - Kompozisyon 1080 tabanlı tasarlanır; çözünürlük render'da `scale` ile (720/1080/1440/2160). Önizlemede DPR kullanma (yalnız `getRemotionEnvironment().isRendering`).
 - Remotion Player'a boş `src` verme (çöker); hazır olmayan kaynakta yer tutucu göster.
-- Arayüz metinleri Türkçe; commit mesajları Türkçe; `Co-Authored-By` satırları korunur.
+- Arayüz metinleri Türkçe; Stüdyo'da panel/iz adları kullanıcının isteğiyle kurgu programlarındaki İngilizce terimler (Media, Transcript, Color, Gallery, AI Tools, Command, Inspector, Deliver, Export; izler V1/V2/A1/A2/ST/T1/G1). Commit mesajları Türkçe; `Co-Authored-By` satırları korunur.
+- CSS: genel sınıf adları (`.action`, `.target`, `.menu`) çakışır; yeni bileşenlerde önekli ad kullan. Tasarım belirteçleri `styles.css` sonundaki “Tasarım sistemi v2” bölümünde.
 - Claude API kodu: varsayılan model `claude-opus-5-5`, kullanıcı ayarlardan Sonnet/Haiku seçebilir; zorunlu `tool_choice` yok (auto); Haiku'da `fallbacks` gönderme.
 - Remotion lisansı: ≤3 kişilik ekip ücretsiz; büyürse şirket lisansı (alternatif: HyperFrames).
 
