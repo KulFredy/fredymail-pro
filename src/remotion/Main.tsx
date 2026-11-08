@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, Audio, Sequence, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, Img, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import { FORMATS } from '../core/formats';
 import { effectiveCamera, effectiveLook } from '../core/looks';
-import { FPS, type CompProps, type Output, type TextOverlay } from '../core/schema';
+import { animAt, logoBox, logoSpan, placementFor, textBox } from '../core/graphics';
+import { FPS, type CompProps, type Logo, type Output, type TextOverlay } from '../core/schema';
 import {
   edgeGain,
   captionPages,
@@ -131,43 +132,84 @@ const Captions: React.FC<{ props: CompProps; output: Output }> = ({ props, outpu
   );
 };
 
-const TextItem: React.FC<{ text: TextOverlay }> = ({ text }) => {
+const TextItem: React.FC<{ text: TextOverlay; output: Output }> = ({ text, output }) => {
   const frame = useCurrentFrame();
-  const { width: W, height: H } = useVideoConfig();
+  const { width: W } = useVideoConfig();
   const len = toFrames(text.end - text.start);
-  const opacity = interpolate(frame, [0, 8, Math.max(9, len - 8), len], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const { opacity, dy, scale } = animAt(text.anim, frame, len, FPS);
+  const box = textBox(text, output);
+  const size = text.size * placementFor(text, output).scale;
   const shadow =
     text.style === 'outline'
-      ? `0 0 ${text.size * 0.1}px rgba(0,0,0,0.9)`
+      ? `0 0 ${size * 0.1}px rgba(0,0,0,0.9)`
       : text.style === 'shadow'
-        ? `0 ${text.size * 0.05}px ${text.size * 0.2}px rgba(0,0,0,0.55)`
+        ? `0 ${size * 0.05}px ${size * 0.2}px rgba(0,0,0,0.55)`
         : 'none';
   return (
     <div
       style={{
         position: 'absolute',
-        left: text.x * W,
-        top: text.y * H,
-        transform: `translate(-50%, -50%) translateY(${(1 - opacity) * 20}px)`,
+        left: box.cx,
+        top: box.cy,
+        transform: `translate(-50%, -50%) translateY(${dy}px) scale(${scale})`,
+        width: 'max-content',
         maxWidth: W * 0.86,
         opacity,
         fontFamily: text.font,
         fontWeight: 800,
-        fontSize: text.size,
+        fontSize: size,
         lineHeight: 1.1,
         color: text.color,
         textAlign: 'center',
         whiteSpace: 'pre-wrap',
         textShadow: shadow,
         background: text.style === 'box' ? 'rgba(0,0,0,0.6)' : 'transparent',
-        padding: text.style === 'box' ? `${text.size * 0.12}px ${text.size * 0.3}px` : 0,
-        borderRadius: text.size * 0.2,
+        padding: text.style === 'box' ? `${size * 0.12}px ${size * 0.3}px` : 0,
+        borderRadius: size * 0.2,
       }}
     >
       {text.text}
     </div>
   );
 };
+
+/** Logo: saydam görsel, güvenli alan ızgarasına göre; çıktıya özel yerleşim ve animasyon */
+const LogoItem: React.FC<{ logo: Logo; output: Output; props: CompProps; len: number; still?: boolean }> = ({ logo, output, props, len, still }) => {
+  const frame = useCurrentFrame();
+  const asset = props.assets[logo.assetId];
+  if (!asset?.url) return null;
+  const b = logoBox(logo, asset, output);
+  const a = still ? { opacity: 1, dy: 0, scale: 1 } : animAt(logo.anim, frame, len, FPS);
+  return (
+    <Img
+      src={asset.url}
+      style={{
+        position: 'absolute',
+        left: b.cx - b.w / 2,
+        top: b.cy - b.h / 2,
+        width: b.w,
+        height: b.h,
+        objectFit: 'contain',
+        opacity: a.opacity * logo.opacity,
+        transform: `translateY(${a.dy}px) scale(${a.scale})`,
+      }}
+    />
+  );
+};
+
+const Logos: React.FC<{ props: CompProps; output: Output }> = ({ props, output }) => (
+  <>
+    {props.project.logos.map((l) => {
+      const span = logoSpan(l, props.project);
+      const len = Math.max(1, toFrames(span.end - span.start));
+      return (
+        <Sequence key={l.id} from={toFrames(span.start)} durationInFrames={len} name="Logo">
+          <LogoItem logo={l} output={output} props={props} len={len} />
+        </Sequence>
+      );
+    })}
+  </>
+);
 
 const VideoView: React.FC<{ props: CompProps; output: Output }> = ({ props, output }) => {
   const { project } = props;
@@ -219,10 +261,11 @@ const VideoView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
       ) : null}
       {project.texts.map((t) => (
         <Sequence key={t.id} from={toFrames(t.start)} durationInFrames={Math.max(1, toFrames(t.end - t.start))} name="Yazı">
-          <TextItem text={t} />
+          <TextItem text={t} output={output} />
         </Sequence>
       ))}
       {project.captions.enabled ? <Captions props={props} output={output} /> : null}
+      <Logos props={props} output={output} />
     </AbsoluteFill>
   );
 };
@@ -238,6 +281,12 @@ const StillView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
       <Sequence from={-toFrames(at)} durationInFrames={toFrames(at) + 2}>
         <ClipLayer item={{ ...item, start: 0, end: item.duration }} output={output} props={props} />
       </Sequence>
+      {/* Post görselinde logolar sabit (animasyonsuz) görünür */}
+      {props.project.logos
+        .filter((l) => l.full)
+        .map((l) => (
+          <LogoItem key={l.id} logo={l} output={output} props={props} len={1} still />
+        ))}
     </AbsoluteFill>
   );
 };
