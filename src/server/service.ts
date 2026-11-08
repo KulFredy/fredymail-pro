@@ -15,7 +15,7 @@ import { LutMetaSchema, classifyLut, lutFormat, parse3dl, toCube, unsupportedRea
 import { getTools, runOk } from '../media/proc';
 import { buildRefs, lutUrls, type LutInfo } from '../core/refs';
 import { AssetSchema, type Asset, type CompProps, type Project } from '../core/schema';
-import { outputFrames } from '../core/timeline';
+import { layoutClips, outputFrames } from '../core/timeline';
 import { suggestedMusicMode } from '../core/timeline';
 import { archiveOriginal, hashFile, processMedia } from '../media/ingest';
 import { probe } from '../media/probe';
@@ -526,7 +526,12 @@ export class Service {
   }
 
   enqueueRender(projectId: string, outputId: string, variant: 'full' | 'nomusic' = 'full') {
-    return this.jobs.add('render', `Dışa aktarılıyor`, { projectId, outputId }, async (update) => {
+    return this.jobs.add('render', `Dışa aktarılıyor`, { projectId, outputId }, (update) => this.renderNow(projectId, outputId, variant, update));
+  }
+
+  /** Bir çıktıyı hemen render eder ve doğrular (iş kuyruğu dışında; paket işi de kullanır) */
+  async renderNow(projectId: string, outputId: string, variant: 'full' | 'nomusic', update: (p: number, m?: string) => void, opts: { record?: boolean } = {}): Promise<ExportEntry> {
+    {
       const project = await this.store.getProject(projectId);
       const output = project.outputs.find((o) => o.id === outputId);
       if (!output) throw new Error('Çıktı bulunamadı');
@@ -568,9 +573,28 @@ export class Service {
         createdAt: new Date().toISOString(),
         verification,
       };
-      await this.addExport(projectId, entry);
-      this.store.emit('export', { projectId, entry });
+      if (opts.record !== false) {
+        await this.addExport(projectId, entry);
+        this.store.emit('export', { projectId, entry });
+      }
       return entry;
-    });
+    }
+  }
+
+  /** Kapak/küçük resim: kurgunun bir anındaki kare (+ isteğe bağlı başlık) JPEG olarak */
+  async renderCover(project: Project, outputId: string, at: number, title: CompProps['coverTitle'], outFile: string, resolution: '720' | '1080', format?: Project['outputs'][number]['format']) {
+    const output = project.outputs.find((o) => o.id === outputId);
+    if (!output) throw new Error('Çıktı bulunamadı');
+    const layout = layoutClips(project);
+    const item = layout.find((l) => at >= l.start && at < l.end) ?? layout[layout.length - 1];
+    if (!item) throw new Error('Projede klip yok');
+    const still = { clipId: item.clip.id, at: Math.max(0, Math.min(item.duration - 0.05, at - item.start)) };
+    const coverOut = { ...output, id: `${output.id}_kapak`, format: format ?? output.format, kind: 'image' as const, still, captions: { enabled: false } };
+    const framing = coverOut.format === output.format ? output.framing : {};
+    const p2: Project = { ...structuredClone(project), outputs: [{ ...coverOut, framing }] };
+    for (const el of [...p2.texts, ...p2.logos]) if (el.placements[output.id]) el.placements = { ...el.placements, [coverOut.id]: el.placements[output.id] };
+    const props = { ...(await this.compProps(p2, coverOut.id, 'full', 'render')), coverTitle: title ?? null };
+    await renderOutput({ props, outFile, kind: 'image', onProgress: () => undefined, scale: resolutionScale(resolution) });
+    return outFile;
   }
 }

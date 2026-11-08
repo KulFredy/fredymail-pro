@@ -47,7 +47,7 @@ const main = async () => {
     .toFile(path.join(media, 'urun.jpg'));
 
   // ---- Sahte sunucu ----
-  const calls = { tts: 0, gen: 0, voices: 0 };
+  const calls = { tts: 0, gen: 0, voices: 0, messages: [] as any[] };
   const seen: { genBodies: any[]; ttsBodies: any[]; headers: string[] } = { genBodies: [], ttsBodies: [], headers: [] };
   const body = (req: IncomingMessage) => new Promise<string>((r) => { let d = ''; req.on('data', (c) => (d += c)); req.on('end', () => r(d)); });
   const json = (res: ServerResponse, code: number, o: unknown) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
@@ -90,6 +90,18 @@ const main = async () => {
       }
     }
     // Anthropic (SDK, ANTHROPIC_BASE_URL)
+    if (u.pathname === '/v1/messages' && req.method === 'POST') {
+      if (req.headers['x-api-key'] !== KEYS.anthropic && req.headers.authorization !== `Bearer ${KEYS.anthropic}`) return json(res, 401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } });
+      const mb = JSON.parse(await body(req));
+      calls.messages.push(mb);
+      const ctx = JSON.parse(String(mb.messages[0].content).replace(/^[^{]*/, ''));
+      const kanallar = ctx.kanallar.map((k: any) => ({ outputId: k.outputId, title: 'Claude başlığı', description: `${ctx.urun ?? ''} açıklaması`, tags: ['kahve', 'yeni'], headline: 'x', primaryText: 'y' }));
+      return json(res, 200, {
+        id: 'msg_1', type: 'message', role: 'assistant', model: mb.model, stop_reason: 'tool_use', stop_sequence: null,
+        content: [{ type: 'tool_use', id: 'tu_1', name: 'yayin_metinleri', input: { kanallar } }],
+        usage: { input_tokens: 900, output_tokens: 120, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      });
+    }
     if (u.pathname === '/v1/models') {
       if (req.headers['x-api-key'] !== KEYS.anthropic && req.headers.authorization !== `Bearer ${KEYS.anthropic}`) return json(res, 401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } });
       return json(res, 200, { data: [{ id: 'claude-opus-5-5', type: 'model', display_name: 'Claude Opus 5.5', created_at: '2026-01-01T00:00:00Z' }], has_more: false, first_id: 'claude-opus-5-5', last_id: 'claude-opus-5-5' });
@@ -221,6 +233,23 @@ const main = async () => {
     for (const r of responses) for (const k of Object.values(KEYS)) if (r.includes(k)) leaks.push('API cevabı');
     for (const l of logs) for (const k of Object.values(KEYS)) if (l.includes(k)) leaks.push('log');
     check('Anahtarlar hiçbir API cevabında, dosyada (gizli.json hariç) veya logda yok', leaks.length === 0, leaks.length ? [...new Set(leaks)].join(', ') : `${files.length} dosya, ${responses.length} cevap, ${logs.length} log satırı tarandı`);
+
+    // 5a) Yayın metni (Faz 6): Claude ile, kanal alanlarına göre; anahtar istek gövdesinde değil
+    {
+      const pr = (await api('POST', `/api/projects/${pid}/ops`, { ops: [{ type: 'output.addChannel', channel: 'yt-video' }, { type: 'output.addChannel', channel: 'ig-reels' }] })).j.project;
+      const ids = pr.outputs.filter((o: any) => o.channel).map((o: any) => o.id);
+      const u0 = (await api('GET', '/api/settings')).j.usage.commands;
+      const mt = await api('POST', `/api/projects/${pid}/metin-yaz`, { outputIds: ids, ai: true });
+      const yt = mt.j.suggestions.find((x: any) => x.outputId === ids[0])?.meta;
+      const rl = mt.j.suggestions.find((x: any) => x.outputId === ids[1])?.meta;
+      const req0 = calls.messages.at(-1);
+      const u1 = (await api('GET', '/api/settings')).j.usage.commands;
+      check(
+        'Yayın metni Claude ile: kanal alanları süzüldü, kullanım kaydedildi, anahtar gövdede yok',
+        mt.j.source === 'claude' && yt?.title === 'Claude başlığı' && rl && !('title' in rl) && !('headline' in rl) && rl.tags.length === 2 && u1 === u0 + 1 && !JSON.stringify(req0).includes(KEYS.anthropic) && !req0.tool_choice,
+        `${mt.j.source} · YouTube “${yt?.title}” · Reels alanları ${Object.keys(rl ?? {}).join(',')}`,
+      );
+    }
 
     // 5b) Arayüz (tarayıcıda): Bağlantılar penceresi, Üret sekmesi → dış ses ve arka plan
     const pw = (() => {

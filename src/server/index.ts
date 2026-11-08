@@ -19,6 +19,10 @@ import { UiStateSchema } from '../core/schema';
 import { LutPatchSchema } from '../core/lutlib';
 import { Connections } from './connections';
 import { GEMINI_IMAGE_MODELS, ProviderError } from './providers';
+import { BrandInput, BrandPatch, Brands } from './brands';
+import { Delivery } from './delivery';
+import { claudeMeta, localMeta } from './copywriter';
+import { DEFAULT_APPLY, brandPlan } from '../core/brand';
 import { Generator } from './generate';
 import { createSecrets } from './secrets';
 import { getTools } from '../media/proc';
@@ -286,6 +290,63 @@ export const createServer = async (home = defaultHome()) => {
     });
     if (plan.usage) await conns.recordUsage({ at: new Date().toISOString(), model: plan.usage.model, input: plan.usage.input, output: plan.usage.output, usd: plan.usage.usd }).catch(() => undefined);
     return plan;
+  });
+
+  // ---------- Markalar ve kanal teslimi (Faz 6) ----------
+  const brands = new Brands(home);
+  const delivery = new Delivery(svc, brands);
+  app.get('/api/markalar', async () => brands.list());
+  app.post('/api/markalar', async (req) => brands.create(req.body as z.input<typeof BrandInput>));
+  app.put('/api/markalar/:id', async (req) => brands.update((req.params as { id: string }).id, req.body as z.input<typeof BrandPatch>));
+  app.delete('/api/markalar/:id', async (req) => (await brands.remove((req.params as { id: string }).id), brands.list()));
+  /** Markayı projeye uygulama planı: işlemler + kullanıcıya gösterilecek maddeler (uygulama /ops ile, geri alınabilir) */
+  app.post('/api/projects/:id/marka-plan', async (req) => {
+    const { id } = req.params as { id: string };
+    const b = z
+      .object({
+        brandId: z.string(),
+        productId: z.string().nullable().default(null),
+        campaign: z.string().default(''),
+        options: z.object({ logo: z.boolean(), captions: z.boolean(), texts: z.boolean(), look: z.boolean(), references: z.boolean(), channels: z.boolean() }).partial().default({}),
+      })
+      .parse(req.body);
+    const brand = await brands.get(b.brandId);
+    if (!brand) throw Object.assign(new Error('Marka bulunamadı'), { statusCode: 404 });
+    const project = await store.getProject(id);
+    const lutNames = Object.fromEntries((await svc.listLuts()).map((l) => [l.id, l.meta?.name ?? l.title]));
+    return brandPlan(project, brand, { productId: b.productId, campaign: b.campaign }, { ...DEFAULT_APPLY, ...b.options }, lutNames);
+  });
+  app.get('/api/projects/:id/kontrol', async (req) => delivery.checks((req.params as { id: string }).id));
+  app.post('/api/projects/:id/paket', async (req) => {
+    const b = z.object({ outputIds: z.array(z.string()).min(1) }).parse(req.body);
+    return delivery.enqueue((req.params as { id: string }).id, b.outputIds);
+  });
+  app.get('/api/projects/:id/paketler', async (req) => delivery.list((req.params as { id: string }).id));
+  app.post('/api/projects/:id/paketler/:pid/onayla', async (req) => {
+    const { id, pid } = req.params as { id: string; pid: string };
+    return delivery.approve(id, pid);
+  });
+  /** Yayın metni önerisi: Claude (anahtar varsa ve istenirse) veya yerel şablon */
+  app.post('/api/projects/:id/metin-yaz', async (req) => {
+    const { id } = req.params as { id: string };
+    const b = z.object({ outputIds: z.array(z.string()).min(1), ai: z.boolean().default(true) }).parse(req.body);
+    const project = await store.getProject(id);
+    const outputs = project.outputs.filter((o) => b.outputIds.includes(o.id));
+    const assets = buildRefs(store.library.values(), '', 'preview');
+    const brand = project.brand ? await brands.get(project.brand.brandId) : null;
+    const key = b.ai ? await aiKey() : null;
+    if (key) {
+      try {
+        const r = await claudeMeta({ apiKey: key, model: (await readSettings()).aiModel || DEFAULT_AI_MODEL, project, assets, brand, outputs });
+        await conns.recordUsage({ at: new Date().toISOString(), ...r.usage }).catch(() => undefined);
+        return { source: 'claude', suggestions: r.suggestions, usage: r.usage };
+      } catch (e) {
+        const msg = (e as Error).message.split(key).join('••••');
+        console.error('[claude] metin:', msg.slice(0, 300));
+        return { source: 'yerel', suggestions: localMeta(project, assets, brand, outputs), note: `Claude'a ulaşılamadı; yerel şablon kullanıldı (${msg.slice(0, 120)})` };
+      }
+    }
+    return { source: 'yerel', suggestions: localMeta(project, assets, brand, outputs) };
   });
 
   // Yazılı/sesli komut → işlem planı (arayüz aynı planı yerelde de hesaplar; MCP ve testler için)

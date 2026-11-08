@@ -20,7 +20,8 @@
     "e2e:ref": "tsx scripts/e2e-ref.ts",
     "e2e:grafik": "tsx scripts/e2e-grafik.ts",
     "e2e:ritim": "tsx scripts/e2e-ritim.ts",
-    "e2e:baglanti": "tsx scripts/e2e-baglanti.ts"
+    "e2e:baglanti": "tsx scripts/e2e-baglanti.ts",
+    "e2e:marka": "tsx scripts/e2e-marka.ts"
   },
   "engines": {
     "node": ">=20"

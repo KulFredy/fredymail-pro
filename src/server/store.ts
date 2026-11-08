@@ -48,6 +48,7 @@ export type ProjectSummary = {
   outputs: string[];
   poster: string | null;
   duration: number;
+  brand: Project['brand'];
 };
 
 const HISTORY_LIMIT = 100;
@@ -125,6 +126,7 @@ export class Store extends EventEmitter {
         outputs: pr.outputs.map((o) => `${o.format}:${o.kind}`),
         poster: first?.poster ?? null,
         duration: pr.clips.reduce((s, c) => s + (c.out - c.in), 0),
+        brand: pr.brand,
       });
     }
     return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

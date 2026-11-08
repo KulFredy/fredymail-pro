@@ -25,6 +25,8 @@ const OPS_DOC = `İşlemler (JSON). Zamanlar saniye. "timeline" = zaman çizelge
     zoom 0.5 = yarı boyut. Görüntü kareden küçükse x/y karedeki yeridir (0 sol/üst, 0.5 orta, 1 sağ/alt; sağ alt köşe ≈ x 0.94, y 0.92);
     büyükse kaynaktaki odak noktasıdır. "Küçült" için genellikle mode "fit-blur" ve zoom<1 kullan; "tam ekran / doldur" = mode "fill", zoom 1, x/y 0.5.
 - {"type":"output.add","format":"story|reel|post|square|landscape","kind":"video|image"} · {"type":"output.update","outputId":ID,"patch":{"resolution":"720|1080|1440|2160"}}
+- Kanal: {"type":"output.addChannel","channel":"yt-video|yt-shorts|ig-reels|ig-story|ig-post|ig-reklam-45"} (YouTube videoda altyazı görüntüye yazılmaz, ayrı dosya verilir)
+- Yalnız bir çıktıda altyazı/kapak/metin: {"type":"output.update","outputId":ID,"patch":{"captions":{"enabled":bool,"position":"bottom|middle|top","offset":px,"size":24..140}|null,"cover":{"at":SN,"title":METIN}|null,"meta":{"title","description","tags":[..],"headline","primaryText"}}}
 - {"type":"look.set","look":{"preset":"dogal|sicak|soguk|canli|film|sb","intensity":0..1,"adjust":{"exposure":-3..3,"contrast":-1..1,"highlights":-1..1,"shadows":-1..1,"temp":-1..1,"tint":-1..1,"vibrance":-1..1,"saturation":-1..1,"sharpen":0..1,"vignette":0..1,"fade":0..1}}}
 - {"type":"clip.setLook","clipId":ID,"look":{...aynı alanlar}}
 - LUT: look.set veya clip.setLook içinde "lut": bağlamdaki lutlar[].id (null = kaldır), "lutIntensity": 0..1. Kullanıcı LUT'u adıyla, etiketiyle ("film", "sıcak") veya "favori LUT'um" diye anabilir. Teknik LUT'u (tur=teknik, giris=log…) normal videoya önerme; önerirsen summary'de uyar.
@@ -89,7 +91,8 @@ export const buildContext = (project: Project, assets: Record<string, AssetRef>,
     imlec_sn: Number(playhead.toFixed(2)),
     toplam_sn: Number(totalDuration(project).toFixed(2)),
     secili_klip: selectedClipId,
-    ciktilar: project.outputs.map((o) => ({ id: o.id, bicim: o.format, tur: o.kind, cozunurluk: o.resolution })),
+    ciktilar: project.outputs.map((o) => ({ id: o.id, kanal: o.channel, bicim: o.format, tur: o.kind, cozunurluk: o.resolution, altyazi: o.captions, kapak: o.cover })),
+    marka: project.brand,
     aktif_cikti: project.ui.activeOutputId ?? project.outputs[0]?.id ?? null,
     klipler: layoutClips(project).map((l, i) => ({
       sira: i + 1,
@@ -271,7 +274,7 @@ export const AI_MODELS = [
   { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 — hızlı, yarı fiyat', approx: 'komut başına ≈ 1,5–2,5 sent' },
   { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 — en ucuz', approx: 'komut başına ≈ 0,1 sent' },
 ];
-const costUsd = (model: string, u: Anthropic.Beta.BetaUsage) => {
+export const costUsd = (model: string, u: Anthropic.Beta.BetaUsage) => {
   const key = Object.keys(PRICES).find((k) => model.startsWith(k)) ?? DEFAULT_AI_MODEL;
   const p = PRICES[key];
   const cacheWrite = (u.cache_creation_input_tokens ?? 0) * p.in * 1.25;

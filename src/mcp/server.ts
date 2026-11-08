@@ -335,4 +335,98 @@ server.registerTool(
   async ({ proje_id }) => text(await call('GET', `/api/projects/${proje_id}/exports`)),
 );
 
+// ---------- Faz 6: marka, kanal, teslim ----------
+server.registerTool(
+  'marka_listele',
+  { title: 'Markalar', description: 'Kayıtlı markaları (logo, renkler, yazı tipleri, ton, etiketler, ürünler, varsayılan kanallar) listeler.', inputSchema: {} },
+  async () => text(await call('GET', '/api/markalar')),
+);
+
+server.registerTool(
+  'marka_uygula',
+  {
+    title: 'Markayı projeye uygula',
+    description:
+      'Projeyi marka → ürün → kampanyaya bağlar; logo, altyazı rengi/yazı tipi, yazılar, referanslar ve markanın kanallarını ekler (geri alınabilir). gorunum=true ise markanın ilk LUT favorisi de uygulanır.',
+    inputSchema: { proje_id: z.string(), marka_id: z.string(), urun_id: z.string().nullable().default(null), kampanya: z.string().default(''), gorunum: z.boolean().default(false) },
+  },
+  async ({ proje_id, marka_id, urun_id, kampanya, gorunum }) => {
+    const plan = await call('POST', `/api/projects/${proje_id}/marka-plan`, { brandId: marka_id, productId: urun_id, campaign: kampanya, options: { look: gorunum } });
+    if (plan.ops.length) await call('POST', `/api/projects/${proje_id}/ops`, { ops: plan.ops, source: 'mcp', label: 'Marka uygulandı' });
+    return text({ yapilanlar: plan.items.length ? plan.items : ['Proje zaten markaya uygun'] });
+  },
+);
+
+server.registerTool(
+  'kanal_ekle',
+  {
+    title: 'Kanal ekle',
+    description: 'Projeye kanal profili ekler: yt-video (16:9 + küçük resim, altyazı ayrı dosya), yt-shorts, ig-reels, ig-story, ig-post, ig-reklam-45 (4:5 reklam).',
+    inputSchema: { proje_id: z.string(), kanallar: z.array(z.enum(['yt-video', 'yt-shorts', 'ig-reels', 'ig-story', 'ig-post', 'ig-reklam-45'])).min(1) },
+  },
+  async ({ proje_id, kanallar }) => {
+    const st = await call('POST', `/api/projects/${proje_id}/ops`, { ops: kanallar.map((c) => ({ type: 'output.addChannel', channel: c })), source: 'mcp' });
+    return text(st.project.outputs.map((o: any) => ({ cikti_id: o.id, kanal: o.channel, bicim: o.format, tur: o.kind })));
+  },
+);
+
+server.registerTool(
+  'teslim_kontrol',
+  {
+    title: 'Teslim öncesi kontrol',
+    description: 'Her çıktı için ürün adı yazımı, onaysız üretim, logo, süre, güvenli alan, altyazı, ses dengesi (son paketten LUFS), yayın metni sınırları ve kapak kontrolü. Düzeltilebilenlerde “fix.ops” işlemleri islem_uygula ile uygulanabilir.',
+    inputSchema: { proje_id: z.string() },
+  },
+  async ({ proje_id }) => text(await call('GET', `/api/projects/${proje_id}/kontrol`)),
+);
+
+server.registerTool(
+  'yayin_metni_yaz',
+  {
+    title: 'Yayın metni öner',
+    description: 'Kanallar için başlık/açıklama/etiket/reklam metni önerir (Claude anahtarı varsa marka tonuyla, yoksa yerel şablon). uygula=true ise çıktılara kaydeder (geri alınabilir).',
+    inputSchema: { proje_id: z.string(), cikti_idleri: z.array(z.string()).min(1), uygula: z.boolean().default(false), claude: z.boolean().default(true) },
+  },
+  async ({ proje_id, cikti_idleri, uygula, claude }) => {
+    const r = await call('POST', `/api/projects/${proje_id}/metin-yaz`, { outputIds: cikti_idleri, ai: claude });
+    if (uygula) await call('POST', `/api/projects/${proje_id}/ops`, { ops: r.suggestions.map((s: any) => ({ type: 'output.update', outputId: s.outputId, patch: { meta: s.meta } })), source: 'mcp', label: 'Yayın metinleri' });
+    return text(r);
+  },
+);
+
+server.registerTool(
+  'kanal_paketi',
+  {
+    title: 'Kanal paketi hazırla',
+    description: 'Seçilen kanallar için video/görsel, kapak (YouTube 1280×720), altyazı dosyası (.srt/.vtt), metinler.txt, kontrol.txt ve zip üretir. bekle=true ise bitene kadar bekler. Onay için kanal_paketi_onayla.',
+    inputSchema: { proje_id: z.string(), cikti_idleri: z.array(z.string()).min(1), bekle: z.boolean().default(true) },
+  },
+  async ({ proje_id, cikti_idleri, bekle }) => {
+    const job = await call('POST', `/api/projects/${proje_id}/paket`, { outputIds: cikti_idleri });
+    if (!bekle) return text({ is_id: job.id, durum: job.status });
+    const end = Date.now() + 60 * 60_000;
+    while (Date.now() < end) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const j = (await call<any[]>('GET', '/api/jobs')).find((x) => x.id === job.id);
+      if (j?.status === 'done') {
+        const health = await call('GET', '/api/health');
+        const p = j.result;
+        return text({ paket_id: p.id, klasor: `${health.home}/${p.dir}`, zip: `${health.home}/${p.zip}`, hata: p.errors, uyari: p.warnings, kanallar: p.items.map((i: any) => ({ kanal: i.label, dosyalar: i.files.map((f: any) => f.name), lufs: i.loudness?.lufs })) });
+      }
+      if (j?.status === 'error') throw new Error(j.error);
+    }
+    return text({ is_id: job.id, durum: 'sürüyor' });
+  },
+);
+
+server.registerTool(
+  'kanal_paketi_onayla',
+  { title: 'Paketi onayla', description: 'Paketi marka/ürün/kampanya teslim klasörüne kopyalar (orijinaller ve varyantlar ayrı kalır).', inputSchema: { proje_id: z.string(), paket_id: z.string() } },
+  async ({ proje_id, paket_id }) => {
+    const p = await call('POST', `/api/projects/${proje_id}/paketler/${paket_id}/onayla`);
+    const health = await call('GET', '/api/health');
+    return text({ onaylandi: p.approved, klasor: `${health.home}/${p.approvedDir}` });
+  },
+);
+
 await server.connect(new StdioServerTransport());

@@ -274,6 +274,36 @@ const VideoView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
   );
 };
 
+/** Kapak başlığı: alt üçte birde, güvenli alan içinde, okunurluk için koyu geçiş üstünde */
+const CoverTitle: React.FC<{ title: NonNullable<CompProps['coverTitle']>; output: Output }> = ({ title, output }) => {
+  const { width: W, height: H } = useVideoConfig();
+  const safe = FORMATS[output.format].safe;
+  const landscape = W > H;
+  const size = Math.round((landscape ? H * 0.13 : W * 0.11) * (title.text.length > 28 ? 0.8 : 1));
+  return (
+    <AbsoluteFill>
+      <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,0.72) 100%)' }} />
+      <div
+        style={{
+          position: 'absolute',
+          left: safe.left + 20,
+          right: safe.right + 20,
+          bottom: safe.bottom + (landscape ? 40 : 120),
+          fontFamily: `"${title.font}"`,
+          fontWeight: 800,
+          fontSize: size,
+          lineHeight: 1.05,
+          color: title.color,
+          textAlign: landscape ? 'left' : 'center',
+          textShadow: `0 ${size * 0.05}px ${size * 0.18}px rgba(0,0,0,0.65)`,
+        }}
+      >
+        <span style={{ borderBottom: `${Math.max(6, size * 0.08)}px solid ${title.accent}`, paddingBottom: size * 0.06 }}>{title.text}</span>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 const StillView: React.FC<{ props: CompProps; output: Output }> = ({ props, output }) => {
   const layout = layoutClips(props.project);
   const item = layout.find((l) => l.clip.id === output.still?.clipId) ?? layout[0];
@@ -285,6 +315,7 @@ const StillView: React.FC<{ props: CompProps; output: Output }> = ({ props, outp
       <Sequence from={-toFrames(at)} durationInFrames={toFrames(at) + 2}>
         <ClipLayer item={{ ...item, start: 0, end: item.duration }} output={output} props={props} />
       </Sequence>
+      {props.coverTitle?.text ? <CoverTitle title={props.coverTitle} output={output} /> : null}
       {/* Post görselinde logolar sabit (animasyonsuz) görünür */}
       {props.project.logos
         .filter((l) => l.full)
