@@ -2,6 +2,7 @@
 
 ## Durum
 - **Faz 1 · Instagram Hızlı Edit — tamam.** 8 adım: Ekle (QR ile telefondan) · Biçim (9:16, 4:5, 1:1, 16:9; video/fotoğraf) · Sırala & kısalt · Kadraj (doldur/sığdır, %10–%400 boyut, köşeye) · Renk & ışık (görünümler, ayarlar, .cube LUT, 12 kamera log dönüşümü) · Ses & müzik (3 mod) · Yazı & altyazı (yerel Whisper, kelime düzeltme) · Teslim (720p–4K, doğrulama, müziksiz sürüm, telefona indir, sürümler).
+- **Claude ile komut — Mac'te doğrulandı (8 Kasım):** kullanıcının anahtarı ve 5 $ krediyle “Bu klibe TealOrangePlusContrast uygula, yoğunluk yüzde 70” doğru anlaşıldı (Opus 5.5, 8631 token ≈ 2,09 sent). Önceki 400 hatasının nedeni kredi yokluğuydu.
 - **Faz 3 · Yerel Stüdyo ve ince kurgu — tamam (8 Kasım, kullanıcının Mac'inde gerçek videoyla doğrulandı: transkript senkronu, altyazı düzeltme + cümle kesme + geri al, çevrimdışı teslim).** Transkript paneli, sağda Komut/Seçili öğe, komut etkisi (klip, aralık, kapsam, yan etkiler), ses dalgası, I/O kesim, S bölme, yumuşak ses geçişleri, internetsiz çalışma testi.
 - **Faz 2 · Kurgu Stüdyosu — tamam.** Çok izli zaman çizelgesi (görüntü, üst iz, dış ses, müzik, altyazı, yazı; iz adlarında "+"), sekmeli sol panel (Komut · Medya · Seçili öğe), mikrofon/yazı ile Türkçe komut → plan → önizle/uygula, adaylar zaman koduyla, talimat ≠ dış ses, kişisel stil vs proje notu, tam ekran, render çözünürlüğü.
 - **Claude ile komut (isteğe bağlı):** Ayarlar'da "Her komutta" (varsayılan) veya "Yalnız kalıplar anlamazsa"; model Opus 5.5 / Sonnet 5.5 / Haiku 5.5; komut başına maliyet gösterilir; ulaşılamazsa yerel anlayıcı.
@@ -10,7 +11,6 @@
 
 ## Doğrulanmayanlar (kullanıcıyla kontrol et)
 Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
-- **Gerçek Claude anahtarıyla komut:** 8 Kasım'da Mac'te denendi; anahtar geçerli, API'ye ulaşılıyor, yanıt "hesapta kredi yok" (önceki 400'ün nedeni buydu). Kullanıcı 8 Kasım'da 5 $ kredi yükledi; gerçek yanıt ve maliyet gösterimi Mac'te doğrulanacak. Claude artık LUT kütüphanesini (ad, tür, etiket, favori) ve referansları görüyor; bilinmeyen LUT önerisi reddedilir.
 - **4K video render'ı** (4K fotoğraf test edildi).
 - **Gerçek Android telefondan Wi-Fi ile yükleme** (QR).
 - Mac'te sesli komutların gerçek kullanımda doğruluğu.

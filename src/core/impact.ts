@@ -27,7 +27,8 @@ export const outputLabel = (project: Project, outputId: string) => {
   return `${f.label} ${f.ratio}`;
 };
 
-export const describeImpact = (project: Project, assets: Record<string, AssetRef>, ops: OpInput[]): ImpactItem[] => {
+/** lutNames: LUT kimliği → ad (renk işlemlerinde hangi LUT'un uygulanacağını yazmak için) */
+export const describeImpact = (project: Project, assets: Record<string, AssetRef>, ops: OpInput[], lutNames: Record<string, string> = {}): ImpactItem[] => {
   const layout = layoutClips(project);
   const clipInfo = (id: string): ImpactClip | null => {
     const i = layout.findIndex((l) => l.clip.id === id);
@@ -40,6 +41,16 @@ export const describeImpact = (project: Project, assets: Record<string, AssetRef
       .filter((l) => (start === end ? start >= l.start && start < l.end : l.end > start + 1e-6 && l.start < end - 1e-6))
       .map((l) => clipInfo(l.clip.id)!);
   const whole = { scope: 'project' as const, scopeLabel: 'Tüm proje (bütün çıktılar)' };
+  const oneClip = { scope: 'project' as const, scopeLabel: 'Yalnız bu klip · bütün çıktılar' };
+  /** Renk işleminin okunur açıklaması: “LUT: Ad %70” ve/veya görünüm */
+  const lookLabel = (look: { lut?: string | null; lutIntensity?: number; preset?: string } | null, base: string) => {
+    if (!look) return `${base} (projenin rengine döner)`;
+    const parts: string[] = [];
+    if (look.lut !== undefined) parts.push(look.lut ? `LUT: ${lutNames[look.lut] ?? look.lut.replace(/^kullanici:/, '').replace(/\.cube$/i, '')}${look.lutIntensity !== undefined ? ` %${Math.round(look.lutIntensity * 100)}` : ''}` : 'LUT kaldırılır');
+    else if (look.lutIntensity !== undefined) parts.push(`LUT yoğunluğu %${Math.round(look.lutIntensity * 100)}`);
+    if (look.preset) parts.push(`görünüm: ${look.preset}`);
+    return parts.length ? `${base} · ${parts.join(' · ')}` : base;
+  };
   const track = (name: string) => ({ scope: 'track' as const, scopeLabel: `${name} izi · bütün çıktılar` });
   const clipRange = (id: string) => {
     const l = layout.find((x) => x.clip.id === id);
@@ -60,10 +71,11 @@ export const describeImpact = (project: Project, assets: Record<string, AssetRef
         }
         return { label, clips: clipsIn(op.start, op.end), range: { start: op.start, end: op.end }, ...whole, warnings };
       }
+      case 'clip.setLook':
+        return { label: lookLabel(op.look, label), clips: [clipInfo(op.clipId)].filter(Boolean) as ImpactClip[], range: clipRange(op.clipId), ...oneClip };
       case 'clip.trim':
       case 'clip.update':
-      case 'clip.setLook':
-        return { label, clips: [clipInfo(op.clipId)].filter(Boolean) as ImpactClip[], range: clipRange(op.clipId), ...whole };
+        return { label, clips: [clipInfo(op.clipId)].filter(Boolean) as ImpactClip[], range: clipRange(op.clipId), ...oneClip };
       case 'clip.split':
         return { label, clips: [clipInfo(op.clipId)].filter(Boolean) as ImpactClip[], range: { start: op.at, end: op.at }, ...whole };
       case 'clips.remove':
@@ -88,6 +100,8 @@ export const describeImpact = (project: Project, assets: Record<string, AssetRef
       case 'output.update':
       case 'output.remove':
         return { label, clips: [], range: null, scope: 'output', scopeLabel: `Yalnız ${outputLabel(project, op.outputId)} çıktısı` };
+      case 'look.set':
+        return { label: lookLabel(op.look, label), clips: [], range: null, ...whole };
       case 'project.restoreOriginal': {
         const seen = new Set<string>();
         let after = 0;

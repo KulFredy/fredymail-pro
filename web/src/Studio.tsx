@@ -89,6 +89,8 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
   const [lastApplied, setLastApplied] = useState<string | null>(null);
   const recorder = useRecorder();
   const playhead = frame / FPS;
+  const { luts } = useApp();
+  const lutNames = React.useMemo(() => Object.fromEntries(luts.map((l) => [l.id, l.meta?.name ?? l.title])), [luts]);
 
   const clear = async () => {
     if (previewing) await reload();
@@ -294,7 +296,7 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
           ) : null}
           {active && active.ops.length ? (
             <ul className="impact" aria-label="Önerilen işlemler">
-              {describeImpact(project, refs, active.ops).map((im, i) => (
+              {describeImpact(project, refs, active.ops, lutNames).map((im, i) => (
                 <li key={i}>
                   <span className="impact-op">{im.label}</span>
                   <span className="impact-meta">

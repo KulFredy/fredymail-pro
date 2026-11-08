@@ -174,6 +174,9 @@ describe('komut etkisi', async () => {
     expect(im[0]).toMatchObject({ clips: [{ id: kon.id, index: 2, name: 'konusma.mp4' }], range: { start: 8.9, end: 10.7 }, scope: 'project' });
     expect(im[1]).toMatchObject({ scope: 'output', scopeLabel: 'Yalnız Story 9:16 çıktısı', range: { start: 3, end: 15 } });
     expect(im[2].scope).toBe('project');
+    const lk = describeImpact(p, assets, [{ type: 'clip.setLook', clipId: kon.id, look: { lut: 'kullanici:Teal.cube', lutIntensity: 0.7 } }], { 'kullanici:Teal.cube': 'TealOrangePlusContrast' })[0];
+    expect(lk.label).toBe('Klip rengi değişti · LUT: TealOrangePlusContrast %70');
+    expect(lk.scopeLabel).toBe('Yalnız bu klip · bütün çıktılar');
     expect(im[3]).toMatchObject({ scope: 'track', range: { start: 2, end: 4 } });
     expect(im[3].clips.map((c) => c.index)).toEqual([1, 2]);
     // Yan etkiler: aralıktaki yazı silinir, dış ses çakışması bildirilir
