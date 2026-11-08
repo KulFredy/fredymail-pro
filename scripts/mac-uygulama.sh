@@ -87,16 +87,52 @@ if ! saglikli; then
   # macOS hizmeti olarak başlat (uygulamaya bağlı değil: başlatıcı kapanınca sunucu kapanmaz)
   LABEL="com.icerikfabrikasi.sunucu"
   AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
+  ALAN="gui/$(id -u)"
+  log() { echo "    [başlatıcı] $*" >>"$LOG"; }
+  bekle() { for _ in $(seq 1 "$1"); do saglikli && return 0; sleep 0.5; done; saglikli; }
+  yuklu() { launchctl print "$ALAN/$LABEL" >/dev/null 2>&1; }
+  yukle() {
+    launchctl bootstrap "$ALAN" "$AGENT" >>"$LOG" 2>&1 && return 0
+    log "bootstrap olmadı; load deneniyor"
+    launchctl load "$AGENT" >>"$LOG" 2>&1
+  }
+  durum() {
+    launchctl print "$ALAN/$LABEL" 2>/dev/null | grep -E '^[[:space:]]*(state|pid|last exit code|runs) =' | sed 's/^[[:space:]]*/    [hizmet] /' >>"$LOG" || true
+    if command -v lsof >/dev/null 2>&1; then
+      lsof -nP -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null | sed 's/^/    [port] /' >>"$LOG" || true
+    fi
+  }
+  YEDEK=""
   if command -v launchctl >/dev/null 2>&1 && [ -f "$AGENT" ]; then
-    launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || true
-    sleep 0.5
-    launchctl bootstrap "gui/$(id -u)" "$AGENT" >>"$LOG" 2>&1 || launchctl load "$AGENT" >>"$LOG" 2>&1 || true
-    launchctl kickstart "gui/$(id -u)/$LABEL" >>"$LOG" 2>&1 || launchctl start "$LABEL" >>"$LOG" 2>&1 || true
-  else
-    nohup ./node_modules/.bin/tsx src/server/index.ts >>"$LOG" 2>&1 < /dev/null &
+    # 1) Hizmet zaten yüklüyse yalnız (yeniden) başlat — kaldırıp hemen yüklemek macOS'ta bazen reddediliyor
+    if yuklu; then
+      log "hizmet yüklü; başlatılıyor"
+      launchctl kickstart -k "$ALAN/$LABEL" >>"$LOG" 2>&1 || log "kickstart hata verdi ($?)"
+    else
+      log "hizmet yükleniyor"
+      yukle || log "yüklenemedi"
+      launchctl kickstart "$ALAN/$LABEL" >>"$LOG" 2>&1 || launchctl start "$LABEL" >>"$LOG" 2>&1 || log "başlatma komutu hata verdi"
+    fi
+    # 2) Yanıt yoksa hizmeti tamamen kaldır, kalkmasını bekle, yeniden yükle
+    if ! bekle 40; then
+      log "20 sn içinde yanıt yok; hizmet sıfırlanıyor"
+      durum
+      launchctl bootout "$ALAN/$LABEL" >>"$LOG" 2>&1 || true
+      for _ in $(seq 1 20); do yuklu || break; sleep 0.5; done
+      yukle || log "yeniden yüklenemedi"
+      launchctl kickstart -k "$ALAN/$LABEL" >>"$LOG" 2>&1 || log "kickstart hata verdi ($?)"
+      bekle 60 || { log "hizmet yine yanıt vermedi"; durum; }
+    fi
   fi
-  for _ in $(seq 1 120); do saglikli && break; sleep 0.5; done
+  # 3) Son çare: doğrudan başlat; başlatıcı açık kalır ki macOS sunucuyu kapatmasın
   if ! saglikli; then
+    log "doğrudan başlatılıyor (yedek yol)"
+    nohup ./node_modules/.bin/tsx src/server/index.ts >>"$LOG" 2>&1 < /dev/null &
+    YEDEK=$!
+    bekle 120 || true
+  fi
+  if ! saglikli; then
+    durum
     uyari "Başlatılamadı. Ayrıntı: ~/Library/Logs/IcerikFabrikasi.log"
     exit 1
   fi
@@ -106,10 +142,13 @@ fi
 for B in "Google Chrome" "Microsoft Edge" "Brave Browser" "Chromium" "Arc"; do
   if [ -d "/Applications/$B.app" ] || [ -d "$HOME/Applications/$B.app" ]; then
     open -na "$B" --args --app="$URL" --window-size=1512,945
-    exit 0
+    B_ACILDI=1
+    break
   fi
 done
-open "$URL"
+[ -z "${B_ACILDI:-}" ] && open "$URL"
+# Yedek yolla başlatıldıysa başlatıcı sunucu kapanana kadar açık kalır (kapanırsa macOS sunucuyu da kapatır)
+if [ -n "${YEDEK:-}" ]; then wait "$YEDEK"; fi
 LAUNCH
 chmod +x "$APP/Contents/MacOS/baslat"
 
