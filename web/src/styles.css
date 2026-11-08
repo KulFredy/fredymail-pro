@@ -1031,3 +1031,6 @@ kbd { font-family: var(--mono); }
 .tl-label .trk-name { text-align: left; }
 .proj-load-err { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; max-width: 560px; padding: 24px; border: 1px solid var(--line2); border-radius: 14px; background: var(--card); }
 .proj-load-err code { font-family: var(--mono); font-size: 12px; color: #ffb4a0; white-space: pre-wrap; word-break: break-word; }
+.server-down { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: rgba(3, 4, 6, 0.8); backdrop-filter: blur(6px); }
+.server-down > div { max-width: 460px; padding: 24px; border-radius: 14px; border: 1px solid var(--line2); background: var(--card); display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.server-down p { margin: 0; color: var(--muted); line-height: 1.5; }

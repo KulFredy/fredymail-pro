@@ -31,12 +31,22 @@ echo
 if [ "$(uname)" = "Darwin" ]; then
   bash scripts/mac-uygulama.sh | sed -n 1p
 fi
+ACIKTI=0
 if curl -sf -m 2 http://localhost:4747/api/health >/dev/null 2>&1; then
-  # Eski sürüm açıksa durdur: yeni sürüm bir sonraki açılışta başlar
+  # Eski sürüm açıksa durdur; aşağıda yeni sürümle yeniden açılır (açık pencereler kendiliğinden yenilenir)
+  ACIKTI=1
   curl -sf -m 3 -X POST http://localhost:4747/api/kapat >/dev/null 2>&1 || true
-  sleep 1
+  sleep 2
 fi
-if lsof -ti tcp:4747 >/dev/null 2>&1; then
+YENIDEN=0
+if [ "$ACIKTI" = 1 ] && [ "$(uname)" = "Darwin" ] && ! lsof -ti tcp:4747 >/dev/null 2>&1; then
+  for A in "/Applications/İçerik Fabrikası.app" "$HOME/Applications/İçerik Fabrikası.app"; do
+    if [ -d "$A" ]; then echo "▸ Yeni sürüm başlatılıyor…"; open "$A"; YENIDEN=1; break; fi
+  done
+fi
+if [ "$YENIDEN" = 1 ]; then
+  echo "Güncellendi ve yeni sürümle açıldı. Açık pencereler kendiliğinden yenilenir."
+elif lsof -ti tcp:4747 >/dev/null 2>&1; then
   echo "⚠ Uygulama hâlâ ESKİ sürümle açık (Terminal'den başlatılmış olabilir)."
   echo "  O Terminal penceresinde Ctrl+C'ye basın, sonra İçerik Fabrikası uygulamasını açın."
 else

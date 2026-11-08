@@ -16,6 +16,7 @@ export type PublishPreview = Awaited<ReturnType<import('../../src/server/publish
 export type MetaSuggestion = { outputId: string; meta: Partial<import('../../src/core/schema').OutputMeta> };
 export type Health = {
   ok: boolean;
+  build?: string;
   home: string;
   whisper: { mode: string; available: boolean; bin: string | null; model: string | null };
   encoder: string;

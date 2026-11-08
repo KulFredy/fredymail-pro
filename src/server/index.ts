@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
@@ -94,6 +94,14 @@ export const createServer = async (home = defaultHome()) => {
     return {
       ok: true,
       version: '0.1.0',
+      /** Arayüz derlemesinin kimliği: değişince açık pencereler kendini yeniler */
+      build: (() => {
+        try {
+          return String(Math.round(statSync(path.join(webDist, 'index.html')).mtimeMs));
+        } catch {
+          return 'gelistirme';
+        }
+      })(),
       home,
       whisper: {
         mode: svc.whisper.mode,
