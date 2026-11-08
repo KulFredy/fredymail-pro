@@ -13,7 +13,7 @@ import { Preview } from './Preview';
 import { FramingControls } from './FramingControls';
 import { useApp, useProject } from './state';
 import { ExportStep } from './steps/ExportStep';
-import { Timeline, type Marks, type Selection } from './Timeline';
+import { Timeline, type Marks, type Selection, dragAsset } from './Timeline';
 import { TranscriptPanel } from './TranscriptPanel';
 import { LutPanel } from './LutPanel';
 import { LogoInspector, TextInspector } from './ElementInspector';
@@ -23,7 +23,7 @@ import { BrandApplyForm, BrandsModal } from './Brands';
 import { DeliveryModal } from './DeliveryPanel';
 import { PipelineModal } from './Pipeline';
 import { GeneratePanel, type RegenRequest } from './GeneratePanel';
-import { Modal, Segmented, Slider, fmtDb, fmtSec, modalOpen } from './ui';
+import { Modal, RowSplitter, Segmented, Slider, fmtDb, fmtSec, modalOpen, useRowHeight } from './ui';
 
 type HistoryItem = { text: string; summary: string; ok: boolean };
 
@@ -533,7 +533,7 @@ const MediaBin: React.FC<{ onSelect?: (s: Selection) => void }> = ({ onSelect })
       </div>
       <div className="bin-list">
         {items.map((a) => (
-          <div key={a.id} className="bin-item">
+          <div key={a.id} className="bin-item" data-asset={a.id} draggable={a.status !== 'importing'} onDragStart={(e) => dragAsset(e, a.id)} title="Zaman çizelgesine sürükleyin">
             <div className="bin-thumb" style={{ backgroundImage: a.poster ? `url(${fileHref(a.poster)})` : undefined }}>
               {a.kind === 'audio' ? <Music2 size={16} /> : a.kind === 'image' ? null : null}
               {a.status === 'importing' ? <Loader2 size={14} className="spin" /> : null}
@@ -772,6 +772,7 @@ export const Studio: React.FC = () => {
   const [leftTab, setLeftTab] = useState<'medya' | 'transkript' | 'luts' | 'referans' | 'uret'>(() => readPref('fabrika.studyo.sol', 'transkript'));
   const [rightTab, setRightTab] = useState<'komut' | 'secili'>('komut');
   const [rightOpen, setRightOpen] = useState<boolean>(() => readPref('fabrika.studyo.sag', '1') === '1');
+  const [tlH, setTlH] = useRowHeight('fabrika.studyo.zaman');
   React.useEffect(() => writePref('fabrika.studyo.sol', leftTab), [leftTab]);
   React.useEffect(() => writePref('fabrika.studyo.sag', rightOpen ? '1' : '0'), [rightOpen]);
   const openRight = (t: 'komut' | 'secili') => {
@@ -863,11 +864,13 @@ export const Studio: React.FC = () => {
       else if ((key === 'backspace' || key === 'delete') && marks.in !== null && marks.out !== null) {
         e.preventDefault();
         deleteMarks();
-      } else if ((key === 'backspace' || key === 'delete') && selection && selection.kind !== 'clip') {
-        // Seçili dış ses / üst iz / yazı / logo silinir (klip silme kurguyu kaydırdığı için Inspector'dan)
+      } else if ((key === 'backspace' || key === 'delete') && selection) {
+        // Seçili klip / dış ses / üst iz / yazı / logo kaldırılır (⌘Z geri alır; orijinal dosya silinmez)
         e.preventDefault();
         const op =
-          selection.kind === 'voice'
+          selection.kind === 'clip'
+            ? ({ type: 'clips.remove', clipId: selection.id } as const)
+            : selection.kind === 'voice'
             ? ({ type: 'voice.remove', id: selection.id } as const)
             : selection.kind === 'overlay'
               ? ({ type: 'overlay.remove', id: selection.id } as const)
@@ -876,7 +879,7 @@ export const Studio: React.FC = () => {
                 : ({ type: 'text.remove', id: selection.id } as const);
         apply([op]);
         setSelection(null);
-        toast(selection.kind === 'voice' ? 'Dış ses kaldırıldı (geri almak için ⌘Z)' : 'Kaldırıldı (geri almak için ⌘Z)');
+        toast(selection.kind === 'voice' ? 'Dış ses kaldırıldı (geri almak için ⌘Z)' : selection.kind === 'clip' ? 'Klip kurgudan çıkarıldı (geri almak için ⌘Z)' : 'Kaldırıldı (geri almak için ⌘Z)');
       }
     };
     window.addEventListener('keydown', k);
@@ -884,7 +887,7 @@ export const Studio: React.FC = () => {
   });
 
   return (
-    <div className={`studio ${rightOpen ? '' : 'right-closed'}`}>
+    <div className={`studio ${rightOpen ? '' : 'right-closed'}`} style={tlH ? ({ '--tl-h': `${tlH}px` } as React.CSSProperties) : undefined}>
       <header className="topbar">
         <a className="icon-btn" href="#/" title="Ana ekran">
           <ArrowLeft size={18} />
@@ -990,6 +993,7 @@ export const Studio: React.FC = () => {
         </aside>
       )}
       <footer className="studio-timeline">
+        <RowSplitter onChange={setTlH} min={150} testid="tl-splitter" />
         <Timeline
           selection={selection}
           onSelect={(sel) => {

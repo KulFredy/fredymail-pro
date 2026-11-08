@@ -1,10 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Captions, Film, Hexagon, Layers, Loader2, Mic, Music2, Plus, Scissors, Type, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
+import { Captions, Film, Hexagon, Layers, Loader2, Mic, Music2, Plus, Scissors, Trash2, Type, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
 import { logoSpan } from '../../src/core/graphics';
 import { captionPages, edgeGain, formatTime, layoutClips, stackRows, timelineWords, toFrames, totalDuration, voiceSpan } from '../../src/core/timeline';
 import { fileHref } from './api';
 import { useApp, useProject } from './state';
+
+/** Kütüphane / Media Pool kartlarından sürüklenen dosya kimliği */
+export const ASSET_MIME = 'application/x-fabrika-asset';
+export const dragAsset = (e: React.DragEvent, assetId: string) => {
+  e.dataTransfer.setData(ASSET_MIME, assetId);
+  e.dataTransfer.setData('text/plain', assetId);
+  e.dataTransfer.effectAllowed = 'copy';
+};
+export const isAssetDrag = (e: React.DragEvent) => [...e.dataTransfer.types].includes(ASSET_MIME);
 
 export type Selection = { kind: 'clip' | 'overlay' | 'voice' | 'text' | 'logo'; id: string } | null;
 /** Giriş/çıkış işaretleri (I / O tuşları): kare hassasiyetinde aralık */
@@ -117,6 +126,7 @@ export const Timeline: React.FC<{
   const [zoom, setZoom] = useState(1);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [assetOver, setAssetOver] = useState(false);
   const total = Math.max(1, totalDuration(project));
   const layout = layoutClips(project);
 
@@ -161,6 +171,42 @@ export const Timeline: React.FC<{
     apply([{ type: 'clips.reorder', order }]);
   };
 
+  /** Kütüphaneden bırakılan dosya: ses → müzik, görsel/video → bırakılan noktaya klip */
+  const dropAsset = (e: React.DragEvent, el: HTMLElement | null) => {
+    const id = e.dataTransfer.getData(ASSET_MIME);
+    setAssetOver(false);
+    if (!id) return;
+    e.preventDefault();
+    const a = library.get(id);
+    if (!a) return;
+    if (a.kind === 'audio') return apply([{ type: 'music.set', music: { assetId: id } }]);
+    let index = project.clips.length;
+    if (el) {
+      const at = (e.clientX - el.getBoundingClientRect().left) / pps;
+      index = layout.filter((l) => (l.start + l.end) / 2 < at).length;
+    }
+    apply([{ type: 'clips.add', assetIds: [id], index }]);
+  };
+  const assetDropProps = (getEl: (e: React.DragEvent) => HTMLElement | null) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!isAssetDrag(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      if (!assetOver) setAssetOver(true);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setAssetOver(false);
+    },
+    onDrop: (e: React.DragEvent) => dropAsset(e, getEl(e)),
+  });
+  const selClipId = selection ? (selection.kind === 'clip' ? selection.id : null) : project.ui.selectedClipId;
+  const selItem = selClipId ? layout.find((l) => l.clip.id === selClipId) : undefined;
+  const removeSelClip = () => {
+    if (!selItem) return;
+    apply([{ type: 'clips.remove', clipId: selItem.clip.id }]);
+    if (selection) onSelect?.(null);
+    else setUi({ selectedClipId: null });
+  };
   const music = project.music ? library.get(project.music.assetId) : undefined;
   /** Çakışan dış sesler alt alta satırlara dağılır; iz yüksekliği satır sayısına göre büyür */
   const vStack = useMemo(() => stackRows(project.voice.map(voiceSpan)), [project.voice]);
@@ -180,7 +226,7 @@ export const Timeline: React.FC<{
 
   if (!project.clips.length)
     return (
-      <div className="strip-empty">
+      <div className={`strip-empty ${assetOver ? 'asset-over' : ''}`} {...assetDropProps(() => null)}>
         {compact
           ? 'Klipler burada görünecek. Eklemek için “Ekle” adımını veya Telefondan ekle\'yi kullanın.'
           : 'Klipler burada görünecek. Soldaki Medya sekmesinden “Yükle” ile dosya ekleyin, sonra “Ana ize” deyin.'}
@@ -203,6 +249,13 @@ export const Timeline: React.FC<{
             ) : null}
             <button className="icon-btn sm" onClick={onClearMarks} title="İşaretleri temizle (Esc)">
               <XIcon size={12} />
+            </button>
+          </span>
+        ) : selItem ? (
+          <span className="tl-sel-info" data-testid="tl-sel-clip">
+            {layout.indexOf(selItem) + 1}. klip seçili: <b>{library.get(selItem.clip.assetId)?.name ?? ''}</b>
+            <button className="btn tiny danger" onClick={removeSelClip} title="Klibi kurgudan çıkar (⌫) · ⌘Z geri alır · orijinal dosya silinmez">
+              <Trash2 size={12} /> Klibi sil
             </button>
           </span>
         ) : !compact ? (
@@ -233,7 +286,7 @@ export const Timeline: React.FC<{
           )}
         </div>
         <div className="tl-scroll" onScroll={(e) => { if (e.currentTarget.scrollTop) e.currentTarget.scrollTop = 0; }}>
-          <div className="tl-content" style={{ width: contentW }}>
+          <div className={`tl-content ${assetOver ? 'asset-over' : ''}`} style={{ width: contentW }} {...assetDropProps((e) => e.currentTarget as HTMLElement)}>
             <div
               className="tl-ruler"
               onPointerDown={(e) => {

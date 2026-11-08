@@ -4,6 +4,7 @@ import { fileHref, upload } from '../api';
 import { MobileQr } from '../MobileModal';
 import { useApp, useProject } from '../state';
 import { Progress, Section } from '../ui';
+import { ASSET_MIME, dragAsset, isAssetDrag } from '../Timeline';
 
 export const AddStep: React.FC = () => {
   const { project, apply, reload } = useProject();
@@ -26,6 +27,17 @@ export const AddStep: React.FC = () => {
     }
   };
 
+  const addFromLibrary = (id: string) => {
+    const a = library.get(id);
+    if (!a) return;
+    if (a.kind === 'audio') {
+      apply([{ type: 'music.set', music: { assetId: id } }]);
+      toast(`Müzik: ${a.name}`);
+    } else {
+      apply([{ type: 'clips.add', assetIds: [id] }]);
+      toast(`Eklendi: ${a.name}`);
+    }
+  };
   const inProject = new Set(project.clips.map((c) => c.assetId));
   const assets = [...library.values()].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
 
@@ -35,14 +47,19 @@ export const AddStep: React.FC = () => {
         className={`dropzone ${over ? 'over' : ''}`}
         onDragOver={(e) => {
           e.preventDefault();
+          if (isAssetDrag(e)) e.dataTransfer.dropEffect = 'copy';
           setOver(true);
         }}
         onDragLeave={() => setOver(false)}
         onDrop={(e) => {
           e.preventDefault();
           setOver(false);
+          // Kütüphaneden sürüklenen dosya: yeniden yüklemeden projeye ekle
+          const id = e.dataTransfer.getData(ASSET_MIME);
+          if (id) return addFromLibrary(id);
           void send([...e.dataTransfer.files]);
         }}
+        data-testid="add-dropzone"
         onClick={() => input.current?.click()}
       >
         <Upload size={28} />
@@ -56,11 +73,18 @@ export const AddStep: React.FC = () => {
         <MobileQr page="upload" projectId={project.id} size={168} />
       </Section>
 
-      <Section title="Kütüphane" hint="Önceki projelerdeki dosyalar burada; yeniden yüklemeden ekleyebilirsiniz.">
+      <Section title="Kütüphane" hint="Önceki projelerdeki dosyalar burada; yeniden yüklemeden ekleyin: düğmeyle ya da kartı yukarıdaki alana veya alttaki zaman çizelgesine sürükleyerek.">
         {assets.length === 0 ? <p className="muted">Kütüphane boş.</p> : null}
         <div className="lib-grid">
           {assets.map((a) => (
-            <div key={a.id} className="lib-item">
+            <div
+              key={a.id}
+              className="lib-item"
+              data-asset={a.id}
+              draggable={a.status !== 'importing'}
+              onDragStart={(e) => dragAsset(e, a.id)}
+              title="Yukarıdaki alana veya alttaki zaman çizelgesine sürükleyin"
+            >
               <div className="lib-thumb" style={{ backgroundImage: a.poster ? `url(${fileHref(a.poster)})` : undefined }}>
                 {a.kind === 'audio' ? <Music2 size={22} /> : null}
                 {a.status === 'importing' ? <Loader2 size={18} className="spin" /> : null}

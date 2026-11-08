@@ -149,3 +149,74 @@ export const fmtSec = (s: number) => `${s.toFixed(1).replace('.', ',')} sn`;
 export const fmtDb = (d: number) => `${d > 0 ? '+' : ''}${d.toFixed(0)} dB`;
 export const fmtPct = (v: number) => `%${Math.round(v * 100)}`;
 export const fmtBytes = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1).replace('.', ',')} MB` : `${Math.round(b / 1024)} KB`);
+
+// ---------- Zaman çizelgesi yüksekliği: üst kenardan fareyle sürüklenir ----------
+const readNum = (k: string): number | null => {
+  try {
+    const v = Number(localStorage.getItem(k));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+};
+/** Kullanıcının sürüklediği yükseklik (bu tarayıcıda hatırlanır); null = varsayılan */
+export const useRowHeight = (key: string): [number | null, (h: number | null) => void] => {
+  const [h, setH] = React.useState<number | null>(() => readNum(key));
+  const set = React.useCallback(
+    (v: number | null) => {
+      setH(v);
+      try {
+        if (v === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, String(Math.round(v)));
+      } catch {
+        /* yok say */
+      }
+    },
+    [key],
+  );
+  return [h, set];
+};
+
+/** Alt paneli büyütüp küçülten tutamak (üst kenar). Çift tık: varsayılan yükseklik. */
+export const RowSplitter: React.FC<{ onChange: (h: number | null) => void; min?: number; reserve?: number; testid?: string }> = ({ onChange, min = 90, reserve = 260, testid }) => {
+  const [on, setOn] = React.useState(false);
+  const start = React.useRef<{ y: number; h: number } | null>(null);
+  const clamp = (v: number) => Math.max(min, Math.min(window.innerHeight - reserve, v));
+  return (
+    <div
+      className={`row-splitter ${on ? 'on' : ''}`}
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Zaman çizelgesi yüksekliği (sürükleyin; çift tık: varsayılan)"
+      title="Sürükleyerek büyütün / küçültün · çift tık: varsayılan"
+      data-testid={testid}
+      tabIndex={0}
+      onPointerDown={(e) => {
+        const panel = (e.currentTarget.parentElement as HTMLElement | null)?.getBoundingClientRect();
+        start.current = { y: e.clientY, h: panel?.height ?? 120 };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setOn(true);
+        e.preventDefault();
+      }}
+      onPointerMove={(e) => {
+        if (!start.current) return;
+        onChange(clamp(start.current.h + (start.current.y - e.clientY)));
+      }}
+      onPointerUp={() => {
+        start.current = null;
+        setOn(false);
+      }}
+      onPointerCancel={() => {
+        start.current = null;
+        setOn(false);
+      }}
+      onDoubleClick={() => onChange(null)}
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        const cur = (e.currentTarget.parentElement as HTMLElement | null)?.getBoundingClientRect().height ?? 120;
+        onChange(clamp(cur + (e.key === 'ArrowUp' ? 20 : -20)));
+      }}
+    />
+  );
+};

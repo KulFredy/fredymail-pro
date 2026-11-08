@@ -5,6 +5,7 @@ import {
 import { useApp, useProject } from './state';
 import { Preview } from './Preview';
 import { Timeline } from './Timeline';
+import { RowSplitter, modalOpen, useRowHeight } from './ui';
 import { MobileModal } from './MobileModal';
 import { AddStep } from './steps/AddStep';
 import { FormatStep } from './steps/FormatStep';
@@ -57,6 +58,8 @@ const JobsIndicator: React.FC = () => {
 
 export const QuickEdit: React.FC = () => {
   const { project, apply, setUi, undo, redo, canUndo, canRedo, undoLabel, redoLabel, saving } = useProject();
+  const { toast } = useApp();
+  const [tlH, setTlH] = useRowHeight('fabrika.hizli.zaman');
   const [mobile, setMobile] = useState(false);
   const [name, setName] = useState(project.name);
   const hasVideo = project.outputs.some((o) => o.kind === 'video');
@@ -69,18 +72,26 @@ export const QuickEdit: React.FC = () => {
     const k = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (tag === 'SELECT' || modalOpen()) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+      } else if ((e.key === 'Backspace' || e.key === 'Delete') && !e.metaKey && !e.ctrlKey && project.ui.selectedClipId) {
+        // Zaman çizelgesinde seçili klip kurgudan çıkar (orijinal dosya silinmez)
+        if (!project.clips.some((c) => c.id === project.ui.selectedClipId)) return;
+        e.preventDefault();
+        apply([{ type: 'clips.remove', clipId: project.ui.selectedClipId }]);
+        setUi({ selectedClipId: null });
+        toast('Klip kurgudan çıkarıldı (geri almak için ⌘Z)');
       }
     };
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
-  }, [undo, redo]);
+  }, [undo, redo, apply, setUi, toast, project.ui.selectedClipId, project.clips]);
 
   return (
-    <div className="editor">
+    <div className="editor" style={tlH ? ({ '--tl-h': `${tlH}px` } as React.CSSProperties) : undefined}>
       <header className="topbar">
         <a className="icon-btn" href="#/" title="Ana ekran">
           <ArrowLeft size={18} />
@@ -149,6 +160,7 @@ export const QuickEdit: React.FC = () => {
       </aside>
 
       <footer className="strip-row">
+        <RowSplitter onChange={setTlH} min={90} testid="tl-splitter" />
         <Timeline
           compact
           onLaneAction={(k) => setUi({ step: k === 'a1' || k === 'a2' ? 'ses' : k === 'c' || k === 't' ? 'altyazi' : k === 'v1' ? 'ekle' : 'sirala' })}
