@@ -10,11 +10,10 @@
 
 ## Doğrulanmayanlar (kullanıcıyla kontrol et)
 Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
-- **Gerçek Claude anahtarıyla komut** (kullanıcının anahtarı gerekir). Önceki "400" hatasının nedeni görülemedi; artık ayrıntı gösteriliyor ve terminale `[claude] 400: …` yazılıyor. Olası neden: hesapta kredi yok. Yerel komut yolu bulutta test edildi (`e2e:offline`, `e2e:ui`).
+- **Gerçek Claude anahtarıyla komut:** 8 Kasım'da Mac'te denendi; anahtar geçerli, API'ye ulaşılıyor, yanıt "hesapta kredi yok" (önceki 400'ün nedeni buydu). Kredi eklenince Claude'un gerçek yanıtı ve maliyet gösterimi doğrulanacak.
 - **4K video render'ı** (4K fotoğraf test edildi).
 - **Gerçek Android telefondan Wi-Fi ile yükleme** (QR).
 - Mac'te sesli komutların gerçek kullanımda doğruluğu.
-- **Gerçek LUT'larla** (Photoshop .3DL dahil) toplu içe aktarma ve görünüm; bulutta yalnız üretilmiş test LUT'ları kullanıldı.
 
 ### Mac'te test listesi (Faz 3, ~15 dk)
 Önce güncelle: `bash scripts/guncelle.sh claude/kind-davinci-9kuqyj` (eski betik varsayılan olarak eski dalı indiriyordu; bir kez dal adıyla çalıştırınca yeni betik gelir, sonrasında `bash scripts/guncelle.sh` yeter). Açık uygulamayı Ctrl+C ile kapatıp `npm run fabrika` ile yeniden başlat, tarayıcıda ⌘R.
@@ -43,7 +42,9 @@ Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). **Faz 3 · Yerel Stüdyo v
 3. Başlık ve logo öğeleri; dikey/yatay güvenli alan.
 4. Yakınlaşma ve kesim ritmi önerileri; storyboard ve görsel komut sözlüğü (gerçek senaryolara göre).
 
-**Sıradaki somut iş:** kullanıcı kendi LUT klasörünü (~/Desktop/LUTlarim) Mac'te içe aktarıp dener; ardından Faz 4.2 referanstan renk eşleme.
+Mac'te gerçek LUT'larla doğrulandı (8 Kasım): Photoshop .cube + .3DL, Magic Bullet, Resolve Sony; `npm run lut-ekle` ile toplu ekleme, küçük resimler ve canlı deneme.
+
+**Sıradaki somut iş:** Faz 4.2 referanstan renk eşleme.
 
 Sonra: Faz 4 (Referanslar, LUT Kütüphanem, hareket) → Faz 5 (Bağlantılar) → Faz 6 (Marka, kampanya) → Faz 7/8 isteğe bağlı.
 Küçükler (uygun fazda): RAW fotoğraf (LibRaw), kaynak oranında çıktı (ör. 4:3), Premiere'e aktarım (OpenTimelineIO / FCP XML), telefonda düzenleme ekranı, depoyu `main` dalına birleştirme.
