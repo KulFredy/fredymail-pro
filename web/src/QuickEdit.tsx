@@ -164,6 +164,7 @@ export const QuickEdit: React.FC = () => {
         <Timeline
           compact
           onLaneAction={(k) => setUi({ step: k === 'a1' || k === 'a2' ? 'ses' : k === 'c' || k === 't' ? 'altyazi' : k === 'v1' ? 'ekle' : 'sirala' })}
+          onEdit={(kind) => setUi({ step: kind === 'voice' || kind === 'music' ? 'ses' : kind === 'text' || kind === 'caption' || kind === 'logo' ? 'altyazi' : 'sirala' })}
         />
       </footer>
 

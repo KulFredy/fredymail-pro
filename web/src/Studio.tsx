@@ -7,7 +7,7 @@ import type { OpInput } from '../../src/core/ops';
 import { COMMAND_EXAMPLES, planCommand, type Plan, type PlanCandidate } from '../../src/core/commands';
 import { describeImpact } from '../../src/core/impact';
 import { FPS } from '../../src/core/schema';
-import { formatTime, layoutClips, toFrames, voiceFreeAt, voiceOverlaps } from '../../src/core/timeline';
+import { clipIndexAt, formatTime, layoutClips, toFrames, voiceFreeAt, voiceOverlaps } from '../../src/core/timeline';
 import { api, fileHref, upload } from './api';
 import { Preview } from './Preview';
 import { FramingControls } from './FramingControls';
@@ -23,7 +23,7 @@ import { BrandApplyForm, BrandsModal } from './Brands';
 import { DeliveryModal } from './DeliveryPanel';
 import { PipelineModal } from './Pipeline';
 import { GeneratePanel, type RegenRequest } from './GeneratePanel';
-import { Modal, RowSplitter, Segmented, Slider, fmtDb, fmtSec, modalOpen, useRowHeight } from './ui';
+import { Modal, RowSplitter, Segmented, Slider, fmtDb, fmtSec, modalOpen, useContextMenu, useRowHeight, type CtxItem } from './ui';
 
 type HistoryItem = { text: string; summary: string; ok: boolean };
 
@@ -503,9 +503,27 @@ const MediaBin: React.FC<{ onSelect?: (s: Selection) => void }> = ({ onSelect })
   };
   const input = useRef<HTMLInputElement>(null);
   const playhead = frame / FPS;
+  const [ctxMenu, openCtx] = useContextMenu();
+  const binMenu = (e: React.MouseEvent, a: (typeof items)[number]) => {
+    const list: CtxItem[] =
+      a.kind === 'audio'
+        ? [
+            { label: 'Müzik yap (A2)', icon: <Music2 size={14} />, onSelect: () => addTo([{ type: 'music.set', music: { assetId: a.id } }], `${a.name} müzik izine (A2) kondu`) },
+            { label: `Dış ses olarak imlece ekle (A1) · ${formatTime(playhead)}`, icon: <Mic size={14} />, onSelect: () => addTo([{ type: 'voice.add', assetId: a.id, at: voiceFreeAt(project.voice, playhead) }], `${a.name} dış ses izine (A1) eklendi`) },
+          ]
+        : [
+            { label: 'V1 sonuna ekle', icon: <Plus size={14} />, onSelect: () => addTo([{ type: 'clips.add', assetIds: [a.id] }], `${a.name} V1'in sonuna eklendi`, false) },
+            { label: `V1'de imlece ekle · ${formatTime(playhead)}`, icon: <Plus size={14} />, onSelect: () => addTo([{ type: 'clips.add', assetIds: [a.id], index: clipIndexAt(project, playhead) }], `${a.name} V1'de imlece eklendi`, false) },
+            { label: 'V2 üst ize ekle (imleçte, 2 sn)', icon: <Layers size={14} />, onSelect: () => addTo([{ type: 'overlay.add', assetId: a.id, at: playhead, duration: 2 }], `${a.name} V2'ye (imleçte, 2 sn) eklendi`) },
+            { label: 'Gallery referansı yap', icon: <Palette size={14} />, onSelect: () => addTo([{ type: 'reference.add', assetId: a.id }], `${a.name} Gallery'ye referans olarak eklendi (videoya girmez)`, false) },
+            ...(a.kind === 'image' ? [{ label: 'Logo yap (G1)', icon: <Tag size={14} />, onSelect: () => addTo([{ type: 'logo.add', assetId: a.id }], `Logo G1'e eklendi (sağ üst)`) } as CtxItem] : []),
+          ];
+    openCtx(e, list, a.name);
+  };
   const items = [...library.values()].filter((a) => a.role === 'media').sort((a, b) => b.importedAt.localeCompare(a.importedAt));
   return (
     <div className="bin">
+      {ctxMenu}
       <div className="row-between">
         <h4 lang="en">Media Pool</h4>
         <button className="btn tiny" onClick={() => input.current?.click()}>
@@ -533,7 +551,7 @@ const MediaBin: React.FC<{ onSelect?: (s: Selection) => void }> = ({ onSelect })
       </div>
       <div className="bin-list">
         {items.map((a) => (
-          <div key={a.id} className="bin-item" data-asset={a.id} draggable={a.status !== 'importing'} onDragStart={(e) => dragAsset(e, a.id)} title="Zaman çizelgesine sürükleyin">
+          <div key={a.id} className="bin-item" data-asset={a.id} draggable={a.status !== 'importing'} onDragStart={(e) => dragAsset(e, a.id)} onContextMenu={(e) => binMenu(e, a)} title="Zaman çizelgesine sürükleyin · sağ tık: seçenekler">
             <div className="bin-thumb" style={{ backgroundImage: a.poster ? `url(${fileHref(a.poster)})` : undefined }}>
               {a.kind === 'audio' ? <Music2 size={16} /> : a.kind === 'image' ? null : null}
               {a.status === 'importing' ? <Loader2 size={14} className="spin" /> : null}
@@ -765,7 +783,7 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void; onRegen?:
 };
 
 export const Studio: React.FC = () => {
-  const { project, apply, undo, redo, canUndo, canRedo, undoLabel, redoLabel, saving, reload, frame, setHighlights } = useProject();
+  const { project, apply, undo, redo, canUndo, canRedo, undoLabel, redoLabel, saving, reload, frame, setHighlights, setUi } = useProject();
   const [selection, setSelection] = useState<Selection>(project.ui.selectedClipId ? { kind: 'clip', id: project.ui.selectedClipId } : null);
   const [exporting, setExporting] = useState(false);
   const [name, setName] = useState(project.name);
@@ -1001,6 +1019,13 @@ export const Studio: React.FC = () => {
             if (sel) openRight('secili');
           }}
           onLaneAction={laneAction}
+          onEdit={(kind) => {
+            if (kind === 'caption') setLeftTab('transkript');
+            else if (kind === 'music') {
+              setUi({ step: 'ses' });
+              location.hash = `#/proje/${project.id}`;
+            } else openRight('secili');
+          }}
           marks={marks}
           onDeleteMarks={deleteMarks}
           onClearMarks={() => setMarks({ in: null, out: null })}

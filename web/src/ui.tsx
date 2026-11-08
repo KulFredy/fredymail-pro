@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export const Slider: React.FC<{
@@ -219,4 +220,89 @@ export const RowSplitter: React.FC<{ onChange: (h: number | null) => void; min?:
       }}
     />
   );
+};
+
+// ---------- Sağ tık menüsü (kurgu programlarındaki gibi) ----------
+export type CtxItem =
+  | { label: string; icon?: React.ReactNode; kbd?: string; danger?: boolean; disabled?: boolean; onSelect: () => void }
+  | 'sep';
+type CtxState = { x: number; y: number; title?: string; items: CtxItem[] } | null;
+
+const CtxMenuView: React.FC<{ state: NonNullable<CtxState>; onClose: () => void }> = ({ state, onClose }) => {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [pos, setPos] = React.useState({ x: state.x, y: state.y });
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ x: Math.max(6, Math.min(state.x, window.innerWidth - r.width - 6)), y: Math.max(6, Math.min(state.y, window.innerHeight - r.height - 6)) });
+    el.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
+  }, [state]);
+  React.useEffect(() => {
+    const down = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    const close = () => onClose();
+    window.addEventListener('pointerdown', down, true);
+    window.addEventListener('keydown', key, true);
+    window.addEventListener('blur', close);
+    window.addEventListener('resize', close);
+    window.addEventListener('wheel', close, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', down, true);
+      window.removeEventListener('keydown', key, true);
+      window.removeEventListener('blur', close);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('wheel', close);
+    };
+  }, [onClose]);
+  const move = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const btns = [...(ref.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? [])];
+    const i = btns.indexOf(document.activeElement as HTMLButtonElement);
+    btns[(i + (e.key === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length]?.focus();
+  };
+  return (
+    <div ref={ref} className="ctxm" role="menu" aria-label={state.title ?? 'Menü'} style={{ left: pos.x, top: pos.y }} onKeyDown={move} onContextMenu={(e) => e.preventDefault()} data-testid="ctx-menu">
+      {state.title ? <div className="ctxm-title">{state.title}</div> : null}
+      {state.items.map((it, i) =>
+        it === 'sep' ? (
+          <div key={i} className="ctxm-sep" role="separator" />
+        ) : (
+          <button
+            key={i}
+            role="menuitem"
+            className={`ctxm-item ${it.danger ? 'danger' : ''}`}
+            disabled={it.disabled}
+            onClick={() => {
+              onClose();
+              it.onSelect();
+            }}
+          >
+            <span className="ctxm-ico">{it.icon}</span>
+            <span className="ctxm-label">{it.label}</span>
+            {it.kbd ? <kbd className="ctxm-kbd">{it.kbd}</kbd> : null}
+          </button>
+        ),
+      )}
+    </div>
+  );
+};
+
+/** Sağ tık menüsü: [menü öğesi, aç]. aç(e, öğeler, başlık) tarayıcının kendi menüsünü bastırır. */
+export const useContextMenu = (): [React.ReactNode, (e: React.MouseEvent, items: CtxItem[], title?: string) => void] => {
+  const [state, setState] = React.useState<CtxState>(null);
+  const close = React.useCallback(() => setState(null), []);
+  const open = React.useCallback((e: React.MouseEvent, items: CtxItem[], title?: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setState({ x: e.clientX, y: e.clientY, items, title });
+  }, []);
+  return [state ? createPortal(<CtxMenuView state={state} onClose={close} />, document.body) : null, open];
 };

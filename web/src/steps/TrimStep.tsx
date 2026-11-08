@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Trash2, Play } from 'lucide-react';
+import { Trash2, Play, Copy, ArrowLeft, ArrowRight, Pencil } from 'lucide-react';
 import { layoutClips, toFrames, totalDuration } from '../../../src/core/timeline';
 import { fileHref } from '../api';
 import { useApp, useProject } from '../state';
-import { Section, Slider, fmtSec } from '../ui';
+import { Section, Slider, fmtSec, useContextMenu } from '../ui';
 
 const useWaveform = (rel: string | null) => {
   const [peaks, setPeaks] = useState<number[] | null>(null);
@@ -76,7 +76,32 @@ export const RangeBar: React.FC<{
 
 export const TrimStep: React.FC = () => {
   const { project, apply, preview, setUi, seekRef, playRef } = useProject();
-  const { library } = useApp();
+  const { library, toast } = useApp();
+  const [ctxMenu, openCtx] = useContextMenu();
+  const chipMenu = (e: React.MouseEvent, id: string, i: number) => {
+    setUi({ selectedClipId: id });
+    const order = project.clips.map((c) => c.id);
+    const swap = (d: -1 | 1) => {
+      const o = [...order];
+      [o[i], o[i + d]] = [o[i + d], o[i]];
+      apply([{ type: 'clips.reorder', order: o }]);
+    };
+    const it = layoutClips(project).find((l) => l.clip.id === id);
+    openCtx(
+      e,
+      [
+        { label: 'Oynat', icon: <Play size={14} />, onSelect: () => (seekRef.current?.(toFrames(it?.start ?? 0)), playRef.current?.play()) },
+        'sep',
+        { label: 'Çoğalt', icon: <Copy size={14} />, onSelect: () => apply([{ type: 'clip.duplicate', clipId: id }]) },
+        { label: 'Sola taşı', icon: <ArrowLeft size={14} />, disabled: i === 0, onSelect: () => swap(-1) },
+        { label: 'Sağa taşı', icon: <ArrowRight size={14} />, disabled: i === order.length - 1, onSelect: () => swap(1) },
+        { label: 'Kırp', icon: <Pencil size={14} />, onSelect: () => setUi({ selectedClipId: id }) },
+        'sep',
+        { label: 'Sil', icon: <Trash2 size={14} />, kbd: '⌫', danger: true, onSelect: () => (apply([{ type: 'clips.remove', clipId: id }]), toast('Klip silindi (geri almak için ⌘Z)')) },
+      ],
+      `${i + 1}. klip · ${library.get(project.clips[i].assetId)?.name ?? ''}`,
+    );
+  };
   const clip = project.clips.find((c) => c.id === project.ui.selectedClipId) ?? project.clips[0];
   const asset = clip ? library.get(clip.assetId) : undefined;
   const peaks = useWaveform(asset?.kind === 'video' ? asset.waveform : null);
@@ -159,8 +184,9 @@ export const TrimStep: React.FC = () => {
       </Section>
       <Section title="Sıralama" hint="Alttaki şeritte klipleri sürükleyip bırakarak sıralayın. Bir klibi seçmek için üzerine tıklayın.">
         <div className="row-wrap">
+          {ctxMenu}
           {project.clips.map((c, i) => (
-            <button key={c.id} className={`chip ${c.id === clip.id ? 'on' : ''}`} onClick={() => setUi({ selectedClipId: c.id })}>
+            <button key={c.id} className={`chip ${c.id === clip.id ? 'on' : ''}`} onClick={() => setUi({ selectedClipId: c.id })} onContextMenu={(e) => chipMenu(e, c.id, i)} title="Sağ tık: seçenekler">
               {i + 1}. {library.get(c.assetId)?.name}
             </button>
           ))}

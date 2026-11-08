@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Captions, Film, Hexagon, Layers, Loader2, Mic, Music2, Plus, Scissors, Trash2, Type, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Captions, Copy, CornerDownRight, Crosshair, EyeOff, Film, Hexagon, Layers, Loader2, Mic, Music2, Pencil, Play, Plus, Scissors, Trash2, Type, Volume2, VolumeX, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
 import { logoSpan } from '../../src/core/graphics';
-import { captionPages, edgeGain, formatTime, layoutClips, stackRows, timelineWords, toFrames, totalDuration, voiceSpan } from '../../src/core/timeline';
+import { captionPages, clipIndexAt, edgeGain, formatTime, layoutClips, stackRows, timelineWords, toFrames, totalDuration, voiceFreeAt, voiceOverlaps, voiceSpan } from '../../src/core/timeline';
+import { useContextMenu, type CtxItem } from './ui';
 import { fileHref } from './api';
 import { useApp, useProject } from './state';
 
@@ -15,6 +16,7 @@ export const dragAsset = (e: React.DragEvent, assetId: string) => {
 };
 export const isAssetDrag = (e: React.DragEvent) => [...e.dataTransfer.types].includes(ASSET_MIME);
 
+export type EditKind = 'clip' | 'overlay' | 'voice' | 'text' | 'logo' | 'caption' | 'music';
 export type Selection = { kind: 'clip' | 'overlay' | 'voice' | 'text' | 'logo'; id: string } | null;
 /** Giriş/çıkış işaretleri (I / O tuşları): kare hassasiyetinde aralık */
 export type Marks = { in: number | null; out: number | null };
@@ -118,9 +120,12 @@ export const Timeline: React.FC<{
   marks?: Marks;
   onDeleteMarks?: () => void;
   onClearMarks?: () => void;
-}> = ({ compact, selection, onSelect, onLaneAction, marks, onDeleteMarks, onClearMarks }) => {
-  const { project, refs, frame, seekRef, setUi, apply, highlights } = useProject();
-  const { library } = useApp();
+  /** Sağ tık → “Düzenle…”: düzenleyici ilgili paneli/adımı açar */
+  onEdit?: (kind: EditKind, id?: string) => void;
+}> = ({ compact, selection, onSelect, onLaneAction, marks, onDeleteMarks, onClearMarks, onEdit }) => {
+  const { project, refs, frame, seekRef, playRef, setUi, apply, highlights } = useProject();
+  const { library, toast } = useApp();
+  const [ctxMenu, openCtx] = useContextMenu();
   const wrap = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
   const [zoom, setZoom] = useState(1);
@@ -180,11 +185,7 @@ export const Timeline: React.FC<{
     const a = library.get(id);
     if (!a) return;
     if (a.kind === 'audio') return apply([{ type: 'music.set', music: { assetId: id } }]);
-    let index = project.clips.length;
-    if (el) {
-      const at = (e.clientX - el.getBoundingClientRect().left) / pps;
-      index = layout.filter((l) => (l.start + l.end) / 2 < at).length;
-    }
+    const index = el ? clipIndexAt(project, (e.clientX - el.getBoundingClientRect().left) / pps) : project.clips.length;
     apply([{ type: 'clips.add', assetIds: [id], index }]);
   };
   const assetDropProps = (getEl: (e: React.DragEvent) => HTMLElement | null) => ({
@@ -207,6 +208,131 @@ export const Timeline: React.FC<{
     if (selection) onSelect?.(null);
     else setUi({ selectedClipId: null });
   };
+  // ---------- Sağ tık menüleri ----------
+  const timeAt = (e: React.MouseEvent) => {
+    const el = (e.currentTarget as HTMLElement).closest('.tl-content') as HTMLElement | null;
+    return el ? Math.max(0, Math.min(total, (e.clientX - el.getBoundingClientRect().left) / pps)) : t;
+  };
+  const playFrom = (sec: number) => {
+    seekRef.current?.(toFrames(sec));
+    playRef.current?.play();
+  };
+  const edit = (kind: EditKind, id?: string) => {
+    if (kind === 'clip' || kind === 'overlay' || kind === 'voice' || kind === 'text' || kind === 'logo') select(id ? { kind, id } : null);
+    onEdit?.(kind, id);
+  };
+  const del = (op: Parameters<typeof apply>[0][number], msg: string) => {
+    apply([op]);
+    if (selection) onSelect?.(null);
+    else setUi({ selectedClipId: null });
+    toast(`${msg} (geri almak için ⌘Z)`);
+  };
+  const DEL = (kind: string, op: Parameters<typeof apply>[0][number]): CtxItem => ({ label: 'Sil', icon: <Trash2 size={14} />, kbd: '⌫', danger: true, onSelect: () => del(op, `${kind} silindi`) });
+  const PLAY = (sec: number, label = 'Buradan oynat'): CtxItem => ({ label, icon: <Play size={14} />, kbd: compact ? undefined : 'Boşluk', onSelect: () => playFrom(sec) });
+  const EDIT = (kind: EditKind, id?: string, label = 'Düzenle…'): CtxItem => ({ label, icon: <Pencil size={14} />, onSelect: () => edit(kind, id) });
+
+  const clipMenu = (e: React.MouseEvent, item: (typeof layout)[number], i: number) => {
+    const at = timeAt(e);
+    const c = item.clip;
+    const a = library.get(c.assetId);
+    select({ kind: 'clip', id: c.id });
+    const canSplit = at - item.start >= 0.1 && item.end - at >= 0.1;
+    const order = project.clips.map((x) => x.id);
+    const swap = (d: -1 | 1) => {
+      const o = [...order];
+      [o[i], o[i + d]] = [o[i + d], o[i]];
+      apply([{ type: 'clips.reorder', order: o }]);
+    };
+    openCtx(
+      e,
+      [
+        PLAY(at),
+        'sep',
+        { label: `Burada böl · ${formatTime(at)}`, icon: <Scissors size={14} />, kbd: compact ? undefined : 'S', disabled: !canSplit, onSelect: () => apply([{ type: 'clip.split', clipId: c.id, at }], { label: 'Klip bölündü' }) },
+        { label: 'Çoğalt', icon: <Copy size={14} />, onSelect: () => apply([{ type: 'clip.duplicate', clipId: c.id }]) },
+        { label: 'Sola taşı', icon: <ArrowLeft size={14} />, disabled: i === 0, onSelect: () => swap(-1) },
+        { label: 'Sağa taşı', icon: <ArrowRight size={14} />, disabled: i === order.length - 1, onSelect: () => swap(1) },
+        ...(a?.kind === 'video' && a.hasAudio
+          ? [{ label: c.muted ? 'Sesi aç' : 'Sesi kapat', icon: c.muted ? <Volume2 size={14} /> : <VolumeX size={14} />, onSelect: () => apply([{ type: 'clip.update', clipId: c.id, patch: { muted: !c.muted } }]) } as CtxItem]
+          : []),
+        EDIT('clip', c.id, compact ? 'Kırp ve düzenle…' : 'Inspector’da düzenle…'),
+        'sep',
+        DEL('Klip', { type: 'clips.remove', clipId: c.id }),
+      ],
+      `${i + 1}. klip · ${a?.name ?? ''}`,
+    );
+  };
+  const voiceMenu = (e: React.MouseEvent, v: (typeof project.voice)[number]) => {
+    select({ kind: 'voice', id: v.id });
+    const over = voiceOverlaps(project.voice, v.id).length > 0;
+    openCtx(
+      e,
+      [
+        PLAY(v.at, 'Baştan oynat'),
+        'sep',
+        { label: 'Çoğalt', icon: <Copy size={14} />, onSelect: () => apply([{ type: 'voice.duplicate', id: v.id }]) },
+        { label: `İmlece taşı · ${formatTime(t)}`, icon: <Crosshair size={14} />, onSelect: () => apply([{ type: 'voice.update', id: v.id, patch: { at: t } }]) },
+        ...(over
+          ? [{ label: 'Boş yere taşı', icon: <CornerDownRight size={14} />, onSelect: () => apply([{ type: 'voice.update', id: v.id, patch: { at: voiceFreeAt(project.voice.filter((x) => x.id !== v.id), v.at) } }]) } as CtxItem]
+          : []),
+        EDIT('voice', v.id),
+        'sep',
+        DEL('Dış ses', { type: 'voice.remove', id: v.id }),
+      ],
+      `Dış ses · ${library.get(v.assetId)?.name ?? ''}`,
+    );
+  };
+  const overlayMenu = (e: React.MouseEvent, o: (typeof project.overlays)[number]) => {
+    select({ kind: 'overlay', id: o.id });
+    openCtx(e, [PLAY(o.at, 'Baştan oynat'), 'sep', { label: `İmlece taşı · ${formatTime(t)}`, icon: <Crosshair size={14} />, onSelect: () => apply([{ type: 'overlay.update', id: o.id, patch: { at: t } }]) }, EDIT('overlay', o.id), 'sep', DEL('Üst iz öğesi', { type: 'overlay.remove', id: o.id })], `Overlay · ${library.get(o.assetId)?.name ?? ''}`);
+  };
+  const textMenu = (e: React.MouseEvent, tx: (typeof project.texts)[number]) => {
+    select({ kind: 'text', id: tx.id });
+    const len = tx.end - tx.start;
+    const { id: _id, ...rest } = tx;
+    void _id;
+    openCtx(
+      e,
+      [
+        PLAY(tx.start, 'Baştan oynat'),
+        'sep',
+        { label: 'Çoğalt', icon: <Copy size={14} />, onSelect: () => apply([{ type: 'text.add', text: { ...rest, start: tx.end, end: tx.end + len } }]) },
+        { label: `İmlece taşı · ${formatTime(t)}`, icon: <Crosshair size={14} />, onSelect: () => apply([{ type: 'text.update', id: tx.id, patch: { start: t, end: t + len } }]) },
+        EDIT('text', tx.id),
+        'sep',
+        DEL('Yazı', { type: 'text.remove', id: tx.id }),
+      ],
+      `Yazı · ${tx.text}`,
+    );
+  };
+  const logoMenu = (e: React.MouseEvent, id: string, name: string) => {
+    select({ kind: 'logo', id });
+    openCtx(e, [EDIT('logo', id), 'sep', DEL('Logo', { type: 'logo.remove', id })], `Logo · ${name}`);
+  };
+  const captionMenu = (e: React.MouseEvent, start: number, text: string) =>
+    openCtx(
+      e,
+      [
+        PLAY(start),
+        'sep',
+        EDIT('caption', undefined, 'Altyazıyı düzenle…'),
+        { label: 'Altyazıyı kapat', icon: <EyeOff size={14} />, onSelect: () => apply([{ type: 'captions.set', enabled: false }]) },
+      ],
+      `Altyazı · ${text.slice(0, 40)}`,
+    );
+  const musicMenu = (e: React.MouseEvent) =>
+    openCtx(e, [EDIT('music', undefined, 'Müzik ayarları…'), 'sep', { label: 'Müziği kaldır', icon: <Trash2 size={14} />, danger: true, onSelect: () => del({ type: 'music.set', music: null }, 'Müzik kaldırıldı') }], 'Music');
+  const laneMenu = (e: React.MouseEvent, key: string) => {
+    if (e.target !== e.currentTarget) return;
+    const at = timeAt(e);
+    openCtx(e, [
+      { label: `İmleci buraya getir · ${formatTime(at)}`, icon: <Crosshair size={14} />, onSelect: () => seekRef.current?.(toFrames(at)) },
+      PLAY(at),
+      ...(key === 't' || key === 'c' ? [{ label: 'Buraya yazı ekle', icon: <Type size={14} />, onSelect: () => apply([{ type: 'text.add', text: { text: 'Yeni yazı', start: at, end: Math.min(total, at + 3) } }]) } as CtxItem] : []),
+      ...(onLaneAction && LANE_ACTION[key] ? ['sep' as const, { label: LANE_ACTION[key], icon: <Plus size={14} />, onSelect: () => onLaneAction(key) }] : []),
+    ]);
+  };
+
   const music = project.music ? library.get(project.music.assetId) : undefined;
   /** Çakışan dış sesler alt alta satırlara dağılır; iz yüksekliği satır sayısına göre büyür */
   const vStack = useMemo(() => stackRows(project.voice.map(voiceSpan)), [project.voice]);
@@ -305,7 +431,7 @@ export const Timeline: React.FC<{
             </div>
 
             {lanes.filter((l) => l.show).map((l) => (
-              <div key={l.key} className={`tl-lane lane-${l.key}`} style={laneStyle(l.key)} onPointerDown={(e) => e.target === e.currentTarget && seekToX(e.clientX, e.currentTarget)}>
+              <div key={l.key} className={`tl-lane lane-${l.key}`} style={laneStyle(l.key)} onPointerDown={(e) => e.button === 0 && e.target === e.currentTarget && seekToX(e.clientX, e.currentTarget)} onContextMenu={(e) => laneMenu(e, l.key)}>
                 {l.key === 'v1'
                   ? layout.map((item, i) => {
                       const a = library.get(item.clip.assetId);
@@ -330,6 +456,7 @@ export const Timeline: React.FC<{
                             setDragId(null);
                             setOverId(null);
                           }}
+                          onContextMenu={(e) => clipMenu(e, item, i)}
                           onClick={() => {
                             select({ kind: 'clip', id: item.clip.id });
                             if (t < item.start || t >= item.end) seekRef.current?.(toFrames(item.start) + 1);
@@ -364,6 +491,7 @@ export const Timeline: React.FC<{
                             className={`tl-item overlay ${selection?.kind === 'overlay' && selection.id === o.id ? 'sel' : ''}`}
                             style={{ left: x(o.at), width: Math.max(2, x(o.out - o.in) - 1), backgroundImage: a?.poster ? `url(${fileHref(a.poster)})` : undefined }}
                             onClick={() => select({ kind: 'overlay', id: o.id })}
+                            onContextMenu={(e) => overlayMenu(e, o)}
                             title={`${a?.name ?? ''} · ${(o.out - o.in).toFixed(1)} sn · ana ses devam eder`}
                           >
                             <span className="tl-name">{a?.name}</span>
@@ -382,6 +510,7 @@ export const Timeline: React.FC<{
                               ...(vStack.count > 1 ? { top: 3 + vStack.rows[vi] * V_ROW, bottom: 'auto', height: V_ROW - 2 } : {}),
                             }}
                             onClick={() => select({ kind: 'voice', id: v.id })}
+                            onContextMenu={(e) => voiceMenu(e, v)}
                             title={`${library.get(v.assetId)?.name ?? 'Dış ses'} · ${formatTime(v.at)}–${formatTime(v.at + v.out - v.in)}${v.tts ? ` · “${v.tts.text.slice(0, 60)}”` : ''}`}
                           >
                             <span className="tl-name">🎙 {library.get(v.assetId)?.name}</span>
@@ -391,7 +520,7 @@ export const Timeline: React.FC<{
                       : l.key === 'a1'
                         ? music
                           ? (
-                              <div className="tl-item music" style={{ left: 0, width: x(total) }}>
+                              <div className="tl-item music" style={{ left: 0, width: x(total) }} onContextMenu={musicMenu}>
                                 <span className="tl-name">
                                   ♪ {music.name} · {project.music?.mode === 'bed' ? 'arka planda kısık' : project.music?.mode === 'duck' ? 'konuşmada kısılır' : 'sabit'}
                                   {music.beats?.bpm ? ` · ${Math.round(music.beats.bpm)} BPM` : ''}
@@ -409,7 +538,7 @@ export const Timeline: React.FC<{
                           ? !project.captions.enabled
                             ? [<span key="off" className="tl-empty">Altyazı kapalı · açmak için soldaki +</span>]
                             : pages.map((p, i) => (
-                              <div key={i} className="tl-item caption" style={{ left: x(p.start), width: Math.max(2, x(p.end - p.start) - 1) }} title={p.lines.flat().map((w) => w.text).join(' ')}>
+                              <div key={i} className="tl-item caption" style={{ left: x(p.start), width: Math.max(2, x(p.end - p.start) - 1) }} title={p.lines.flat().map((w) => w.text).join(' ')} onContextMenu={(e) => captionMenu(e, p.start, p.lines.flat().map((w) => w.text).join(' '))}>
                                 <span className="tl-name">{p.lines.flat().map((w) => w.text).join(' ')}</span>
                               </div>
                             ))
@@ -424,6 +553,7 @@ export const Timeline: React.FC<{
                                     className={`tl-item logo ${selection?.kind === 'logo' && selection.id === lg.id ? 'sel' : ''}`}
                                     style={{ left: x(span.start), width: Math.max(2, x(span.end - span.start) - 1) }}
                                     onClick={() => select({ kind: 'logo', id: lg.id })}
+                                    onContextMenu={(e) => logoMenu(e, lg.id, a?.name ?? 'Logo')}
                                     title={`${a?.name ?? 'logo'}${lg.full ? ' · videonun tamamı' : ''}`}
                                   >
                                     {a?.poster ? <img className="tl-logo-thumb" src={fileHref(a.poster)} alt="" /> : null}
@@ -437,6 +567,7 @@ export const Timeline: React.FC<{
                                   className={`tl-item text ${selection?.kind === 'text' && selection.id === tx.id ? 'sel' : ''}`}
                                   style={{ left: x(tx.start), width: Math.max(2, x(tx.end - tx.start) - 1) }}
                                   onClick={() => select({ kind: 'text', id: tx.id })}
+                                  onContextMenu={(e) => textMenu(e, tx)}
                                 >
                                   <span className="tl-name">T {tx.text}</span>
                                 </div>
@@ -455,6 +586,7 @@ export const Timeline: React.FC<{
               </div>
             ))}
             <div className="tl-playhead" data-t={t.toFixed(3)} style={{ left: x(t) }} />
+            {ctxMenu}
           </div>
         </div>
       </div>

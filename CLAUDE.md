@@ -37,7 +37,7 @@ npm run e2e:marka      # Faz 6 (marka → kanal paketi)
 npm run e2e:yayin      # Faz 7 (YouTube, sahte Google)
 npm run e2e:anasayfa   # ana sayfa, telefon hedefi, yardım, üretim hattı/XML
 npm run e2e:disses     # A1 dış ses: çakışanlar alt alta, seç/taşı/sil/geri al
-npm run e2e:surukle    # kütüphaneden sürükle-bırak, zaman çizelgesi tutamağı, klip sil
+npm run e2e:surukle    # sürükle-bırak, zaman çizelgesi tutamağı, klip sil, oynatma, sağ tık menüleri
 ```
 
 ## Bulut oturumunda (Linux konteyner) test

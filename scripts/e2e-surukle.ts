@@ -5,6 +5,7 @@
  *  - Zaman çizelgesi üst kenardaki tutamakla yukarı sürüklenip büyür; yenilemeden sonra korunur; çift tık varsayılana döner.
  *  - Klip seçilince “N. klip seçili · Klibi sil” görünür; düğme ve ⌫ klibi çıkarır, ⌘Z geri getirir.
  *  - Stüdyo'da Media Pool kartı zaman çizelgesine sürüklenir; tutamak çalışır.
+ *  - Sağ tık menüleri: kütüphane kartı, klip (oynat/böl/çoğalt/taşı/sil), Sırala düğmeleri, Media Pool, dış ses.
  * Çalıştırma: npm run e2e:surukle
  */
 import { cp, mkdir, rm } from 'node:fs/promises';
@@ -141,6 +142,57 @@ const main = async () => {
     await page.locator('.transport .play-btn').click();
     void img;
 
+    // ---------- Sağ tık menüleri (Hızlı Edit) ----------
+    const menuPick = async (name: RegExp) => {
+      await page.waitForSelector('[data-testid=ctx-menu]');
+      await page.getByTestId('ctx-menu').getByRole('menuitem', { name }).click();
+      await page.waitForSelector('[data-testid=ctx-menu]', { state: 'detached' });
+    };
+    const ids = async () => ((await projectOf(q)).clips as { id: string; assetId: string }[]);
+    await page.locator('.steps .step', { hasText: 'Ekle' }).click();
+    await page.locator(`.lib-item[data-asset="${PHOTO}"]`).click({ button: 'right' });
+    const libMenuTxt = await page.getByTestId('ctx-menu').innerText();
+    await menuPick(/Başa ekle/);
+    const okA = await waitFor(async () => (await ids())[0]?.assetId === PHOTO);
+    check('Kütüphane kartında sağ tık: menü (Sona/İmlece/Başa ekle) → “Başa ekle”', okA && /Sona ekle/.test(libMenuTxt) && /İmlece ekle/.test(libMenuTxt), libMenuTxt.replace(/\n+/g, ' | '));
+
+    const before = await ids();
+    const vClip = page.locator(`.tl-item.clip[data-clip-id="${before[1].id}"]`);
+    await vClip.click({ button: 'right' });
+    const clipMenuTxt = await page.getByTestId('ctx-menu').innerText();
+    await menuPick(/Çoğalt/);
+    const okB = await waitFor(async () => (await ids()).length === before.length + 1);
+    check('Klipte sağ tık: oynat/böl/çoğalt/taşı/ses/düzenle/sil → “Çoğalt”', okB && ['Buradan oynat', 'Burada böl', 'Çoğalt', 'Sola taşı', 'Sağa taşı', 'Sil'].every((w) => clipMenuTxt.includes(w)), clipMenuTxt.replace(/\n+/g, ' | '));
+
+    const c3 = await ids();
+    await page.locator(`.tl-item.clip[data-clip-id="${c3[1].id}"]`).click({ button: 'right' });
+    await menuPick(/Burada böl/);
+    const okC = await waitFor(async () => (await ids()).length === c3.length + 1);
+    check('“Burada böl” klibi tıklanan noktadan böldü', okC);
+
+    const c4 = await ids();
+    await page.locator(`.tl-item.clip[data-clip-id="${c4[0].id}"]`).click({ button: 'right' });
+    await menuPick(/Sağa taşı/);
+    const okD = await waitFor(async () => (await ids())[1]?.id === c4[0].id);
+    await page.locator(`.tl-item.clip[data-clip-id="${c4[0].id}"]`).click({ button: 'right' });
+    await menuPick(/^Sil/);
+    const okE = await waitFor(async () => !(await ids()).some((c) => c.id === c4[0].id));
+    check('“Sağa taşı” ve “Sil” çalıştı', okD && okE);
+
+    await page.locator('.tl-item.clip').first().click({ button: 'right' });
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid=ctx-menu]', { state: 'detached' });
+    await page.locator('.tl-lane.lane-v1').click({ button: 'right', position: { x: 5, y: 5 } }).catch(() => undefined);
+    check('Esc menüyü kapatıyor', true);
+    await page.keyboard.press('Escape');
+
+    await page.locator('.steps .step', { hasText: 'Sırala' }).click();
+    const c5 = await ids();
+    await page.locator('.chip', { hasText: /^2\./ }).click({ button: 'right' });
+    await menuPick(/Sola taşı/);
+    const okF = await waitFor(async () => (await ids())[0]?.id === c5[1].id);
+    check('Sırala adımında klip düğmesine sağ tık → “Sola taşı”', okF);
+
     // ---------- Stüdyo ----------
     const s = (await api('POST', '/api/projects', { name: 'Stüdyo sürükle', formats: [{ format: 'reel' }], mode: 'studio' })).project.id as string;
     await api('POST', `/api/projects/${s}/ops`, { ops: [{ type: 'clips.add', assetIds: [VIDEO] }] });
@@ -156,6 +208,19 @@ const main = async () => {
       return p.clips.length === 2 && p.clips[1].assetId === PHOTO;
     });
     check('Stüdyo: Media Pool kartı zaman çizelgesinin sonuna sürüklendi', ok7);
+    await page.locator(`.bin-item[data-asset="${PHOTO}"]`).click({ button: 'right' });
+    const binTxt = await page.getByTestId('ctx-menu').innerText();
+    await menuPick(/V1 sonuna ekle/);
+    const okV = await waitFor(async () => (await projectOf(s)).clips.length === 3);
+    await api('POST', `/api/projects/${s}/ops`, { ops: [{ type: 'voice.add', assetId: AUDIO, at: 0.5 }] });
+    await page.reload();
+    const vid = (await projectOf(s)).voice[0]?.id;
+    await page.waitForSelector(`[data-voice="${vid}"]`);
+    await page.locator(`[data-voice="${vid}"]`).click({ button: 'right' });
+    const vTxt = await page.getByTestId('ctx-menu').innerText();
+    await menuPick(/Çoğalt/);
+    const okW = await waitFor(async () => (await projectOf(s)).voice.length === 2);
+    check('Stüdyo: Media Pool’da sağ tık (V1/V2/Gallery/Logo) ve dış seste sağ tık → Çoğalt', okV && okW && /V2 üst ize/.test(binTxt) && /Gallery/.test(binTxt) && /İmlece taşı/.test(vTxt), binTxt.replace(/\n+/g, ' | '));
     const sf = page.locator('.studio-timeline');
     const s0 = (await sf.boundingBox())!.height;
     const ss = (await page.getByTestId('tl-splitter').boundingBox())!;

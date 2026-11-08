@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { FORMATS } from './formats';
 import { CHANNELS, CHANNEL_IDS, outputName } from './channels';
-import { layoutClips } from './timeline';
+import { layoutClips, voiceFreeAt } from './timeline';
 import {
   DEFAULT_LOOK,
   AdjustSchema,
@@ -113,6 +113,7 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text.remove'), id: z.string() }),
   /** Klibi zaman çizelgesindeki bir anda ikiye böler */
   z.object({ type: z.literal('clip.split'), clipId: z.string(), at: z.number().min(0) }),
+  z.object({ type: z.literal('clip.duplicate'), clipId: z.string() }),
   /** Zaman çizelgesinden bir aralığı çıkarır, sonrası kayar (ripple) */
   z.object({ type: z.literal('timeline.deleteRange'), start: z.number().min(0), end: z.number().positive() }),
   z.object({ type: z.literal('overlay.add'), assetId: z.string(), at: z.number().min(0), duration: z.number().positive(), in: z.number().min(0).optional() }),
@@ -121,6 +122,7 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('voice.add'), assetId: z.string(), at: z.number().min(0), tts: VoiceSchema.shape.tts.optional() }),
   z.object({ type: z.literal('voice.update'), id: z.string(), patch: patchOf(VoiceSchema.omit({ id: true, assetId: true })) }),
   z.object({ type: z.literal('voice.remove'), id: z.string() }),
+  z.object({ type: z.literal('voice.duplicate'), id: z.string() }),
   /** Dış sesin kaydını değiştir (metinden yeniden üretim); yer ve ses ayarları korunur */
   z.object({ type: z.literal('voice.setAsset'), id: z.string(), assetId: z.string(), tts: VoiceSchema.shape.tts.optional() }),
   z.object({ type: z.literal('reference.add'), assetId: z.string(), at: z.number().min(0).optional() }),
@@ -395,6 +397,16 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
       p.outputs = p.outputs.map((o) => (o.framing[a.id] ? { ...o, framing: { ...o.framing, [second.id]: o.framing[a.id] } } : o));
       break;
     }
+    case 'clip.duplicate': {
+      // Hemen arkasına aynı kesim, ayar ve kadrajla bir kopya
+      const i = p.clips.findIndex((c) => c.id === op.clipId);
+      if (i < 0) throw new OpError(`Klip bulunamadı: ${op.clipId}`);
+      const a = p.clips[i];
+      const copy = { ...structuredClone(a), id: ctx.newId('c') };
+      p.clips.splice(i + 1, 0, copy);
+      p.outputs = p.outputs.map((o) => (o.framing[a.id] ? { ...o, framing: { ...o.framing, [copy.id]: structuredClone(o.framing[a.id]) } } : o));
+      break;
+    }
     case 'timeline.deleteRange': {
       const s0 = op.start;
       const e0 = op.end;
@@ -469,6 +481,14 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
       const v = p.voice.find((x) => x.id === op.id);
       if (!v) throw new OpError(`Dış ses bulunamadı: ${op.id}`);
       Object.assign(v, VoiceSchema.parse({ ...v, ...op.patch }));
+      break;
+    }
+    case 'voice.duplicate': {
+      // Kopya, kendisinin ve arkasındaki seslerin bitişine (üst üste binmez)
+      const v = p.voice.find((x) => x.id === op.id);
+      if (!v) throw new OpError(`Dış ses bulunamadı: ${op.id}`);
+      const at = voiceFreeAt(p.voice, v.at);
+      p.voice = [...p.voice, { ...structuredClone(v), id: ctx.newId('s'), at }];
       break;
     }
     case 'voice.remove':
@@ -565,6 +585,8 @@ export const describeOp = (op: OpInput): string => {
     case 'text.update': return 'Yazı düzenlendi';
     case 'text.remove': return 'Yazı silindi';
     case 'clip.split': return 'Klip bölündü';
+    case 'clip.duplicate': return 'Klip çoğaltıldı';
+    case 'voice.duplicate': return 'Dış ses çoğaltıldı';
     case 'timeline.deleteRange': return `${(op.end - op.start).toFixed(1)} sn kesildi`;
     case 'overlay.add': return 'Üst ize görüntü eklendi';
     case 'overlay.update': return 'Üst iz düzenlendi';

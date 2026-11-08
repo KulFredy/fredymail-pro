@@ -1,13 +1,16 @@
 import React, { useRef, useState } from 'react';
-import { Upload, Plus, Music2, Image as ImageIcon, Video, Loader2 } from 'lucide-react';
+import { Upload, Plus, Music2, Image as ImageIcon, Video, Loader2, Mic } from 'lucide-react';
 import { fileHref, upload } from '../api';
 import { MobileQr } from '../MobileModal';
 import { useApp, useProject } from '../state';
-import { Progress, Section } from '../ui';
+import { Progress, Section, useContextMenu, type CtxItem } from '../ui';
+import { FPS } from '../../../src/core/schema';
+import { clipIndexAt, formatTime, voiceFreeAt } from '../../../src/core/timeline';
 import { ASSET_MIME, dragAsset, isAssetDrag } from '../Timeline';
 
 export const AddStep: React.FC = () => {
-  const { project, apply, reload } = useProject();
+  const { project, apply, reload, frame } = useProject();
+  const [ctxMenu, openCtx] = useContextMenu();
   const { library, toast } = useApp();
   const [prog, setProg] = useState<number | null>(null);
   const [over, setOver] = useState(false);
@@ -38,11 +41,29 @@ export const AddStep: React.FC = () => {
       toast(`Eklendi: ${a.name}`);
     }
   };
+  const libMenu = (e: React.MouseEvent, id: string) => {
+    const a = library.get(id);
+    if (!a) return;
+    const t = frame / FPS;
+    const list: CtxItem[] =
+      a.kind === 'audio'
+        ? [
+            { label: project.music?.assetId === id ? 'Zaten müzik' : 'Müzik yap', icon: <Music2 size={14} />, disabled: project.music?.assetId === id, onSelect: () => addFromLibrary(id) },
+            { label: `Dış ses olarak imlece ekle · ${formatTime(t)}`, icon: <Mic size={14} />, disabled: !project.clips.length, onSelect: () => (apply([{ type: 'voice.add', assetId: id, at: voiceFreeAt(project.voice, t) }]), toast(`Dış ses eklendi: ${a.name}`)) },
+          ]
+        : [
+            { label: 'Sona ekle', icon: <Plus size={14} />, onSelect: () => addFromLibrary(id) },
+            { label: `İmlece ekle · ${formatTime(t)}`, icon: <Plus size={14} />, disabled: !project.clips.length, onSelect: () => (apply([{ type: 'clips.add', assetIds: [id], index: clipIndexAt(project, t) }]), toast(`İmlece eklendi: ${a.name}`)) },
+            { label: 'Başa ekle', icon: <Plus size={14} />, onSelect: () => (apply([{ type: 'clips.add', assetIds: [id], index: 0 }]), toast(`Başa eklendi: ${a.name}`)) },
+          ];
+    openCtx(e, list, a.name);
+  };
   const inProject = new Set(project.clips.map((c) => c.assetId));
   const assets = [...library.values()].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
 
   return (
     <div className="stack">
+      {ctxMenu}
       <div
         className={`dropzone ${over ? 'over' : ''}`}
         onDragOver={(e) => {
@@ -83,7 +104,8 @@ export const AddStep: React.FC = () => {
               data-asset={a.id}
               draggable={a.status !== 'importing'}
               onDragStart={(e) => dragAsset(e, a.id)}
-              title="Yukarıdaki alana veya alttaki zaman çizelgesine sürükleyin"
+              onContextMenu={(e) => libMenu(e, a.id)}
+              title="Yukarıdaki alana veya alttaki zaman çizelgesine sürükleyin · sağ tık: seçenekler"
             >
               <div className="lib-thumb" style={{ backgroundImage: a.poster ? `url(${fileHref(a.poster)})` : undefined }}>
                 {a.kind === 'audio' ? <Music2 size={22} /> : null}

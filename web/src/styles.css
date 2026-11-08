@@ -1057,3 +1057,17 @@ kbd { font-family: var(--mono); }
 .lib-item[draggable=true], .bin-item[draggable=true] { cursor: grab; }
 .tl-content.asset-over, .strip-empty.asset-over { outline: 2px dashed var(--accent); outline-offset: -2px; background: rgba(255, 122, 61, .06); }
 .transport.tp-still { justify-content: center; gap: 12px; flex-wrap: wrap; }
+
+/* Sağ tık menüsü */
+.ctxm { position: fixed; z-index: 1000; min-width: 210px; max-width: 300px; padding: 5px; border-radius: 10px; background: rgba(24, 26, 32, .97); border: 1px solid #2c313c; box-shadow: 0 18px 48px rgba(0, 0, 0, .55), 0 0 0 1px rgba(0, 0, 0, .4); backdrop-filter: blur(14px); font-size: 13px; }
+.ctxm-title { padding: 5px 9px 6px; font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid #262a33; margin-bottom: 4px; }
+.ctxm-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 9px; border: 0; border-radius: 6px; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.ctxm-item:hover:not([disabled]), .ctxm-item:focus-visible { background: var(--accent); color: #fff; outline: none; }
+.ctxm-item[disabled] { color: var(--dim); cursor: default; }
+.ctxm-item.danger { color: #ff8a95; }
+.ctxm-item.danger:hover, .ctxm-item.danger:focus-visible { background: var(--bad); color: #fff; }
+.ctxm-ico { display: inline-flex; width: 15px; justify-content: center; opacity: .9; }
+.ctxm-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctxm-kbd { min-width: 0; padding: 0 5px; font-size: 10.5px; background: transparent; border-color: #3a4150; color: var(--muted); }
+.ctxm-item:hover .ctxm-kbd, .ctxm-item:focus-visible .ctxm-kbd { color: #fff; border-color: rgba(255,255,255,.5); }
+.ctxm-sep { height: 1px; margin: 4px 6px; background: #2a2e38; }

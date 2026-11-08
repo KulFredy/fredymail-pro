@@ -95,7 +95,7 @@ export const GuideModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const CMD = isMac ? '⌘' : 'Ctrl';
 
-/** Stüdyo kısayolları — Studio.tsx (I/O, S, ⌘B, ⌫, Esc, ⌘Z) ve Transport.tsx (boşluk, oklar, Home/End, F) ile birebir */
+/** Stüdyo kısayolları — Studio.tsx (I/O, S, ⌘B, ⌫, Esc, ⌘Z), Timeline.tsx sağ tık menüleri ve Transport.tsx (boşluk, oklar, Home/End, F) ile birebir */
 export const SHORTCUTS: { group: string; items: { keys: string[]; what: string }[] }[] = [
   {
     group: 'Oynatma ve gezinme',
@@ -116,6 +116,13 @@ export const SHORTCUTS: { group: string; items: { keys: string[]; what: string }
       { keys: ['Esc'], what: 'İşaretleri temizle' },
       { keys: ['S'], what: 'İmleçte böl' },
       { keys: [`${CMD} B`], what: 'İmleçte böl' },
+    ],
+  },
+  {
+    group: 'Öğeler',
+    items: [
+      { keys: ['Sağ tık'], what: 'Klip, ses, yazı, logo, kart: oynat, böl, çoğalt, taşı, düzenle, sil' },
+      { keys: ['⌫', 'Delete'], what: 'Seçili öğeyi sil (işaret yoksa)' },
     ],
   },
   {

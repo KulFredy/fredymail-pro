@@ -338,3 +338,6 @@ export const voiceOverlaps = <T extends { id: string; at: number; in: number; ou
   const a = voiceSpan(me);
   return voice.filter((v) => v.id !== id && voiceSpan(v).start < a.end - eps && voiceSpan(v).end > a.start + eps);
 };
+
+/** Zaman çizelgesinde t anına klip eklenecekse sırası: ortası t'den önce kalan klipler önde kalır */
+export const clipIndexAt = (project: Project, t: number) => layoutClips(project).filter((l) => (l.start + l.end) / 2 < t).length;
