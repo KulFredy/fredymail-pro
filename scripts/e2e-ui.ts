@@ -301,6 +301,29 @@ const main = async () => {
     const un = (await api('GET', `/api/projects/${pid}`)).project;
     check('⌘Z: LUT geri alındı', JSON.stringify(un.clips) === JSON.stringify(before.clips));
 
+    // 11) Referans: sıcak bir fotoğraf ekle → rengi eşle → önizleme kaydetmez → uygula → geri al
+    const sharpMod = (await import('sharp')).default;
+    const warm = await sharpMod({ create: { width: 600, height: 400, channels: 3, background: { r: 215, g: 150, b: 90 } } }).jpeg().toBuffer();
+    await page.getByRole('tab', { name: 'Referans' }).click();
+    await page.locator('.refp input[type=file]').setInputFiles([{ name: 'sicak.jpg', mimeType: 'image/jpeg', buffer: warm }]);
+    await page.waitForSelector('.ref-card img', { timeout: 60000 });
+    const refs = (await api('GET', `/api/projects/${pid}`)).project.references;
+    check('Referans eklendi (kurguya girmedi)', refs.length === 1 && (await api('GET', `/api/projects/${pid}`)).project.clips.length === before.clips.length);
+    await page.getByRole('button', { name: 'Rengi eşle' }).click();
+    await page.waitForSelector('.ref-summary li', { timeout: 60000 });
+    const summ = await page.locator('.ref-summary').innerText();
+    check('Renk eşleme özeti gösterildi', /sıcak|aydınlık|doygun|kırmızı/.test(summ), summ.replace(/\n+/g, ' · '));
+    const pv2 = (await api('GET', `/api/projects/${pid}`)).project;
+    check('Eşleme önizlemesi kaydetmiyor', JSON.stringify(pv2.clips) === JSON.stringify(before.clips));
+    await page.locator('.ref-match').getByRole('button', { name: 'Uygula' }).click();
+    await page.waitForTimeout(800);
+    const ap2 = (await api('GET', `/api/projects/${pid}`)).project;
+    check('Uygula: eşleme LUT\'u klibe kaydedildi', ap2.clips.some((c: any) => /Referans/.test(c.look?.lut ?? '') && Math.abs(c.look.lutIntensity - 0.8) < 1e-6), ap2.clips.map((c: any) => c.look?.lut ?? '—').join(', '));
+    await page.locator('.studio-center').click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(800);
+    check('⌘Z: renk eşleme geri alındı', JSON.stringify((await api('GET', `/api/projects/${pid}`)).project.clips) === JSON.stringify(before.clips));
+
     if (process.env.FABRIKA_UI_SHOT) await page.screenshot({ path: process.env.FABRIKA_UI_SHOT });
     check('Sayfada hata yok', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {

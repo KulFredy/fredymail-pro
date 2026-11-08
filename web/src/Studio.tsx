@@ -15,6 +15,7 @@ import { ExportStep } from './steps/ExportStep';
 import { Timeline, type Marks, type Selection } from './Timeline';
 import { TranscriptPanel } from './TranscriptPanel';
 import { LutPanel } from './LutPanel';
+import { ReferencePanel } from './ReferencePanel';
 import { Modal, Segmented, Slider, fmtDb, fmtSec } from './ui';
 
 type HistoryItem = { text: string; summary: string; ok: boolean };
@@ -485,7 +486,7 @@ const MediaBin: React.FC = () => {
   const { library, toast } = useApp();
   const input = useRef<HTMLInputElement>(null);
   const playhead = frame / FPS;
-  const items = [...library.values()].filter((a) => a.role !== 'voiceover').sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+  const items = [...library.values()].filter((a) => a.role !== 'voiceover' && a.role !== 'reference').sort((a, b) => b.importedAt.localeCompare(a.importedAt));
   return (
     <div className="bin">
       <div className="row-between">
@@ -533,6 +534,9 @@ const MediaBin: React.FC = () => {
                   <>
                     <button className="link small" title="Ana izin sonuna ekle" onClick={() => apply([{ type: 'clips.add', assetIds: [a.id] }])}>
                       Ana ize
+                    </button>
+                    <button className="link small" title="Rengini/havasını örnek almak için referans yap (videoya girmez)" onClick={() => apply([{ type: 'reference.add', assetId: a.id }])}>
+                      Referans
                     </button>
                     <button
                       className="link small"
@@ -682,7 +686,7 @@ export const Studio: React.FC = () => {
   const [selection, setSelection] = useState<Selection>(project.ui.selectedClipId ? { kind: 'clip', id: project.ui.selectedClipId } : null);
   const [exporting, setExporting] = useState(false);
   const [name, setName] = useState(project.name);
-  const [leftTab, setLeftTab] = useState<'medya' | 'transkript' | 'luts'>(() => readPref('fabrika.studyo.sol', 'transkript'));
+  const [leftTab, setLeftTab] = useState<'medya' | 'transkript' | 'luts' | 'referans'>(() => readPref('fabrika.studyo.sol', 'transkript'));
   const [rightTab, setRightTab] = useState<'komut' | 'secili'>('komut');
   const [rightOpen, setRightOpen] = useState<boolean>(() => readPref('fabrika.studyo.sag', '1') === '1');
   React.useEffect(() => writePref('fabrika.studyo.sol', leftTab), [leftTab]);
@@ -809,6 +813,7 @@ export const Studio: React.FC = () => {
               ['medya', 'Medya'],
               ['transkript', 'Transkript'],
               ['luts', "LUT'larım"],
+              ['referans', 'Referans'],
             ] as const
           ).map(([k, l]) => (
             <button key={k} role="tab" aria-selected={leftTab === k} className={leftTab === k ? 'on' : ''} onClick={() => setLeftTab(k)}>
@@ -820,6 +825,7 @@ export const Studio: React.FC = () => {
           {leftTab === 'medya' ? <MediaBin /> : null}
           {leftTab === 'transkript' ? <TranscriptPanel onSelect={setSelection} /> : null}
           {leftTab === 'luts' ? <LutPanel selection={selection} /> : null}
+          {leftTab === 'referans' ? <ReferencePanel selection={selection} /> : null}
         </div>
       </aside>
       <main className="studio-center">

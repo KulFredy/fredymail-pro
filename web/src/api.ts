@@ -60,6 +60,8 @@ export const api = {
   luts: (withUses = false) => req<LutInfo[]>('GET', `/api/luts${withUses ? '?kullanim=1' : ''}`),
   updateLut: (id: string, patch: Partial<{ name: string; kind: 'gorunum' | 'teknik'; input: string | null; tags: string[]; favorite: boolean }>) =>
     req<{ luts: LutInfo[] }>('PATCH', `/api/luts/${encodeURIComponent(id)}`, patch),
+  colorMatch: (projectId: string, referenceId: string, clipId: string | null) =>
+    req<{ lutId: string; name: string; summary: string[]; swatches: { reference: string; target: string }; clips: number; luts: LutInfo[] }>('POST', `/api/projects/${projectId}/color-match`, { referenceId, clipId }),
   deleteLut: (id: string) => req<{ luts: LutInfo[] }>('DELETE', `/api/luts/${encodeURIComponent(id)}`),
   jobs: () => req<Job[]>('GET', '/api/jobs'),
   createProject: (name: string, formats: { format: string; kind?: string }[]) => req<ProjectState>('POST', '/api/projects', { name, formats }),

@@ -27,6 +27,8 @@ const OPS_DOC = `İşlemler (JSON). Zamanlar saniye. "timeline" = zaman çizelge
 - {"type":"output.add","format":"story|reel|post|square|landscape","kind":"video|image"} · {"type":"output.update","outputId":ID,"patch":{"resolution":"720|1080|1440|2160"}}
 - {"type":"look.set","look":{"preset":"dogal|sicak|soguk|canli|film|sb","intensity":0..1,"adjust":{"exposure":-3..3,"contrast":-1..1,"highlights":-1..1,"shadows":-1..1,"temp":-1..1,"tint":-1..1,"vibrance":-1..1,"saturation":-1..1,"sharpen":0..1,"vignette":0..1,"fade":0..1}}}
 - {"type":"clip.setLook","clipId":ID,"look":{...aynı alanlar}}
+- LUT: look.set veya clip.setLook içinde "lut": bağlamdaki lutlar[].id (null = kaldır), "lutIntensity": 0..1. Kullanıcı LUT'u adıyla, etiketiyle ("film", "sıcak") veya "favori LUT'um" diye anabilir. Teknik LUT'u (tur=teknik, giris=log…) normal videoya önerme; önerirsen summary'de uyar.
+- Referanstan renk eşleme bir işlem değildir: kullanıcı "şu fotoğrafın rengini al" derse understood=false, hint olarak "Sol paneldeki Referans sekmesinde referansı seçip “Rengi eşle”ye basın" yaz.
 - {"type":"music.set","music":{"mode":"bed|duck|fixed","gainDb":dB,"bedDb":dB,"duckDb":dB,"start":K}} veya {"type":"music.set","music":null}
 - {"type":"captions.set","enabled":bool,"style":{"color":"#RRGGBB","highlight":"#RRGGBB","size":24..140,"maxLines":1..3,"uppercase":bool,"box":bool,"outline":bool,"position":"bottom|middle|top","offset":-600..600}}  offset: piksel, + yukarı
 - {"type":"captions.editWord","key":"assetId:index","text":"yeni" veya ""}
@@ -73,7 +75,9 @@ const TOOL: Anthropic.Beta.BetaTool = {
 };
 
 /** Claude'a giden bağlam: projeyi ve konuşmayı zaman kodlarıyla özetler */
-export const buildContext = (project: Project, assets: Record<string, AssetRef>, playhead: number, selectedClipId: string | null) => {
+export type AiLut = { id: string; ad: string; tur: string; giris: string | null; etiketler: string[]; favori: boolean };
+
+export const buildContext = (project: Project, assets: Record<string, AssetRef>, playhead: number, selectedClipId: string | null, luts: AiLut[] = []) => {
   const tw = timelineWords(project, assets);
   const used = new Set(project.clips.map((c) => c.assetId));
   return {
@@ -92,13 +96,17 @@ export const buildContext = (project: Project, assets: Record<string, AssetRef>,
       olcu: assets[l.clip.assetId] ? `${assets[l.clip.assetId].width}x${assets[l.clip.assetId].height}` : null,
       ses_db: l.clip.gainDb,
       sessiz: l.clip.muted,
+      lut: (l.clip.look ?? project.look).lut,
       kadraj: (project.outputs.find((o) => o.id === project.ui.activeOutputId) ?? project.outputs[0])?.framing[l.clip.id] ?? { mode: 'fill', zoom: 1, x: 0.5, y: 0.5 },
     })),
     ust_iz: project.overlays.map((o) => ({ id: o.id, kaynak: assets[o.assetId]?.name, at: o.at, sure: o.out - o.in })),
     dis_ses: project.voice.map((v) => ({ id: v.id, at: v.at, sure: v.out - v.in })),
     yazilar: project.texts.map((t) => ({ id: t.id, metin: t.text, start: t.start, end: t.end })),
     muzik: project.music ? { mod: project.music.mode, seviye_db: project.music.gainDb } : null,
-    renk: { gorunum: project.look.preset, yogunluk: project.look.intensity },
+    renk: { gorunum: project.look.preset, yogunluk: project.look.intensity, lut: project.look.lut, lut_yogunluk: project.look.lutIntensity },
+    /** Kullanıcının LUT kütüphanesi (look.lut olarak id verilir) */
+    lutlar: luts.slice(0, 120),
+    referanslar: project.references.map((r) => ({ id: r.id, ad: assets[r.assetId]?.name, tur: assets[r.assetId]?.kind, kare_sn: r.at })),
     altyazi: { acik: project.captions.enabled, stil: project.captions.style },
     cumleler: sentences(tw).map((s) => ({ bas: formatTime(s.start), son: formatTime(s.end), bas_sn: Number(s.start.toFixed(2)), son_sn: Number(s.end.toFixed(2)), metin: s.text })),
     kelimeler: tw.slice(0, 600).map((w) => [w.text, Number(w.t0.toFixed(2)), w.key]),
@@ -110,11 +118,15 @@ export const buildContext = (project: Project, assets: Record<string, AssetRef>,
   };
 };
 
-const validOps = (raw: unknown[], project: Project, ctx: OpContext): { ops: OpInput[]; error: string | null } => {
+const validOps = (raw: unknown[], project: Project, ctx: OpContext, lutIds?: Set<string>): { ops: OpInput[]; error: string | null } => {
   const ops: OpInput[] = [];
   for (const r of raw ?? []) {
     const p = OpSchema.safeParse(r);
     if (!p.success) return { ops: [], error: `Geçersiz işlem önerisi: ${JSON.stringify(r).slice(0, 120)}` };
+    // Var olmayan LUT önerisi sessizce etkisiz kalmasın
+    const op = p.data as OpInput & { look?: { lut?: string | null } | null };
+    const lut = (op.type === 'look.set' || op.type === 'clip.setLook') && op.look ? op.look.lut : undefined;
+    if (lutIds && lut && !lutIds.has(lut)) return { ops: [], error: `Bilinmeyen LUT: ${lut}` };
     ops.push(p.data as OpInput);
   }
   try {
@@ -134,9 +146,10 @@ export const planWithClaude = async (opts: {
   playhead: number;
   selectedClipId: string | null;
   opCtx: OpContext;
+  luts?: AiLut[];
 }): Promise<Plan & { source: 'claude'; usage?: AiUsage }> => {
   const client = new Anthropic({ apiKey: opts.apiKey, timeout: 60_000, maxRetries: 1 });
-  const context = buildContext(opts.project, opts.assets, opts.playhead, opts.selectedClipId);
+  const context = buildContext(opts.project, opts.assets, opts.playhead, opts.selectedClipId, opts.luts ?? []);
   const fail = (summary: string, hint?: string): Plan & { source: 'claude'; usage?: AiUsage } => ({ understood: false, summary, ops: [], ranges: [], candidates: [], hint, source: 'claude' });
   const base = {
     model: opts.model,
@@ -206,10 +219,11 @@ export const planWithClaude = async (opts: {
   if (input.action === 'undo' || input.action === 'redo')
     return { understood: true, summary: input.summary || (input.action === 'undo' ? 'Geri alınacak.' : 'Yinelenecek.'), ops: [], ranges: [], candidates: [], action: input.action, source: 'claude', usage };
   if (!input.understood) return { ...fail(input.summary || 'Claude talimatı anlayamadı.'), usage };
-  const main = validOps(input.ops ?? [], opts.project, opts.opCtx);
+  const lutIds = opts.luts ? new Set(opts.luts.map((l) => l.id)) : undefined;
+  const main = validOps(input.ops ?? [], opts.project, opts.opCtx, lutIds);
   const candidates: PlanCandidate[] = [];
   for (const c of input.candidates ?? []) {
-    const v = validOps(c.ops ?? [], opts.project, opts.opCtx);
+    const v = validOps(c.ops ?? [], opts.project, opts.opCtx, lutIds);
     if (!v.error && v.ops.length) candidates.push({ label: c.label, summary: c.summary ?? c.label, ops: v.ops, ranges: (c.ranges ?? []).filter((r) => typeof r.start === 'number') });
   }
   if (main.error && !candidates.length) return fail(`Önerilen değişiklik uygulanamadı: ${main.error}`);

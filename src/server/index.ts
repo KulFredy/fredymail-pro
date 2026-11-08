@@ -217,6 +217,9 @@ export const createServer = async (home = defaultHome()) => {
       playhead: body.playhead,
       selectedClipId: body.selectedClipId ?? project.ui.selectedClipId,
       opCtx: store.opContext(),
+      luts: (await svc.listLuts())
+        .filter((l) => l.meta)
+        .map((l) => ({ id: l.id, ad: l.meta!.name, tur: l.meta!.kind, giris: l.meta!.input, etiketler: l.meta!.tags, favori: l.meta!.favorite })),
     });
   });
 

@@ -494,6 +494,20 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .cmp-add .chips { max-height: 84px; overflow: auto; padding: 4px 0; }
 .cmp-grid { max-height: 26vh; overflow: auto; }
 
+/* Referanslar */
+.studio-left .tabs button { padding: 12px 4px; font-size: 13px; }
+.refp { display: flex; flex-direction: column; gap: 10px; }
+.ref-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ref-card { background: var(--card); border: 2px solid transparent; border-radius: 9px; padding: 4px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ref-card.sel { border-color: var(--accent); grid-column: 1 / -1; }
+.ref-card img, .ref-wait { width: 100%; aspect-ratio: 16 / 10; object-fit: contain; background: #050608; border-radius: 6px; display: grid; place-items: center; }
+.ref-match { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--card); }
+.ref-summary { margin: 0; padding-left: 18px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+.swatches { display: flex; gap: 12px; }
+.swatches span { display: inline-flex; gap: 5px; align-items: center; }
+.swatches i { width: 16px; height: 16px; border-radius: 4px; display: inline-block; border: 1px solid rgba(255,255,255,.25); }
+.ref-split { height: 170px; }
+
 /* Komut etkisi */
 .asked q { color: var(--text); }
 .impact { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

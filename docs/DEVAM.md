@@ -5,12 +5,12 @@
 - **Faz 3 · Yerel Stüdyo ve ince kurgu — tamam (8 Kasım, kullanıcının Mac'inde gerçek videoyla doğrulandı: transkript senkronu, altyazı düzeltme + cümle kesme + geri al, çevrimdışı teslim).** Transkript paneli, sağda Komut/Seçili öğe, komut etkisi (klip, aralık, kapsam, yan etkiler), ses dalgası, I/O kesim, S bölme, yumuşak ses geçişleri, internetsiz çalışma testi.
 - **Faz 2 · Kurgu Stüdyosu — tamam.** Çok izli zaman çizelgesi (görüntü, üst iz, dış ses, müzik, altyazı, yazı; iz adlarında "+"), sekmeli sol panel (Komut · Medya · Seçili öğe), mikrofon/yazı ile Türkçe komut → plan → önizle/uygula, adaylar zaman koduyla, talimat ≠ dış ses, kişisel stil vs proje notu, tam ekran, render çözünürlüğü.
 - **Claude ile komut (isteğe bağlı):** Ayarlar'da "Her komutta" (varsayılan) veya "Yalnız kalıplar anlamazsa"; model Opus 5.5 / Sonnet 5.5 / Haiku 5.5; komut başına maliyet gösterilir; ulaşılamazsa yerel anlayıcı.
-- **Testler (son çalıştırma):** birim 63/63 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 29/29 · `npm run e2e:lut` 16/16.
+- **Testler (son çalıştırma):** birim 71/71 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 34/34 · `npm run e2e:lut` 16/16 · `npm run e2e:ref` 8/8.
 - **Kullanıcının Mac'i:** kurulum yapıldı (`scripts/setup-mac.sh`), güncelleme `bash scripts/guncelle.sh`. Gerçek Türkçe altyazı Mac'te çalıştı. Render için Chrome indirilemediğinde sistem Google Chrome'u kullanılıyor.
 
 ## Doğrulanmayanlar (kullanıcıyla kontrol et)
 Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
-- **Gerçek Claude anahtarıyla komut:** 8 Kasım'da Mac'te denendi; anahtar geçerli, API'ye ulaşılıyor, yanıt "hesapta kredi yok" (önceki 400'ün nedeni buydu). Kredi eklenince Claude'un gerçek yanıtı ve maliyet gösterimi doğrulanacak.
+- **Gerçek Claude anahtarıyla komut:** 8 Kasım'da Mac'te denendi; anahtar geçerli, API'ye ulaşılıyor, yanıt "hesapta kredi yok" (önceki 400'ün nedeni buydu). Kullanıcı 8 Kasım'da 5 $ kredi yükledi; gerçek yanıt ve maliyet gösterimi Mac'te doğrulanacak. Claude artık LUT kütüphanesini (ad, tür, etiket, favori) ve referansları görüyor; bilinmeyen LUT önerisi reddedilir.
 - **4K video render'ı** (4K fotoğraf test edildi).
 - **Gerçek Android telefondan Wi-Fi ile yükleme** (QR).
 - Mac'te sesli komutların gerçek kullanımda doğruluğu.
@@ -38,13 +38,13 @@ Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). **Faz 3 · Yerel Stüdyo v
 
 **Faz 4 · Referanslar, LUT ve hareket** (sürüyor):
 1. ✅ LUT Kütüphanem (`src/core/lutlib.ts`, `web/src/LutPanel.tsx`): toplu içe aktarma (.cube, .3dl → .cube, .zip; klasör seçimi; sürükle-bırak), dosya başına rapor, aynı içerik tekrar eklenmez, dosya adından görünüm/teknik + giriş tahmini, etiket/favori/ad düzenleme, silme (kullanım sayısıyla uyarı), küçük önizlemeler (kamera dönüşümü dahil, yaklaşık), ana önizlemede kaydetmeden deneme, yoğunluk, seçili klip / tüm kurgu, önce/sonra + 4'e kadar karşılaştırma, teknik LUT uyuşmazlık uyarıları ve tek tıkla düzeltme. Testler: `e2e:lut`, `e2e:ui`. Kullanıcının LUT kaynakları: Photoshop 3DLUTs (.cube + .3DL), Magic Bullet LUTs, DaVinci Resolve LUT (çoğu teknik).
-2. Referans görsel/video: kare ve zaman bilgisi çıkarma, yaklaşık renk/kontrast eşleme (önizle/onayla).
+2. ✅ Referanstan renk eşleme (`src/core/colormatch.ts`, `web/src/ReferencePanel.tsx`): proje referansları (kurguya girmez; `reference.*` işlemleri), video referansta kare seçimi, Lab istatistikleriyle sınırlı (±20) Reinhard eşleme LUT'u (siyah/beyaz korunur), log klipte kamera dönüşümünden sonra ölçüm, Türkçe özet + renk örnekleri, önce/sonra, yoğunluk (%80), önizle/uygula/vazgeç. LUT'larım'a #referans. Testler: `e2e:ref` (render'da referansa uzaklık 43.7 → 19.1), `e2e:ui`. Ayrıca yerel komut "orijinal haline dön" (`project.restoreOriginal`).
 3. Başlık ve logo öğeleri; dikey/yatay güvenli alan.
 4. Yakınlaşma ve kesim ritmi önerileri; storyboard ve görsel komut sözlüğü (gerçek senaryolara göre).
 
 Mac'te gerçek LUT'larla doğrulandı (8 Kasım): Photoshop .cube + .3DL, Magic Bullet, Resolve Sony; `npm run lut-ekle` ile toplu ekleme, küçük resimler ve canlı deneme.
 
-**Sıradaki somut iş:** Faz 4.2 referanstan renk eşleme.
+**Sıradaki somut iş:** kullanıcı Mac'te kendi referans fotoğrafıyla renk eşlemeyi dener; ardından Faz 4.3 başlık ve logo öğeleri. Sesli komutla eşleme ("bu fotoğrafın rengini al") Faz 4.3 ile birlikte düşünülebilir.
 
 Sonra: Faz 4 (Referanslar, LUT Kütüphanem, hareket) → Faz 5 (Bağlantılar) → Faz 6 (Marka, kampanya) → Faz 7/8 isteğe bağlı.
 Küçükler (uygun fazda): RAW fotoğraf (LibRaw), kaynak oranında çıktı (ör. 4:3), Premiere'e aktarım (OpenTimelineIO / FCP XML), telefonda düzenleme ekranı, depoyu `main` dalına birleştirme.

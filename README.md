@@ -5,7 +5,7 @@ Telefondan ve kameradan gelen çekimleri dakikalar içinde Instagram Story, Reel
 - **Faz 1 · Instagram Hızlı Edit** hazır: içe aktar → biçim → sırala/kısalt → kadraj → renk & ışık (LUT dahil) → ses & müzik → Türkçe altyazı & yazı → teslim.
 - **Faz 2 · Kurgu Stüdyosu** hazır: yatay video, çok izli zaman çizelgesi, mikrofonla veya yazarak Türkçe kurgu komutları.
 - **Faz 3 · Yerel Stüdyo ve ince kurgu** sürüyor: aranabilir Türkçe transkript, transkriptten kesme, komutun etkisini gösteren sağ panel, ses dalgası, I/O ile kare hassasiyetinde kesim, yumuşak ses geçişleri. İnternetsiz çalışır.
-- **Faz 4 · Referanslar, LUT ve hareket** başladı: **LUT'larım** kütüphanesi hazır (toplu içe aktarma, .3dl ve zip, arama, etiket, favori, karşılaştırma, teknik LUT uyarıları).
+- **Faz 4 · Referanslar, LUT ve hareket** başladı: **LUT'larım** kütüphanesi (toplu içe aktarma, .3dl ve zip, arama, etiket, favori, karşılaştırma, teknik LUT uyarıları) ve **referanstan renk eşleme** hazır.
 - Faz sırası: [docs/FAZLAR.md](docs/FAZLAR.md).
 
 Güncellemek için (proje klasöründe): `bash scripts/guncelle.sh`
@@ -51,6 +51,7 @@ Ana ekranda **Kurgu Stüdyosu** yeni bir yatay proje açar; Hızlı Edit'teki he
 - **Önizleme:** tam ekran (F), **Kadrajı düzenle** ile görüntüyü sürükleyip tekerlekle boyutlandırma, altta render çözünürlüğü (720p · 1080p · 2K · 4K).
 - **Komut:** sağda mikrofona basıp konuşun (bitince tekrar basın) ya da yazıp Enter'a basın. Panel ne anladığını (*Algılanan talep*), hangi işlemi, **hangi klipte ve hangi zaman aralığında** yapacağını ve kapsamını (tüm proje / yalnız bir çıktı / ayrı iz) gösterir; silinecek bir yazı gibi yan etkileri ⚠ ile uyarır. Aralığa tıklayınca o ana gidilir. **Önizle** ile kaydetmeden izleyin, **Uygula** ile kaydedin, **Vazgeç** ile bırakın; uyguladıktan sonra **Geri al** tek tıktır. İki olası yer varsa A/B seçenekleri zaman koduyla gelir.
 - **LUT'larım (sol panel):** **Klasör** ile bir klasördeki bütün LUT'ları ya da **Dosya** ile `.cube`, `.3dl`, `.zip` dosyalarını tek seferde ekleyin (panele sürüklemek de olur). Sonunda rapor çıkar: eklendi / zaten vardı / okunamadı ve nedeni. Aynı LUT ikinci kez eklenmez; asıl dosyalarınıza dokunulmaz, kopyası `~/İçerik Fabrikası/kutuphane/luts` içinde saklanır. Her LUT o anki karede küçük resimle görünür (yaklaşık). Arayın, etiketle süzün, ★ ile favorileyin. Bir LUT'a tıklayınca büyük önizlemede kaydetmeden denenir. **Yoğunluk** ayarlanır, **Uygula** ile seçili klibe ya da **Tüm kurgu**ya kaydedilir, ⌘Z ile geri alınır. **Karşılaştır**: aynı karede önce/sonra ayırıcısı ve 4 LUT'a kadar yan yana. LUT'lar **görünüm** (normal video için) ve **teknik** (log, HDR gibi belirli bir giriş bekleyen) diye ayrılır; tür dosya adından tahmin edilir, **Düzenle** ile değiştirilebilir. Log LUT'u normal videoya uygulanınca ya da kamera dönüşümüyle çift dönüşüm olacaksa uyarı ve tek tıkla düzeltme çıkar.
+- **Referans (sol panel):** rengini beğendiğiniz bir fotoğraf veya videoyu **Ekle** ile yükleyin (ya da Medya'da bir dosyada **Referans**). Referans videoya girmez. Videoda **Kare** kaydırıcısıyla hangi anın alınacağını seçin. **Rengi eşle**: seçili klibin (veya **Tüm kurgu**nun) rengi referansa yaklaştırılır; ne değişeceği sade Türkçe yazılır (ör. "daha sıcak", "daha kontrastlı"), referans/klip renk örnekleri ve önce/sonra görünür, büyük önizlemede kaydetmeden gösterilir. **Yoğunluk** (varsayılan %80), **Uygula** veya **Vazgeç**; ⌘Z ile geri alınır. Eşleme yaklaşıktır ve aşırı farklarda sınırlanır; sonuç LUT'larım'a "Referans · …" adıyla (#referans) kaydedilir, başka kliplerde de kullanılabilir.
 - **Talimat / Dış ses kaydı:** *Talimat* modunda söyledikleriniz yalnız komut olur, videoya girmez. *Dış ses kaydı* modunda kayıt oynatma imlecinden itibaren videoya ses olarak eklenir ve altyazısı çıkarılır.
 - **Kişisel stil / bu proje:** "Bundan sonra…", "her zaman…" ile başlayan altyazı tercihleri kişisel stilinize kaydedilir; "bu sefer…" yalnız bu projeye not olarak kalır.
 - Her komut tek bir geri alma adımıdır: ⌘Z, ya da Teslim'de kaydettiğiniz sürüme dönün.
@@ -168,6 +169,7 @@ npm run e2e:studio # Faz 2: mikrofon yolundan iki revizyon, render, geri alma
 npm run e2e:offline # Faz 3: internetsiz — eski projeyi aç, düzenle, yeniden aç, MP4 + JPEG, dış ses ölçümü
 npm run e2e:ui     # Faz 3–4: tarayıcıda transkript/önizleme/zaman çizelgesi senkronu, komut akışı, LUT paneli (Playwright gerekir)
 npm run lut-ekle -- ~/Desktop/LUTlarim   # bir klasördeki bütün LUT'ları (alt klasörler dahil) açık uygulamaya ekler
+npm run e2e:ref    # Faz 4.2: referanstan renk eşleme, render'da renk farkı ölçümü
 npm run e2e:lut    # Faz 4: LUT toplu içe aktarma (.cube/.3dl/zip/bozuk), tür tahmini, render'da piksel ölçümü
 npm run typecheck
 ```

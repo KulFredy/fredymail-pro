@@ -5,7 +5,7 @@ import { INPUT_LABELS, applyLutToPixels, inputLabel, lutWarnings, type LutMeta }
 import type { OpInput } from '../../src/core/ops';
 import { effectiveCamera } from '../../src/core/looks';
 import { lutUrls, type LutInfo } from '../../src/core/refs';
-import { FPS } from '../../src/core/schema';
+import { FPS, type Clip, type Project } from '../../src/core/schema';
 import { layoutClips } from '../../src/core/timeline';
 import { loadLut } from '../../src/remotion/GradedMedia';
 import { api, upload } from './api';
@@ -18,7 +18,7 @@ const LUT_EXT = /\.(cube|3dl|zip|look|xmp)$/i;
 
 /** Kaynağın bir karesini piksel olarak getirir (sunucuda küçültülmüş JPEG) */
 const frameCache = new Map<string, Promise<ImageData>>();
-const loadFrame = (assetId: string, t: number, w: number) => {
+export const loadFrame = (assetId: string, t: number, w: number) => {
   const key = `${assetId}@${t.toFixed(2)}@${w}`;
   let p = frameCache.get(key);
   if (!p) {
@@ -40,7 +40,7 @@ const loadFrame = (assetId: string, t: number, w: number) => {
 };
 
 /** Kareye (isteğe bağlı kamera dönüşümünden sonra) LUT uygulayıp tuvale çizer — yaklaşık önizleme */
-const LutCanvas: React.FC<{ base: ImageData | null; lutUrl: string | null; camUrl: string | null; amount?: number; className?: string }> = ({ base, lutUrl, camUrl, amount = 1, className }) => {
+export const LutCanvas: React.FC<{ base: ImageData | null; lutUrl: string | null; camUrl: string | null; amount?: number; className?: string }> = ({ base, lutUrl, camUrl, amount = 1, className }) => {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (!base) return;
@@ -61,6 +61,19 @@ const LutCanvas: React.FC<{ base: ImageData | null; lutUrl: string | null; camUr
     };
   }, [base, lutUrl, camUrl, amount]);
   return <canvas ref={ref} className={className} />;
+};
+
+/** LUT'u bir klibe ya da (clip = null) tüm kurguya uygulayan işlemler; kendi rengi olan kliplere de yazılır */
+export const lutOps = (project: Project, clip: Clip | null, id: string | null, amt: number): OpInput[] =>
+  clip
+    ? [{ type: 'clip.setLook', clipId: clip.id, look: { lut: id, lutIntensity: amt } }]
+    : [{ type: 'look.set', look: { lut: id, lutIntensity: amt } }, ...project.clips.filter((c) => c.look).map((c) => ({ type: 'clip.setLook' as const, clipId: c.id, look: { lut: id, lutIntensity: amt } }))];
+
+/** Hedef klip: seçili klip, yoksa imlecin altındaki, yoksa ilk klip */
+export const targetItem = (project: Project, selection: Selection, t: number) => {
+  const layout = layoutClips(project);
+  const item = (selection?.kind === 'clip' ? layout.find((l) => l.clip.id === selection.id) : undefined) ?? layout.find((l) => t >= l.start && t < l.end) ?? layout[0];
+  return { item, index: item ? layout.indexOf(item) + 1 : 0 };
 };
 
 type Report = { file: string; status: 'eklendi' | 'vardi' | 'hata'; name?: string; reason?: string }[];
@@ -134,10 +147,7 @@ export const LutPanel: React.FC<{ selection: Selection }> = ({ selection }) => {
   const currentLut = savedLut.current;
   const camUrlFor = (m: LutMeta) => (m.kind === 'teknik' || !cam ? null : (urls[cam] ?? null));
 
-  const opsFor = (id: string | null, amt: number): OpInput[] =>
-    target === 'klip' && clip
-      ? [{ type: 'clip.setLook', clipId: clip.id, look: { lut: id, lutIntensity: amt } }]
-      : [{ type: 'look.set', look: { lut: id, lutIntensity: amt } }, ...project.clips.filter((c) => c.look).map((c) => ({ type: 'clip.setLook' as const, clipId: c.id, look: { lut: id, lutIntensity: amt } }))];
+  const opsFor = (id: string | null, amt: number) => lutOps(project, target === 'klip' ? (clip ?? null) : null, id, amt);
 
   const tryLut = (id: string, amt = amount) => {
     setActiveId(id);
