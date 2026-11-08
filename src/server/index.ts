@@ -83,6 +83,7 @@ export const createServer = async (home = defaultHome()) => {
   app.post('/api/kapat', async (req, reply) => {
     const ip = req.socket.remoteAddress ?? '';
     if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip)) return reply.code(403).send({ error: 'Yalnız bu bilgisayardan kapatılabilir' });
+    console.log(`\n  Kapatılıyor… (uygulamadan ⏻, ${new Date().toLocaleString('tr-TR')})`);
     setTimeout(() => {
       void app.close().finally(() => process.exit(0));
     }, 300);
@@ -681,7 +682,7 @@ if (isMain) {
   // Ctrl+C her durumda kapatsın (render sürüyor olsa bile)
   for (const sig of ['SIGINT', 'SIGTERM'] as const)
     process.on(sig, () => {
-      console.log('\n  Kapatılıyor…');
+      console.log(`\n  Kapatılıyor… (${sig}, ${new Date().toLocaleString('tr-TR')})`);
       setTimeout(() => process.exit(0), 1500).unref();
       app.close().finally(() => process.exit(0));
     });

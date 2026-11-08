@@ -37,6 +37,29 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# Sunucu hizmeti (launchd): uygulama başlatıcısı kapanınca macOS onu da kapatıyordu; hizmet olarak bağımsız çalışır.
+# Girişte kendiliğinden başlamaz (RunAtLoad yok); uygulama simgesi başlatır, ⏻ ile durur.
+LABEL="com.icerikfabrikasi.sunucu"
+AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
+mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
+xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+KOMUT='export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.volta/bin:$HOME/.local/bin:/usr/bin:/bin:$PATH"; [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1; echo "--- $(date) hizmet başlatılıyor"; exec ./node_modules/.bin/tsx src/server/index.ts'
+cat > "$AGENT" <<AGENTPLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$LABEL</string>
+  <key>ProgramArguments</key>
+  <array><string>/bin/bash</string><string>-c</string><string>$(xml "$KOMUT")</string></array>
+  <key>WorkingDirectory</key><string>$(xml "$REPO")</string>
+  <key>StandardOutPath</key><string>$HOME/Library/Logs/IcerikFabrikasi.log</string>
+  <key>StandardErrorPath</key><string>$HOME/Library/Logs/IcerikFabrikasi.log</string>
+  <key>ProcessType</key><string>Interactive</string>
+</dict>
+</plist>
+AGENTPLIST
+
 # Başlatıcı: REPO yolu pakete yazılır (klasör taşınırsa betiği yeniden çalıştırın)
 cat > "$APP/Contents/MacOS/baslat" <<LAUNCH
 #!/bin/bash
@@ -61,9 +84,14 @@ if ! saglikli; then
   cd "$REPO" || { uyari "Proje klasörü bulunamadı: $REPO. Klasörü taşıdıysanız: bash scripts/mac-uygulama.sh"; exit 1; }
   echo "--- $(date) başlatılıyor" >>"$LOG"
   if [ ! -f web/dist/index.html ]; then npm run build:web >>"$LOG" 2>&1; fi
-  # Ayrı oturumda başlat: uygulama penceresi/başlatıcı kapansa da sunucu çalışmaya devam eder
-  if command -v perl >/dev/null 2>&1; then
-    nohup perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' ./node_modules/.bin/tsx src/server/index.ts >>"$LOG" 2>&1 < /dev/null &
+  # macOS hizmeti olarak başlat (uygulamaya bağlı değil: başlatıcı kapanınca sunucu kapanmaz)
+  LABEL="com.icerikfabrikasi.sunucu"
+  AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
+  if command -v launchctl >/dev/null 2>&1 && [ -f "$AGENT" ]; then
+    launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || true
+    sleep 0.5
+    launchctl bootstrap "gui/$(id -u)" "$AGENT" >>"$LOG" 2>&1 || launchctl load "$AGENT" >>"$LOG" 2>&1 || true
+    launchctl kickstart "gui/$(id -u)/$LABEL" >>"$LOG" 2>&1 || launchctl start "$LABEL" >>"$LOG" 2>&1 || true
   else
     nohup ./node_modules/.bin/tsx src/server/index.ts >>"$LOG" 2>&1 < /dev/null &
   fi
