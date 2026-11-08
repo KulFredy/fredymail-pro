@@ -6,7 +6,7 @@ import { useProject } from './state';
 import { modalOpen } from './ui';
 
 /** Her zaman görünen oynatma çubuğu: oynat/durdur, kare adımı, başa/sona; boşluk ve ok tuşları */
-export const Transport: React.FC<{ duration: number; isImage: boolean }> = ({ duration, isImage }) => {
+export const Transport: React.FC<{ duration: number; isImage: boolean; videoLabel?: string | null }> = ({ duration, isImage, videoLabel }) => {
   const { frame, playing, seekRef, playRef } = useProject();
   const toggle = () => (playing ? playRef.current?.pause() : playRef.current?.play());
   const seek = (f: number) => seekRef.current?.(Math.max(0, Math.min(duration - 1, f)));
@@ -33,7 +33,19 @@ export const Transport: React.FC<{ duration: number; isImage: boolean }> = ({ du
     return () => window.removeEventListener('keydown', k);
   });
 
-  if (isImage) return <div className="transport muted small">Görsel çıktı · tek kare</div>;
+  if (isImage)
+    return (
+      <div className="transport tp-still" data-testid="transport-still">
+        <span className="muted small">Fotoğraf çıktısı · tek kare</span>
+        {videoLabel ? (
+          <button className="btn tiny primary" onClick={() => playRef.current?.play()} title={`${videoLabel} önizlemesine geçip oynatır (boşluk)`}>
+            <Play size={13} /> Videoyu oynat · {videoLabel}
+          </button>
+        ) : (
+          <span className="muted small">Oynatmak için yukarıdan “Oran ekle” ile bir video çıktısı ekleyin.</span>
+        )}
+      </div>
+    );
   return (
     <div className="transport">
       <button className="icon-btn" title="Başa (Home)" onClick={() => seek(0)}>

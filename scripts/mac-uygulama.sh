@@ -33,6 +33,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppleEventsUsageDescription</key><string>Uygulama zaten açıksa yeni pencere açmak yerine mevcut pencereyi öne getirmek için.</string>
 </dict>
 </plist>
 PLIST
@@ -75,6 +76,34 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.volta/bin:$HOME/.local/bin:
 [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1
 saglikli() { curl -sf -m 2 "$URL/api/health" >/dev/null 2>&1; }
 uyari() { osascript -e "display alert \"İçerik Fabrikası\" message \"$1\"" >/dev/null 2>&1; }
+
+# Sunucu zaten çalışıyorsa büyük olasılıkla bir pencere de açıktır: yenisini açmadan onu öne getir
+ACIKTI=""
+saglikli && ACIKTI=1
+# Tarayıcıda adresi bu uygulama olan pencereyi bulup öne getirir (Chrome/Edge/Brave/Chromium)
+odakla() {
+  osascript - "$1" "$URL" 2>>"$LOG" <<'OSA'
+on run argv
+  set b to item 1 of argv
+  set u to item 2 of argv
+  if application b is not running then return "yok"
+  using terms from application "Google Chrome"
+    tell application b
+      repeat with w in windows
+        try
+          if (URL of active tab of w) starts with u then
+            set index of w to 1
+            activate
+            return "tamam"
+          end if
+        end try
+      end repeat
+    end tell
+  end using terms from
+  return "yok"
+end run
+OSA
+}
 
 if ! saglikli; then
   if ! command -v node >/dev/null 2>&1; then
@@ -141,6 +170,10 @@ fi
 # Ayrı uygulama penceresi (adres çubuğu, sekme yok)
 for B in "Google Chrome" "Microsoft Edge" "Brave Browser" "Chromium" "Arc"; do
   if [ -d "/Applications/$B.app" ] || [ -d "$HOME/Applications/$B.app" ]; then
+    if [ -n "$ACIKTI" ] && [ "$B" != "Arc" ] && [ "$(odakla "$B")" = "tamam" ]; then
+      B_ACILDI=1
+      break
+    fi
     open -na "$B" --args --app="$URL" --window-size=1512,945
     B_ACILDI=1
     break

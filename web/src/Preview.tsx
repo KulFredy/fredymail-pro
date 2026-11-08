@@ -113,10 +113,33 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
     [project, refs, output?.id, lutMap],
   );
 
+  // Görsel (tek kare) çıktıdayken “Oynat”: video çıktısına geçip istenen yerden oynat
+  const videoOut = project.outputs.find((o) => o.kind === 'video');
+  const pendingSeek = useRef<number | null>(null);
+  const pendingPlay = useRef<number | null>(null);
+
   // Oynatma konumu: arayüze ve projeye (yeniden açınca aynı yer)
   useEffect(() => {
     const p = player.current;
     if (!p) return;
+    if (output?.kind === 'image') {
+      seekRef.current = (f) => {
+        pendingSeek.current = f;
+        setFrame(f);
+      };
+      playRef.current = {
+        play: () => {
+          if (!videoOut) return;
+          pendingPlay.current = pendingSeek.current ?? project.ui.frame;
+          pendingSeek.current = null;
+          setUi({ activeOutputId: videoOut.id });
+        },
+        pause: () => undefined,
+        fullscreen: () => p.requestFullscreen(),
+      };
+      setPlaying(false);
+      return;
+    }
     let last = 0;
     let saveTimer = 0;
     const onFrame = (e: { detail: { frame: number } }) => {
@@ -140,6 +163,13 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
       setFrame(f);
     };
     playRef.current = { play: () => p.play(), pause: () => p.pause(), fullscreen: () => p.requestFullscreen() };
+    if (pendingPlay.current !== null) {
+      const f = Math.max(0, Math.min(duration - 1, pendingPlay.current));
+      pendingPlay.current = null;
+      p.seekTo(f);
+      setFrame(f);
+      p.play();
+    }
     return () => {
       p.removeEventListener('frameupdate', onFrame);
       p.removeEventListener('seeked', onFrame);
@@ -148,7 +178,7 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
       p.removeEventListener('ended', onPause);
       clearTimeout(saveTimer);
     };
-  }, [duration, seekRef, playRef, setFrame, setUi, output?.id, readyKey, retry, setPlaying]);
+  }, [duration, seekRef, playRef, setFrame, setUi, output?.id, output?.kind, videoOut?.id, readyKey, retry, setPlaying]);
 
   // Kadrajda seçili klibi sürükleyerek kaydır
   const scale = box.w / size.width;
@@ -258,7 +288,7 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
           ) : null}
         </div>
       </div>
-      <Transport duration={duration} isImage={output.kind === 'image'} />
+      <Transport duration={duration} isImage={output.kind === 'image'} videoLabel={videoOut ? outputTitle(videoOut) : null} />
       <div className="preview-foot">
         {framingToggle ? (
           <button className={`chip ${editFrame ? 'on' : ''}`} onClick={() => setEditFrame((v) => !v)} title="Önizlemede görüntüyü sürükleyerek yerleştir, tekerlekle boyutlandır">

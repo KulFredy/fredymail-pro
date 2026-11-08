@@ -118,6 +118,29 @@ const main = async () => {
     });
     check('⌘Z geri getirdi; ⌫ seçili klibi çıkardı', ok5 && ok6);
 
+    // Fotoğraf çıktısı seçiliyken oynatma: video çıktısına geçip oynar
+    await api('POST', `/api/projects/${q}/ops`, { ops: [{ type: 'output.add', format: 'post', kind: 'image' }] });
+    const outs = (await projectOf(q)).outputs as { id: string; kind: string }[];
+    const img = outs.find((o) => o.kind === 'image')!;
+    await page.reload();
+    await page.waitForSelector('.preview-tabs');
+    await page.locator('.preview-tabs button', { hasText: 'JPEG' }).click();
+    await page.waitForSelector('[data-testid=transport-still]');
+    const stillTxt = await page.getByTestId('transport-still').innerText();
+    await page.getByTestId('transport-still').getByRole('button', { name: /Videoyu oynat/ }).click();
+    await page.waitForSelector('.transport .play-btn[title^="Durdur"]', { timeout: 15000 });
+    const active1 = await page.locator('.preview-tabs button.on').innerText();
+    check('Fotoğraf çıktısında “Videoyu oynat” → video önizlemesine geçip oynuyor', /Videoyu oynat/.test(stillTxt) && !/JPEG/.test(active1), active1);
+    await page.locator('.transport .play-btn').click();
+    await page.locator('.preview-tabs button', { hasText: 'JPEG' }).click();
+    await page.waitForSelector('[data-testid=transport-still]');
+    await page.locator('.steps .step', { hasText: 'Sırala' }).click();
+    await page.getByRole('button', { name: 'Oynat', exact: false }).first().click();
+    await page.waitForSelector('.transport .play-btn[title^="Durdur"]', { timeout: 15000 });
+    check('Sırala adımında “Oynat” fotoğraf çıktısındayken de çalışıyor', !(await page.locator('.preview-tabs button.on').innerText()).includes('JPEG'));
+    await page.locator('.transport .play-btn').click();
+    void img;
+
     // ---------- Stüdyo ----------
     const s = (await api('POST', '/api/projects', { name: 'Stüdyo sürükle', formats: [{ format: 'reel' }], mode: 'studio' })).project.id as string;
     await api('POST', `/api/projects/${s}/ops`, { ops: [{ type: 'clips.add', assetIds: [VIDEO] }] });

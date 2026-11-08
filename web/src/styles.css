@@ -1056,3 +1056,4 @@ kbd { font-family: var(--mono); }
 /* Kütüphaneden sürükle-bırak */
 .lib-item[draggable=true], .bin-item[draggable=true] { cursor: grab; }
 .tl-content.asset-over, .strip-empty.asset-over { outline: 2px dashed var(--accent); outline-offset: -2px; background: rgba(255, 122, 61, .06); }
+.transport.tp-still { justify-content: center; gap: 12px; flex-wrap: wrap; }
