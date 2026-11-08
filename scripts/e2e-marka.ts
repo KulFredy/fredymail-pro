@@ -272,6 +272,18 @@ const main = async () => {
         await page.getByRole('button', { name: 'Bu çıktıda aç' }).click();
         await waitFor(async () => (await api('GET', `/api/projects/${pid}`)).project.outputs.find((o: any) => o.id === sh.id).captions?.enabled === true, 'altyazı düzeltme', 15000);
         check('Kontrol uyarısındaki düzeltme düğmesi çalışıyor (Shorts altyazısı)', true);
+        // Instagram hashtag sayacı adet sayar (harf değil)
+        await page.locator('.dl-ch', { hasText: 'Instagram Reels' }).locator('.dl-ch-name').click();
+        const tagBox = page.getByLabel('Hashtag (virgülle)');
+        await tagBox.fill('Zhiyun, Weebill5, gimbal, videoçekimi, içerikÜretimi');
+        const counter = await page.locator('.meta-field', { has: tagBox }).locator('small').innerText();
+        check('Hashtag sayacı etiket adedini gösteriyor', /^5\/30 adet/.test(counter.trim()), counter);
+        // Videonun kendi altyazısı var → uygulama altyazısı kapanır, kontrol uyarmaz
+        await page.getByTestId('caption-invideo').locator('.toggle').click();
+        await page.waitForSelector('[data-testid=checks] .check-row:has-text("Videonun kendi altyazısı var")', { timeout: 15000 });
+        const pv = (await api('GET', `/api/projects/${pid}`)).project;
+        const rowsTxt = await page.locator('[data-testid=checks]').innerText();
+        check('“Videoda altyazı zaten var”: uygulama altyazısı kapandı, altyazı uyarısı yok', pv.captions.inVideo === true && pv.captions.enabled === false && !/altyazı kapalı|emin olunamadı/.test(rowsTxt));
         check('Sayfada hata yok', !errors.length, errors.join(' | '));
       } catch (e) {
         await page.screenshot({ path: path.join(work, 'arayuz-hata.png') }).catch(() => undefined);

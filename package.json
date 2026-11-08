@@ -27,7 +27,8 @@
     "e2e:yayin": "tsx scripts/e2e-yayin.ts",
     "e2e:anasayfa": "tsx scripts/e2e-anasayfa.ts",
     "e2e:disses": "tsx scripts/e2e-disses.ts",
-    "e2e:surukle": "tsx scripts/e2e-surukle.ts"
+    "e2e:surukle": "tsx scripts/e2e-surukle.ts",
+    "e2e:ceviri": "tsx scripts/e2e-ceviri.ts"
   },
   "engines": {
     "node": ">=20"

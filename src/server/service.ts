@@ -45,6 +45,8 @@ export class Service {
   store: Store;
   jobs = new Jobs();
   whisper: WhisperConfig = { bin: null, model: null, vadModel: null, mode: 'whisper' };
+  /** Kullanıcının seçtiği konuşma dili (yeniden çözme); yoksa otomatik */
+  private transcribeLang = new Map<string, string>();
   port = 4747;
   /** Dış servis bağlantıları (index.ts kurar) */
   conns!: import('./connections').Connections;
@@ -179,20 +181,23 @@ export class Service {
     });
   }
 
-  enqueueTranscribe(id: string) {
+  /** Konuşmayı yazıya döker. language: 'auto' (varsayılan) veya 'tr', 'en'… (yeniden çözerken seçilebilir) */
+  enqueueTranscribe(id: string, language?: string) {
     const a = this.store.library.get(id);
     if (!a || (a.kind !== 'video' && a.role !== 'voiceover')) return;
+    if (language) this.transcribeLang.set(id, language);
+    const lang = this.transcribeLang.get(id) ?? 'auto';
     void this.store.patchAsset(id, { transcript: { ...a.transcript, status: 'pending', message: 'Sırada' } });
-    this.jobs.add('transcribe', `Türkçe konuşma çözülüyor: ${a.name}`, { assetId: id }, async (update) => {
+    this.jobs.add('transcribe', `Konuşma çözülüyor${lang === 'auto' ? '' : ` (${lang})`}: ${a.name}`, { assetId: id }, async (update) => {
       const cur = this.store.library.get(id)!;
       await this.store.patchAsset(id, { transcript: { ...cur.transcript, status: 'running', message: 'Çözülüyor' } });
       try {
-        const res = await transcribe(this.store.abs(cur.original), cur.name, this.whisper, (f) => update(f, 'Konuşma çözülüyor'));
-        await this.store.patchAsset(id, { transcript: { ...res, language: 'tr' } });
+        const res = await transcribe(this.store.abs(cur.original), cur.name, this.whisper, (f) => update(f, 'Konuşma çözülüyor'), this.transcribeLang.get(id) ?? 'auto');
+        await this.store.patchAsset(id, { transcript: { ...res } });
         this.store.emit('transcript', { assetId: id, words: res.words.length });
         return { words: res.words.length, status: res.status };
       } catch (e) {
-        await this.store.patchAsset(id, { transcript: { status: 'error', words: [], language: 'tr', engine: '', message: (e as Error).message } });
+        await this.store.patchAsset(id, { transcript: { status: 'error', words: [], language: lang, engine: '', message: (e as Error).message } });
         throw e;
       }
     });
@@ -206,7 +211,7 @@ export class Service {
         const text = process.env.FABRIKA_STT_FIXTURE ?? (await readFile(path.join(dir, 'komut.txt'), 'utf8').catch(() => ''));
         return { text: text.trim(), status: 'done', message: '' };
       }
-      const r = await transcribe(tmpFile, 'komut', this.whisper);
+      const r = await transcribe(tmpFile, 'komut', this.whisper, () => {}, 'tr');
       return { text: r.words.map((w) => w.text).join(' ').trim(), status: r.status, message: r.message };
     } finally {
       await rm(tmpFile, { force: true });

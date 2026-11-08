@@ -171,6 +171,25 @@ describe('teslim öncesi kontroller', () => {
     expect(c3.find((c) => c.id === 'altyazi-emin')?.text).toMatch(/^1 kelime/);
   });
 
+  it('videoda altyazı var: uygulama altyazısı kapanır, altyazı ve konuşmadaki ad yazımı uyarmaz', () => {
+    const b0 = base();
+    let p = applyOps(b0, brandPlan(b0, brand, { productId: 'u1', campaign: '' }, { logo: false, captions: true, texts: false, look: false, references: false, channels: true }).ops, ctx);
+    p = applyOps(p, [{ type: 'output.addChannel', channel: 'ig-reels' }], ctx);
+    const sh = p.outputs.find((o) => o.channel === 'yt-shorts')!;
+    p = applyOps(p, [{ type: 'output.update', outputId: sh.id, patch: { captions: { enabled: true } } }, { type: 'captions.set', inVideo: true }], ctx);
+    expect(p.captions.enabled).toBe(false);
+    expect(p.captions.inVideo).toBe(true);
+    expect(p.outputs.every((o) => !captionsFor(p, o).enabled)).toBe(true);
+    const reels = p.outputs.find((o) => o.channel === 'ig-reels')!;
+    const c = deliveryChecks({ project: p, assets: refs, output: reels, brand });
+    expect(c.find((x) => x.id === 'altyazi-kapali')).toBeUndefined();
+    expect(c.find((x) => x.id === 'altyazi')?.level).toBe('ok');
+    expect(c.find((x) => x.id === 'urun-ad')?.text ?? '').not.toContain('altyazı:');
+    // YouTube'a .srt verildiği için orada konuşmadaki yazım yine denetlenir
+    const yt = p.outputs.find((o) => o.channel === 'yt-video')!;
+    expect(deliveryChecks({ project: p, assets: refs, output: yt, brand }).find((x) => x.id === 'urun-ad')?.text).toContain('altyazı:');
+  });
+
   it('onaysız üretilmiş görsel hata; Story 60 sn sınırı', () => {
     let p = applyOps(base(), [{ type: 'clips.add', assetIds: ['gen'] }, { type: 'output.addChannel', channel: 'ig-story' }], ctx);
     p = applyOps(p, [{ type: 'clip.trim', clipId: p.clips[0].id, in: 0, out: 12 }], ctx);

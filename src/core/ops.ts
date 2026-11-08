@@ -6,6 +6,7 @@ import {
   DEFAULT_LOOK,
   AdjustSchema,
   CaptionStyleSchema,
+  CaptionTranslationSchema,
   ClipSchema,
   FORMAT_IDS,
   RESOLUTIONS,
@@ -104,8 +105,12 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('captions.set'),
     enabled: z.boolean().optional(),
+    inVideo: z.boolean().optional(),
     style: patchOf(CaptionStyleSchema).optional(),
   }),
+  /** Çeviri altyazısı (null: orijinal dile dön). Tek geri alma adımı. */
+  z.object({ type: z.literal('captions.setTranslation'), translation: CaptionTranslationSchema.nullable() }),
+  z.object({ type: z.literal('captions.editTranslation'), assetId: z.string(), index: z.number().int().min(0), text: z.string() }),
   /** text: null → düzeltmeyi kaldırır, '' → kelimeyi gizler */
   z.object({ type: z.literal('captions.editWord'), key: z.string(), text: z.string().nullable() }),
   z.object({ type: z.literal('text.add'), text: TextOverlaySchema.omit({ id: true }).partial().extend({ text: z.string().min(1) }) }), // eklemede varsayılanlar istenir
@@ -359,8 +364,31 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
       break;
     case 'captions.set':
       if (op.enabled !== undefined) p.captions.enabled = op.enabled;
+      if (op.inVideo !== undefined) {
+        p.captions.inVideo = op.inVideo;
+        // Videonun kendi altyazısı varsa uygulamanınki (tüm çıktılarda) kapanır; çift altyazı olmaz
+        if (op.inVideo) {
+          p.captions.enabled = false;
+          p.outputs = p.outputs.map((o) => (o.captions?.enabled ? { ...o, captions: { ...o.captions, enabled: false } } : o));
+        }
+      }
       if (op.style) p.captions.style = CaptionStyleSchema.parse({ ...p.captions.style, ...op.style });
       break;
+    case 'captions.setTranslation':
+      p.captions.translation = op.translation;
+      // Çeviri eklenince altyazı görünür olsun; videonun kendi altyazısı varsayımı kalkar
+      if (op.translation) {
+        p.captions.enabled = true;
+        p.captions.inVideo = false;
+      }
+      break;
+    case 'captions.editTranslation': {
+      const tr = p.captions.translation;
+      const segs = tr?.byAsset[op.assetId];
+      if (!tr || !segs?.[op.index]) throw new OpError('Çeviri satırı bulunamadı');
+      p.captions.translation = { ...tr, byAsset: { ...tr.byAsset, [op.assetId]: segs.map((x, i) => (i === op.index ? { ...x, text: op.text } : x)) } };
+      break;
+    }
     case 'captions.editWord': {
       const edits = { ...p.captions.edits };
       if (op.text === null) delete edits[op.key];
@@ -579,8 +607,10 @@ export const describeOp = (op: OpInput): string => {
     case 'output.setFraming': return 'Kadraj değişti';
     case 'output.setStill': return 'Post karesi seçildi';
     case 'music.set': return op.music === null ? 'Müzik kaldırıldı' : 'Müzik ayarı değişti';
-    case 'captions.set': return 'Altyazı ayarı değişti';
+    case 'captions.set': return op.inVideo === true ? 'Videoda altyazı var: uygulama altyazısı kapandı' : op.inVideo === false ? 'Uygulama altyazısı kullanılabilir' : 'Altyazı ayarı değişti';
     case 'captions.editWord': return 'Altyazı kelimesi düzeltildi';
+    case 'captions.setTranslation': return op.translation ? `Altyazı çevirisi (${op.translation.lang})` : 'Altyazı orijinal dile döndü';
+    case 'captions.editTranslation': return 'Çeviri satırı düzeltildi';
     case 'text.add': return 'Yazı eklendi';
     case 'text.update': return 'Yazı düzenlendi';
     case 'text.remove': return 'Yazı silindi';

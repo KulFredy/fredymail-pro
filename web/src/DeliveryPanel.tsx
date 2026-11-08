@@ -17,17 +17,18 @@ const LEVEL_ICON = {
 };
 
 /** Metin alanı: yazarken yerel, odak çıkınca kaydedilir (tek geri alma adımı) */
-const MetaField: React.FC<{ label: string; max: number; hint?: string; value: string; multiline?: boolean; onCommit: (v: string) => void }> = ({ label, max, hint, value, multiline, onCommit }) => {
+const MetaField: React.FC<{ label: string; max: number; hint?: string; value: string; multiline?: boolean; count?: (v: string) => number; onCommit: (v: string) => void }> = ({ label, max, hint, value, multiline, count, onCommit }) => {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
-  const over = v.length > max;
+  const size = count ? count(v) : v.length;
+  const over = size > max;
   const props = { value: v, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setV(e.target.value), onBlur: () => v !== value && onCommit(v), 'aria-label': label };
   return (
     <label className="field meta-field">
       <span className="row-between">
         <span>{label}</span>
         <small className={over ? 'err' : 'muted'}>
-          {v.length}/{max}
+          {size}/{max}
           {hint ? ` ${hint}` : ''}
         </small>
       </span>
@@ -72,6 +73,9 @@ const ChannelEditor: React.FC<{ output: Output; checks: OutputChecks | undefined
               </button>
             ) : null}
           </div>
+          <span title="Kaynak videonun kendi (görüntüye yazılı) altyazısı varsa açın: uygulama altyazısı tüm çıktılarda kapanır, kontroller uyarmaz" data-testid="caption-invideo">
+            <Toggle checked={project.captions.inVideo} onChange={(v) => apply([{ type: 'captions.set', inVideo: v }])} label="Videoda altyazı zaten var" />
+          </span>
           {ch?.captionFile ? <small className="muted">Altyazı ayrıca .srt ve .vtt dosyası olarak pakete eklenir.</small> : null}
         </div>
       ) : null}
@@ -114,6 +118,11 @@ const ChannelEditor: React.FC<{ output: Output; checks: OutputChecks | undefined
                 max={f.max}
                 hint={f.hint}
                 value={output.meta.tags.join(', ')}
+                // Instagram: hashtag adedi; YouTube: toplam karakter (teslim kontrolüyle aynı ölçü)
+                count={(v) => {
+                  const tags = normalizeTags(v.split(/[,\n]/).map((t) => t.trim()).filter(Boolean), ch);
+                  return f.hint === 'adet' ? tags.length : tags.join(',').length;
+                }}
                 onCommit={(v) => upd({ meta: { tags: v.split(/[,\n]/).map((t) => t.trim()).filter(Boolean) } }, 'Etiketler')}
               />
             ) : (

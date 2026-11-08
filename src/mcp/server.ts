@@ -443,6 +443,19 @@ server.registerTool(
   },
 );
 
+server.registerTool(
+  'altyazi_ceviri_satirlari',
+  {
+    title: 'Altyazı çevirisi için satırlar',
+    description:
+      'Konuşmanın cümlelerini (kaynak dosya zamanıyla) verir. Çevirmek için: her satırı hedef dile çevir (satır sayısı/zamanlar aynı, marka ve ürün adları aynen), ' +
+      'sonra islem_uygula ile { type: "captions.setTranslation", translation: { lang: "tr", from: "en", byAsset: { <assetId>: [{ t0, t1, text }] } } } uygula. ' +
+      'Orijinale dönmek için translation: null. Konuşma yanlış dilde çözüldüyse önce uygulamada Transcript → dil seçip yeniden çöz.',
+    inputSchema: { proje_id: z.string() },
+  },
+  async ({ proje_id }) => text(await call('GET', `/api/projects/${proje_id}/ceviri/satirlar`)),
+);
+
 // ---------- Faz 7: YouTube'a doğrudan yayın ----------
 server.registerTool(
   'youtube_onizleme',

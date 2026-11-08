@@ -15,6 +15,7 @@ import {
   musicGainAt,
   speechIntervals,
   timelineWords,
+  captionWords,
   toFrames,
   totalDuration,
   type LayoutItem,
@@ -78,7 +79,7 @@ const Captions: React.FC<{ props: CompProps; output: Output }> = ({ props, outpu
   const { width: W, height: H } = useVideoConfig();
   const { style } = captionsFor(props.project, output);
   const safe = FORMATS[output.format].safe;
-  const words = useMemo(() => timelineWords(props.project, props.assets), [props.project, props.assets]);
+  const words = useMemo(() => captionWords(props.project, props.assets), [props.project, props.assets]);
   const maxChars = Math.max(10, Math.floor((W - safe.left - safe.right - 60) / (style.size * 0.56)));
   const pages = useMemo(() => captionPages(words, { maxChars, maxLines: style.maxLines }), [words, maxChars, style.maxLines]);
   const t = frame / FPS;

@@ -84,6 +84,7 @@ export const cleanWords = (words: Word[]): Word[] => {
 };
 
 type WJson = {
+  result?: { language?: string };
   transcription?: {
     offsets: { from: number; to: number };
     text: string;
@@ -122,22 +123,24 @@ export const transcribe = async (
   assetName: string,
   cfg: WhisperConfig,
   onProgress: (f: number) => void = () => {},
-): Promise<Pick<Transcript, 'status' | 'words' | 'engine' | 'message'>> => {
+  /** 'auto': whisper dili kendisi bulur; 'tr', 'en'…: o dilde çözer */
+  language = 'auto',
+): Promise<Pick<Transcript, 'status' | 'words' | 'engine' | 'message' | 'language'>> => {
   const { ffmpeg } = await getTools();
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'fabrika-stt-'));
   try {
     const wav = path.join(tmp, 'ses.wav');
     await runOk(ffmpeg, ['-hide_banner', '-y', '-i', file, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', wav]);
     const vol = await volumeStats(wav);
-    if (vol.max < -40) return { status: 'silent', words: [], engine: 'sessizlik', message: 'Konuşma bulunamadı (ses çok düşük)' };
+    if (vol.max < -40) return { status: 'silent', words: [], engine: 'sessizlik', message: 'Konuşma bulunamadı (ses çok düşük)', language };
 
     if (cfg.mode === 'fixture') {
       const dir = process.env.FABRIKA_FIXTURES ?? '';
       try {
         const words = JSON.parse(await readFile(path.join(dir, `${assetName}.words.json`), 'utf8')) as Word[];
-        return { status: 'done', words: cleanWords(words.map((w) => ({ ...w, p: w.p ?? 1 }))), engine: 'test', message: '' };
+        return { status: 'done', words: cleanWords(words.map((w) => ({ ...w, p: w.p ?? 1 }))), engine: 'test', message: '', language: language === 'auto' ? 'tr' : language };
       } catch {
-        return { status: 'done', words: [], engine: 'test', message: 'Konuşma bulunamadı' };
+        return { status: 'done', words: [], engine: 'test', message: 'Konuşma bulunamadı', language };
       }
     }
     if (!cfg.bin || !cfg.model)
@@ -146,14 +149,16 @@ export const transcribe = async (
         words: [],
         engine: '',
         message: !cfg.bin ? 'Whisper kurulu değil (scripts/setup-mac.sh)' : 'Whisper modeli bulunamadı (scripts/setup-mac.sh)',
+        language,
       };
 
     const base = path.join(tmp, 'sonuc');
     const args = [
-      '-m', cfg.model, '-f', wav, '-l', 'tr', '-ojf', '-of', base, '-pp',
+      '-m', cfg.model, '-f', wav, '-l', language, '-ojf', '-of', base, '-pp',
       '-ml', '1', '-sow', '-mc', '0',
       '-t', String(Math.max(2, Math.min(8, os.cpus().length - 1))),
-      '--prompt', 'Merhaba, bugün size anlatacağım.',
+      // Türkçe ipucu yalnız Türkçe istendiğinde: otomatikte dili Türkçeye çekip İngilizceyi bozuyordu
+      ...(language === 'tr' ? ['--prompt', 'Merhaba, bugün size anlatacağım.'] : []),
     ];
     const dtw = dtwPreset(cfg.model);
     const vad = cfg.vadModel ? ['--vad', '-vm', cfg.vadModel] : [];
@@ -183,6 +188,7 @@ export const transcribe = async (
       words,
       engine: `whisper.cpp · ${path.basename(cfg.model)}`,
       message: words.length ? '' : 'Konuşma bulunamadı',
+      language: json.result?.language || (language === 'auto' ? 'tr' : language),
     };
   } finally {
     await rm(tmp, { recursive: true, force: true });

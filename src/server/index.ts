@@ -24,6 +24,8 @@ import { Delivery } from './delivery';
 import { Publisher } from './publish';
 import { YouTube, YouTubeError } from './youtube';
 import { claudeMeta, localMeta } from './copywriter';
+import { claudeTranslate, translateEstimate } from './translate';
+import { transcriptSegments } from '../core/timeline';
 import { DEFAULT_APPLY, brandPlan, slug } from '../core/brand';
 import { buildXmeml, type XmlAsset } from '../core/xmeml';
 import { Generator } from './generate';
@@ -174,8 +176,9 @@ export const createServer = async (home = defaultHome()) => {
   });
   app.post('/api/assets/:id/transcribe', async (req) => {
     const { id } = req.params as { id: string };
+    const { language } = z.object({ language: z.string().regex(/^(auto|[a-z]{2})$/).optional() }).parse(req.body ?? {});
     svc.whisper = await (await import('../media/whisper')).findWhisper(home);
-    svc.enqueueTranscribe(id);
+    svc.enqueueTranscribe(id, language);
     return { ok: true };
   });
 
@@ -425,6 +428,48 @@ export const createServer = async (home = defaultHome()) => {
       }
     }
     return { source: 'yerel', suggestions: localMeta(project, assets, brand, outputs) };
+  });
+
+  /**
+   * Altyazı çevirisi (Claude). dryRun: satır sayısı, tahmini maliyet (onaydan önce gösterilir).
+   * Sonuç uygulanmaz; arayüz captions.setTranslation ile uygular (geri alınabilir).
+   */
+  /** Çeviri için kaynak satırlar (MCP: Claude Code kendi aboneliğiyle çevirip captions.setTranslation uygular) */
+  app.get('/api/projects/:id/ceviri/satirlar', async (req) => {
+    const project = await store.getProject((req.params as { id: string }).id);
+    const src = transcriptSegments(project, buildRefs(store.library.values(), '', 'preview'));
+    return src.map((x) => ({ assetId: x.assetId, dil: store.library.get(x.assetId)?.transcript.language ?? '', satirlar: x.segs }));
+  });
+  app.post('/api/projects/:id/ceviri', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const b = z.object({ lang: z.string().regex(/^[a-z]{2}$/).default('tr'), dryRun: z.boolean().default(false) }).parse(req.body ?? {});
+    const project = await store.getProject(id);
+    const assets = buildRefs(store.library.values(), '', 'preview');
+    const src = transcriptSegments(project, assets);
+    const model = (await readSettings()).aiModel || DEFAULT_AI_MODEL;
+    const key = await aiKey();
+    const langs = [...new Set(src.map((x) => store.library.get(x.assetId)?.transcript.language).filter(Boolean))];
+    const pendingTr = project.clips.some((c) => ['pending', 'running'].includes(store.library.get(c.assetId)?.transcript.status ?? ''));
+    if (b.dryRun) return { ...translateEstimate(src, model), model, connected: !!key, sourceLangs: langs, pending: pendingTr, target: b.lang };
+    if (!src.length) return reply.code(400).send({ error: pendingTr ? 'Konuşma henüz yazıya dökülüyor; bitince tekrar deneyin' : 'Çevrilecek konuşma yok' });
+    if (!key) return reply.code(400).send({ error: 'Claude bağlı değil: Ayarlar → Bağlantılar → Claude' });
+    const brand = project.brand ? await brands.get(project.brand.brandId) : null;
+    try {
+      const r = await claudeTranslate({
+        apiKey: key,
+        model,
+        src,
+        lang: b.lang,
+        keep: [project.brand?.brandName ?? '', project.brand?.productName ?? '', ...(brand?.products.map((p) => p.name) ?? [])],
+        context: [project.brand?.brandName, project.brand?.productName, project.brand?.campaign, brand?.tone].filter(Boolean).join(' · '),
+      });
+      await conns.recordUsage({ at: new Date().toISOString(), ...r.usage }).catch(() => undefined);
+      return { translation: r.translation, usage: r.usage, note: r.note };
+    } catch (e) {
+      const msg = (e as Error).message.split(key).join('••••');
+      console.error('[claude] çeviri:', msg.slice(0, 300));
+      return reply.code(502).send({ error: `Claude çeviremedi: ${msg.slice(0, 160)}` });
+    }
   });
 
   // ---------- Doğrudan yayın: YouTube (Faz 7) ----------

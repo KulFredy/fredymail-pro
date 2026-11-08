@@ -70,7 +70,10 @@ const useRecorder = () => {
   return { recording: !!rec, start, stop };
 };
 
-const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat' | 'disses') => void }> = ({ mode, setMode }) => {
+/** “altyazıyı Türkçeye çevir”, “translate subtitles” … */
+const isTranslateAsk = (t: string) => /(çevir|tercüme|translat)/i.test(t) && /(altyaz|subtit|caption|dil)/i.test(t);
+
+const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat' | 'disses') => void; onTranslate?: () => void }> = ({ mode, setMode, onTranslate }) => {
   const { project, refs, frame, apply, preview, reload, setHighlights, seekRef, playRef, undo, redo } = useProject();
   const { toast } = useApp();
   const [aiReady, setAiReady] = useState(false);
@@ -108,6 +111,12 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
   };
 
   const run = async (input: string) => {
+    // Altyazı çevirisi ayrı bir iş: Transcript panelinde satır sayısı ve maliyet gösterilip onayla yapılır
+    if (onTranslate && isTranslateAsk(input)) {
+      onTranslate();
+      toast('Altyazı çevirisi Transcript panelinde: maliyeti görüp “Onayla ve çevir”e basın');
+      return;
+    }
     if (previewing) await reload();
     setPreviewing(false);
     setAsked(input.trim());
@@ -123,7 +132,8 @@ const CommandPanel: React.FC<{ mode: 'talimat' | 'disses'; setMode: (m: 'talimat
       try {
         const c = await api.aiCommand(project.id, input, playhead, project.ui.selectedClipId);
         // Claude'a ulaşılamadıysa (internet, kredi) yerel anlayıcıyla devam
-        p = c.understood || c.action || !local.understood ? c : { ...local, hint: `Claude kullanılamadı (${c.summary}); yerel anlayıcıyla yapıldı.` };
+        // Claude gerçekten yanıt verdiyse (yapamam dese bile) onun cevabı geçerli; yerel tahmin yalnız ulaşılamadığında
+        p = c.understood || c.action || !local.understood || (c as { usage?: unknown }).usage ? c : { ...local, hint: `Claude kullanılamadı (${c.summary}); yerel anlayıcıyla yapıldı.` };
       } catch (e) {
         p = local.understood ? { ...local, hint: `Claude'a ulaşılamadı; yerel anlayıcıyla yapıldı.` } : { ...local, hint: (e as Error).message };
       } finally {
@@ -798,6 +808,7 @@ export const Studio: React.FC = () => {
     setRightOpen(true);
   };
   const [cmdMode, setCmdMode] = useState<'talimat' | 'disses'>('talimat');
+  const [translateNonce, setTranslateNonce] = useState(0);
   const [connOpen, setConnOpen] = useState(false);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [pipelineOpen, setPipelineOpen] = useState(false);
@@ -963,7 +974,7 @@ export const Studio: React.FC = () => {
         </div>
         <div className="tab-body">
           {leftTab === 'medya' ? <MediaBin onSelect={(sel) => (setSelection(sel), openRight('secili'))} /> : null}
-          {leftTab === 'transkript' ? <TranscriptPanel onSelect={setSelection} /> : null}
+          {leftTab === 'transkript' ? <TranscriptPanel onSelect={setSelection} openConnections={() => setConnOpen(true)} translateNonce={translateNonce} /> : null}
           {leftTab === 'luts' ? <LutPanel selection={selection} /> : null}
           {leftTab === 'referans' ? <ReferencePanel selection={selection} /> : null}
           {leftTab === 'uret' ? <GeneratePanel regen={regen} onRegenDone={() => setRegen(null)} openConnections={() => setConnOpen(true)} /> : null}
@@ -992,7 +1003,14 @@ export const Studio: React.FC = () => {
           <div className="tab-body">
             {/* Komut paneli kapalı sekmede de yaşasın: plan ve önizleme kaybolmasın */}
             <div hidden={rightTab !== 'komut'}>
-              <CommandPanel mode={cmdMode} setMode={setCmdMode} />
+              <CommandPanel
+                mode={cmdMode}
+                setMode={setCmdMode}
+                onTranslate={() => {
+                  setLeftTab('transkript');
+                  setTranslateNonce((n) => n + 1);
+                }}
+              />
             </div>
             {rightTab === 'secili' ? <Inspector selection={selection} onClear={() => setSelection(null)} onRegen={(r) => (setRegen(r), setLeftTab('uret'))} /> : null}
           </div>

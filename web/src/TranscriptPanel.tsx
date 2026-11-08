@@ -5,6 +5,7 @@ import { formatTime, toFrames } from '../../src/core/timeline';
 import { buildTranscript, cutSentenceOps, editSentenceOps, sentenceAt, type TranscriptSection, type TranscriptSentence } from '../../src/core/transcript';
 import { useApp, useProject } from './state';
 import type { Selection } from './Timeline';
+import { CaptionTranslate, SpeechLang } from './Translate';
 
 const lower = (s: string) => s.toLocaleLowerCase('tr');
 
@@ -14,7 +15,7 @@ const lower = (s: string) => s.toLocaleLowerCase('tr');
  * "Cümleyi kes" kurgudan çıkarır; "Altyazıyı düzelt" yalnız metni değiştirir (kesimlere dokunmaz).
  * Zamanlar kurgu zamanıdır; kaynak zamanı ipucunda gösterilir.
  */
-export const TranscriptPanel: React.FC<{ onSelect: (s: Selection) => void }> = ({ onSelect }) => {
+export const TranscriptPanel: React.FC<{ onSelect: (s: Selection) => void; openConnections?: () => void; translateNonce?: number }> = ({ onSelect, openConnections, translateNonce }) => {
   const { project, refs, frame, seekRef, apply, setHighlights, setUi } = useProject();
   const { library } = useApp();
   const [query, setQuery] = useState('');
@@ -100,6 +101,7 @@ export const TranscriptPanel: React.FC<{ onSelect: (s: Selection) => void }> = (
 
   return (
     <div className="tr">
+      <CaptionTranslate openConnections={openConnections} autoEstimate={translateNonce} />
       <div className="tr-search">
         <Search size={14} />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Transkriptte ara" aria-label="Transkriptte ara" />
@@ -123,8 +125,9 @@ export const TranscriptPanel: React.FC<{ onSelect: (s: Selection) => void }> = (
       <div className="tr-list" ref={listRef}>
         {visible.map((sec) => (
           <section key={`${sec.source}:${sec.assetId}`} className="tr-sec">
-            <h5 className="ellipsis" title={sec.name}>
-              {sec.source === 'voice' ? <span className="badge voice">Dış ses</span> : null} {sec.name}
+            <h5 title={sec.name}>
+              {sec.source === 'voice' ? <span className="badge voice">Dış ses</span> : null} <span className="ellipsis">{sec.name}</span>
+              <SpeechLang assetId={sec.assetId} />
             </h5>
             {sec.sentences.map((s) => {
               const isSel = selectedId === s.id;

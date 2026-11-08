@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Captions, Copy, CornerDownRight, Crosshair, EyeOff, Film, Hexagon, Layers, Loader2, Mic, Music2, Pencil, Play, Plus, Scissors, Trash2, Type, Volume2, VolumeX, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
 import { logoSpan } from '../../src/core/graphics';
-import { captionPages, clipIndexAt, edgeGain, formatTime, layoutClips, stackRows, timelineWords, toFrames, totalDuration, voiceFreeAt, voiceOverlaps, voiceSpan } from '../../src/core/timeline';
+import { captionPages, captionWords, clipIndexAt, edgeGain, formatTime, layoutClips, stackRows, timelineWords, toFrames, totalDuration, voiceFreeAt, voiceOverlaps, voiceSpan } from '../../src/core/timeline';
 import { useContextMenu, type CtxItem } from './ui';
 import { fileHref } from './api';
 import { useApp, useProject } from './state';
@@ -152,7 +152,7 @@ export const Timeline: React.FC<{
   const contentW = Math.max(width, total * pps);
   const t = frame / FPS;
 
-  const pages = useMemo(() => captionPages(timelineWords(project, refs), { maxChars: 26, maxLines: 2 }), [project, refs]);
+  const pages = useMemo(() => captionPages(captionWords(project, refs), { maxChars: 26, maxLines: 2 }), [project, refs]);
   const tickStep = pps > 120 ? 0.5 : pps > 50 ? 1 : pps > 20 ? 2 : pps > 8 ? 5 : 10;
   const ticks = Array.from({ length: Math.floor(total / tickStep) + 1 }, (_, i) => i * tickStep);
 

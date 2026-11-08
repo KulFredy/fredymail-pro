@@ -158,7 +158,11 @@ export const api = {
   saveSettings: (body: { anthropicApiKey?: string | null; aiModel?: string; aiMode?: 'always' | 'fallback' }) => req('PUT', '/api/settings', body),
   aiCommand: (id: string, text: string, playhead: number, selectedClipId: string | null) =>
     req<import('../../src/core/commands').Plan>('POST', `/api/projects/${id}/command/ai`, { text, playhead, selectedClipId }),
-  transcribe: (assetId: string) => req('POST', `/api/assets/${assetId}/transcribe`),
+  transcribe: (assetId: string, language?: string) => req('POST', `/api/assets/${assetId}/transcribe`, language ? { language } : {}),
+  translateEstimate: (projectId: string, lang: string) =>
+    req<{ lines: number; chars: number; usd: number; model: string; connected: boolean; sourceLangs: string[]; pending: boolean; target: string }>('POST', `/api/projects/${projectId}/ceviri`, { lang, dryRun: true }),
+  translate: (projectId: string, lang: string) =>
+    req<{ translation: import('../../src/core/schema').CaptionTranslation; usage: { usd: number; model: string }; note: string }>('POST', `/api/projects/${projectId}/ceviri`, { lang }),
   // Faz 6: markalar ve kanal teslimi
   brands: () => req<Brand[]>('GET', '/api/markalar'),
   createBrand: (b: BrandInput) => req<Brand>('POST', '/api/markalar', b),

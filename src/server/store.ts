@@ -186,7 +186,7 @@ export class Store extends EventEmitter {
     const now = new Date().toISOString();
     let project = newProject(id, name, now, {
       mode,
-      captions: { enabled: true, edits: {}, style: CaptionStyleSchema.parse({ ...(this.style.captionStyle ?? {}) }) },
+      captions: { enabled: true, edits: {}, inVideo: false, translation: null, style: CaptionStyleSchema.parse({ ...(this.style.captionStyle ?? {}) }) },
     });
     project = applyOps(project, ops, this.opContext());
     this.projects.set(id, { project, history: { past: [], future: [] }, serial: new Serial() });

@@ -358,3 +358,71 @@ export const stillAtTime = (project: Project, t: number): { clipId: string; at: 
   const item = layout.find((l) => t >= l.start && t < l.end) ?? layout[layout.length - 1];
   return { clipId: item.clip.id, at: Math.max(0, Math.min(item.duration - 1 / FPS, t - item.start)) };
 };
+
+/**
+ * Altyazıda görünen kelimeler: çeviri varsa çevrilmiş satırlar (satır süresine harf oranında dağıtılır),
+ * yoksa konuşmanın kendisi. Transkript, kesimler ve müzik kısma her zaman orijinal konuşmayı kullanır.
+ */
+export const captionWords = (project: Project, assets: Record<string, AssetRef>): TimedWord[] => {
+  const tr = project.captions.translation;
+  if (!tr) return timelineWords(project, assets);
+  const out: TimedWord[] = [];
+  const place = (assetId: string, ownerId: string, srcIn: number, srcOut: number, toTimeline: (src: number) => number, clampLo: number, clampHi: number) => {
+    const segs = tr.byAsset[assetId];
+    if (!segs) {
+      // Bu dosya çevrilmemiş (ör. sonradan eklendi): orijinal konuşması kalır
+      for (const w of timelineWords(project, assets)) if (w.clipId === ownerId) out.push(w);
+      return;
+    }
+    segs.forEach((s, i) => {
+      const mid = (s.t0 + s.t1) / 2;
+      if (mid < srcIn || mid > srcOut) return;
+      const tokens = s.text.split(/\s+/).filter(Boolean);
+      if (!tokens.length) return;
+      const total = tokens.reduce((n, t) => n + t.length + 1, 0);
+      let acc = 0;
+      tokens.forEach((tok, j) => {
+        const a = s.t0 + ((s.t1 - s.t0) * acc) / total;
+        acc += tok.length + 1;
+        const b = s.t0 + ((s.t1 - s.t0) * acc) / total;
+        out.push({ key: `${assetId}:c${i}:${j}`, text: tok, t0: Math.max(clampLo, toTimeline(a)), t1: Math.min(clampHi, toTimeline(b)), clipId: ownerId, p: 1 });
+      });
+    });
+  };
+  for (const item of layoutClips(project)) {
+    const asset = assets[item.clip.assetId];
+    if (!asset || asset.kind !== 'video' || item.clip.muted) continue;
+    place(asset.id, item.clip.id, item.clip.in, item.clip.out, (src) => item.start + (src - item.clip.in), item.start, item.end);
+  }
+  for (const v of project.voice ?? []) {
+    if (!assets[v.assetId]) continue;
+    place(v.assetId, v.id, v.in, v.out, (src) => v.at + (src - v.in), v.at, v.at + (v.out - v.in));
+  }
+  return out.filter((w) => w.t1 > w.t0).sort((a, b) => a.t0 - b.t0);
+};
+
+/** Çeviri için kaynak satırlar: kurguda kullanılan her konuşmalı dosyanın cümleleri (kaynak zamanında, düzeltmeler uygulanmış) */
+export const transcriptSegments = (project: Project, assets: Record<string, AssetRef>): { assetId: string; segs: { t0: number; t1: number; text: string }[] }[] => {
+  const ids = [...new Set([...project.clips.map((c) => c.assetId), ...(project.voice ?? []).map((v) => v.assetId)])];
+  const res: { assetId: string; segs: { t0: number; t1: number; text: string }[] }[] = [];
+  for (const id of ids) {
+    const a = assets[id];
+    if (!a?.words.length) continue;
+    const tw: TimedWord[] = a.words
+      .map((w, i) => {
+        const e = project.captions.edits[`${id}:${i}`];
+        return { key: `${id}:${i}`, text: (e !== undefined ? e : w.text).trim(), t0: w.t0, t1: w.t1, clipId: id, p: w.p };
+      })
+      .filter((w) => w.text);
+    // Çok uzun cümleler altyazıda okunmaz: ~14 kelimede böl
+    const segs: { t0: number; t1: number; text: string }[] = [];
+    for (const s of sentences(tw)) {
+      for (let k = 0; k < s.words.length; k += 14) {
+        const part = s.words.slice(k, k + 14);
+        segs.push({ t0: part[0].t0, t1: part[part.length - 1].t1, text: part.map((w) => w.text).join(' ') });
+      }
+    }
+    if (segs.length) res.push({ assetId: id, segs });
+  }
+  return res;
+};

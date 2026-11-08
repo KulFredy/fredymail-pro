@@ -9,7 +9,7 @@ import { FORMATS } from './formats';
 import { fixPlacement, logoBox, safeAreaIssues, textBox } from './graphics';
 import type { OpInput } from './ops';
 import type { AssetRef, Output, Project } from './schema';
-import { captionPages, outputFrames, timelineWords, type TimedWord } from './timeline';
+import { captionPages, captionWords, outputFrames, timelineWords, type TimedWord } from './timeline';
 import { FPS } from './schema';
 
 export type CheckLevel = 'ok' | 'uyari' | 'hata';
@@ -73,7 +73,7 @@ export type Cue = { start: number; end: number; text: string };
 
 /** Altyazı satırları (dosya için): ekrandakiyle aynı düzeltmeler, satır başına ≤42 karakter */
 export const captionCues = (project: Project, assets: Record<string, AssetRef>, opts: { maxChars?: number; maxLines?: number } = {}): Cue[] => {
-  const words = timelineWords(project, assets);
+  const words = captionWords(project, assets);
   return captionPages(words, { maxChars: opts.maxChars ?? 42, maxLines: opts.maxLines ?? 2 }).map((p) => ({
     start: p.start,
     end: Math.max(p.end, p.start + 0.3),
@@ -121,10 +121,13 @@ export const deliveryChecks = ({ project, assets, output, brand, unapprovedAsset
   if (brand?.logoAssetIds.length && !project.logos.some((l) => brand.logoAssetIds.includes(l.assetId)))
     add({ id: 'urun-logo', area: 'urun', level: 'uyari', text: 'Marka logosu yok', fix: { label: 'Logoyu ekle', ops: [{ type: 'logo.add', assetId: brand.logoAssetIds[0] }] } });
   const names = [project.brand?.productName, project.brand?.brandName].filter((x): x is string => !!x);
+  // Konuşmadan çıkan metin yalnız görünüyorsa (görüntüye yazılı altyazı veya altyazı dosyası) denetlenir
+  const capOn = captionsFor(project, output).enabled && !project.captions.inVideo;
+  const transcriptShown = capOn || !!ch?.captionFile;
   if (names.length) {
     const sources: { where: string; text: string }[] = [
       ...project.texts.map((t) => ({ where: 'yazı', text: t.text })),
-      { where: 'altyazı', text: timelineWords(project, assets).map((w) => w.text).join(' ') },
+      ...(transcriptShown ? [{ where: 'altyazı', text: captionWords(project, assets).map((w) => w.text).join(' ') }] : []),
       { where: 'başlık', text: output.meta.title },
       { where: 'açıklama', text: output.meta.description },
       { where: 'reklam metni', text: `${output.meta.headline} ${output.meta.primaryText}` },
@@ -157,10 +160,13 @@ export const deliveryChecks = ({ project, assets, output, brand, unapprovedAsset
   if (bars.length) add({ id: 'kadraj-bant', area: 'kadraj', level: 'uyari', text: `${bars.length} klipte siyah bant var (Sığdır); bulanık dolgu veya Doldur daha iyi olabilir` });
   if (!issues.length && !bars.length) add({ id: 'kadraj', area: 'kadraj', level: 'ok', text: 'Yazı ve logolar güvenli alanda' });
 
-  // Altyazı
-  const words = timelineWords(project, assets);
+  // Altyazı (çeviri varsa çevrilmiş satırlar; emin olunamayan kelime sayılmaz)
+  const words = captionWords(project, assets);
   const cap = captionsFor(project, output);
-  if (isVideo && words.length) {
+  if (isVideo && project.captions.inVideo) {
+    add({ id: 'altyazi', area: 'altyazi', level: 'ok', text: 'Videonun kendi altyazısı var; uygulama altyazısı eklenmez' });
+    if (ch?.captionFile && words.length) add({ id: 'altyazi-dosya', area: 'altyazi', level: 'ok', text: 'Altyazı dosyası (.srt, .vtt) konuşmadan üretilip pakete eklenir' });
+  } else if (isVideo && words.length) {
     if (ch?.burnCaptions && !cap.enabled)
       add({ id: 'altyazi-kapali', area: 'altyazi', level: 'uyari', text: 'Konuşma var ama altyazı kapalı (çoğu kişi sessiz izler)', fix: { label: 'Bu çıktıda aç', ops: [{ type: 'output.update', outputId: output.id, patch: { captions: { enabled: true } } }] } });
     else if (cap.enabled) {

@@ -12,6 +12,7 @@ Uygulama açık olmalı (Uygulamalar → İçerik Fabrikası, ya da `npm run fab
 2. **Kurgu:** Önce `komut` ile Türkçe talimatı plana çevir (yerel anlayıcı, ücretsiz). Plan doğruysa `islem_uygula`. Ayrıntılı ayar için `klip_kirp`, `kadraj_ayarla`, `gorunum_ayarla`, `muzik_ayarla`, `altyazi_kelime_duzelt`. Yanlışsa `geri_al`.
 3. **Marka:** `marka_listele` → `marka_uygula` (logo, renk, yazı tipi, kanallar). `gorunum=true` yalnız kullanıcı marka LUT'unu isterse.
 4. **Teslim:** `kanal_ekle` → `yayin_metni_yaz` (önce öneri; `uygula=true` kullanıcı onaylarsa) → `teslim_kontrol` (hataları düzelt: kontroldeki `fix.ops` → `islem_uygula`) → `kanal_paketi` → kullanıcı onaylarsa `kanal_paketi_onayla`.
+4b. **Altyazı çevirisi:** `altyazi_ceviri_satirlari` → satırları çevir (satır sayısı ve zamanlar aynı; marka/ürün adları aynen) → `islem_uygula` ile `captions.setTranslation`. Transkript yanlış dildeyse (anlamsız kelimeler) önce kullanıcıya uygulamada Transcript → dil seçip yeniden çözmesini söyle; bozuk metni çevirme.
 5. **Dış kurgu programı:** Premiere/Resolve için `premiere_xml` (kurgu iskeleti; renk/yazı taşınmaz). CapCut'a proje aktarılamaz: Deliver'daki video + .srt verilir.
 6. **YouTube:** `youtube_onizleme` sonucunu kullanıcıya göster; görünürlüğü ve yüklemeyi **açıkça onaylamadan** `youtube_gonder` çağırma (`kullanici_onayladi=true` yalnız bu konuşmadaki açık onayla).
 

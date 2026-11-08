@@ -5,6 +5,7 @@ import { timelineWords, totalDuration, toFrames } from '../../../src/core/timeli
 import { api } from '../api';
 import { useApp, useProject } from '../state';
 import { Section, Segmented, Slider, Toggle, fmtSec } from '../ui';
+import { CaptionTranslate, SpeechLang } from '../Translate';
 
 const WordChip: React.FC<{ text: string; original: string; edited: boolean; active: boolean; onSeek: () => void; onSave: (v: string | null) => void }> = ({
   text,
@@ -70,9 +71,17 @@ export const TextStep: React.FC = () => {
 
   return (
     <div className="stack">
+      {videoClips.length ? <CaptionTranslate /> : null}
       <Section
         title="Altyazı"
-        aside={<Toggle checked={captions.enabled} onChange={(v) => apply([{ type: 'captions.set', enabled: v }])} label="Videoya göm" />}
+        aside={
+          <span className="row-wrap">
+            <span title="Kaynak videonun kendi (görüntüye yazılı) altyazısı varsa açın: uygulama altyazısı kapanır, teslim kontrolleri uyarmaz">
+              <Toggle checked={captions.inVideo} onChange={(v) => apply([{ type: 'captions.set', inVideo: v }])} label="Videoda altyazı var" />
+            </span>
+            <Toggle checked={captions.enabled} onChange={(v) => apply([{ type: 'captions.set', enabled: v }])} label="Videoya göm" />
+          </span>
+        }
         hint="Kelimeye tıklayınca önizleme o ana gider; çift tıklayıp düzeltin. Silmek için kelimeyi boşaltın."
       >
         <div className="transcripts">
@@ -83,6 +92,7 @@ export const TextStep: React.FC = () => {
               <div key={a.id} className="tstatus">
                 {s === 'running' || s === 'pending' ? <Loader2 size={13} className="spin" /> : s === 'done' && a.transcript.words.length ? '✓' : <MicOff size={13} />}
                 <span className="ellipsis">{a.name}</span>
+                <SpeechLang assetId={a.id} />
                 <small className="muted">
                   {s === 'done'
                     ? a.transcript.words.length

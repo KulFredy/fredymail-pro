@@ -165,11 +165,27 @@ export const CaptionStyleSchema = z.object({
 });
 export type CaptionStyle = z.infer<typeof CaptionStyleSchema>;
 
+/** Çevrilmiş altyazı satırı: kaynak dosyanın zamanında (sn) */
+export const CaptionSegmentSchema = z.object({ t0: z.number(), t1: z.number(), text: z.string() });
+export type CaptionSegment = z.infer<typeof CaptionSegmentSchema>;
+/** Altyazı çevirisi: varsa görüntüdeki altyazı ve .srt bu dilde çıkar (transkript ve kesimler orijinal kalır) */
+export const CaptionTranslationSchema = z.object({
+  lang: z.string(),
+  /** Kaynak konuşma dili (bilgi) */
+  from: z.string().default(''),
+  /** Dosya kimliği → satırlar */
+  byAsset: z.record(z.string(), z.array(CaptionSegmentSchema)).default({}),
+});
+export type CaptionTranslation = z.infer<typeof CaptionTranslationSchema>;
+
 export const CaptionsSchema = z.object({
   enabled: z.boolean().default(true),
   style: CaptionStyleSchema.default(CaptionStyleSchema.parse({})),
   /** Kelime düzeltmeleri: anahtar `${assetId}:${kelimeSırası}`. Boş metin kelimeyi gizler. */
   edits: z.record(z.string(), z.string()).default({}),
+  /** Kaynak videonun kendi altyazısı görüntüye yazılı: uygulama altyazısı gerekmez, kontroller uyarmaz */
+  inVideo: z.boolean().default(false),
+  translation: CaptionTranslationSchema.nullable().default(null),
 });
 export type Captions = z.infer<typeof CaptionsSchema>;
 

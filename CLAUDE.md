@@ -5,10 +5,10 @@ Türkçe, Mac'te yerel çalışan içerik üretim ve video kurgu uygulaması. Ku
 Durum, sıradaki işler ve doğrulanmayanlar: `docs/DEVAM.md`. Faz sırası (Faz 3–8, esas): `docs/FAZLAR.md`. SaaS kararları: `docs/SAAS.md`. İlk ürün planı ve mimari: `docs/PLAN.md`. Kullanım: `README.md`.
 
 ## Mimari (tek kural: her değişiklik bir işlem)
-- `src/core` — saf TS, tarayıcı ve sunucu ortak: `schema.ts` (zod), `ops.ts` (`applyOp`: proje + işlem → yeni proje), `timeline.ts` (yerleşim, kadraj `computeBox`/`scaleFraming`, altyazı sayfaları, müzik eğrisi `musicGainAt`), `commands.ts` (Türkçe kural tabanlı komut → `Plan`), `formats.ts`, `looks.ts`, `lut.ts`, `refs.ts`, `channels.ts` (kanal profilleri, `captionsFor`), `brand.ts` (marka profili, `brandPlan`), `delivery.ts` (teslim kontrolleri, SRT/VTT).
+- `src/core` — saf TS, tarayıcı ve sunucu ortak: `schema.ts` (zod), `ops.ts` (`applyOp`: proje + işlem → yeni proje), `timeline.ts` (yerleşim, kadraj `computeBox`/`scaleFraming`, altyazı sayfaları, müzik eğrisi `musicGainAt`), `commands.ts` (Türkçe kural tabanlı komut → `Plan`), `formats.ts`, `looks.ts`, `lut.ts`, `refs.ts`, `channels.ts` (kanal profilleri, `captionsFor`), `brand.ts` (marka profili, `brandPlan`), `delivery.ts` (teslim kontrolleri, SRT/VTT). Altyazı: `captionWords` (çeviri varsa çevrilmiş satırlar) ≠ `timelineWords` (konuşmanın kendisi; transkript, kesim, müzik).
 - `src/remotion` — tek kompozisyon (`Main.tsx`): önizleme (Player) ve render aynı kod. Renk: `gl.ts` WebGL2 gölgelendirici (kamera LUT → ayarlar → görünüm → yaratıcı LUT). `GradedMedia.tsx` video/fotoğrafı tuvale çizer.
 - `src/media` — ffprobe/ffmpeg içe aktarma (`ingest.ts`), kamera log algılama, `whisper.ts` (whisper.cpp), `verify.ts`.
-- `src/server` — Fastify: `index.ts` (rotalar), `store.ts` (JSON proje + geçmiş), `service.ts` (içe aktarma/render işleri), `render.ts` (Remotion; Chrome indirilemezse sistem Chrome'u), `ai.ts` (isteğe bağlı Claude komut planlayıcı, `@anthropic-ai/sdk`), `mobile.ts` (QR telefon sayfaları), `secrets.ts`/`connections.ts` (anahtar kasası: Mac'te Anahtar Zinciri), `providers.ts`/`generate.ts` (ElevenLabs, Gemini), `brands.ts`, `delivery.ts` (kanal paketi), `copywriter.ts` (yayın metni), `youtube.ts`/`publish.ts` (YouTube'a yayın, OAuth PKCE).
+- `src/server` — Fastify: `index.ts` (rotalar), `store.ts` (JSON proje + geçmiş), `service.ts` (içe aktarma/render işleri), `render.ts` (Remotion; Chrome indirilemezse sistem Chrome'u), `ai.ts` (isteğe bağlı Claude komut planlayıcı, `@anthropic-ai/sdk`), `mobile.ts` (QR telefon sayfaları), `secrets.ts`/`connections.ts` (anahtar kasası: Mac'te Anahtar Zinciri), `providers.ts`/`generate.ts` (ElevenLabs, Gemini), `brands.ts`, `delivery.ts` (kanal paketi), `copywriter.ts` (yayın metni), `translate.ts` (altyazı çevirisi), `youtube.ts`/`publish.ts` (YouTube'a yayın, OAuth PKCE).
 - `src/mcp/server.ts` — MCP araçları (`.mcp.json`), uygulamanın HTTP API'sini çağırır.
 - `web/` — Vite + React arayüz: `QuickEdit.tsx` (8 adım), `Studio.tsx` (komut paneli, medya, seçili öğe), `Timeline.tsx`, `Preview.tsx`, `steps/*`.
 
@@ -38,6 +38,7 @@ npm run e2e:yayin      # Faz 7 (YouTube, sahte Google)
 npm run e2e:anasayfa   # ana sayfa, telefon hedefi, yardım, üretim hattı/XML
 npm run e2e:disses     # A1 dış ses: çakışanlar alt alta, seç/taşı/sil/geri al
 npm run e2e:surukle    # sürükle-bırak, zaman çizelgesi tutamağı, klip sil, oynatma, sağ tık menüleri
+npm run e2e:ceviri     # konuşma dili + yeniden çöz, altyazı çevirisi (sahte Claude)
 ```
 
 ## Bulut oturumunda (Linux konteyner) test
