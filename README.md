@@ -94,6 +94,7 @@ Temel kurgu hiçbir bağlantı gerektirmez. **Ayarlar → Bağlantılar** (ana e
 | ElevenLabs | Metinden Türkçe dış ses, kısa örnek, kalan karakter | elevenlabs.io → profil → API Keys |
 | Google Gemini · Nano Banana 2 | Ürün fotoğrafına yeni arka plan (ürün/logo/etiket korunur) | aistudio.google.com → Get API key |
 | Higgsfield | Görselden video — **doğrulanmadı**: anahtar saklanır, üretim şimdilik Higgsfield sitesinde | cloud.higgsfield.ai → API Keys (`KEY_ID:SECRET`) |
+| YouTube | Onaylı paketi kanala yükleme (aşağıda) | Google Cloud → OAuth istemcisi (Masaüstü) |
 
 - Anahtarlar Mac **Anahtar Zinciri**'nde (`icerik-fabrikasi` hizmeti) saklanır; tarayıcıya, proje dosyalarına, GitHub'a ve loglara yazılmaz. Arayüzde yalnız son 4 hanesi görünür. Mac dışında `~/İçerik Fabrikası/gizli.json` (yalnız kullanıcı okuyabilir). Ortam değişkenleri (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `GEMINI_API_KEY`) de okunur.
 - Her bağlantıda **Dene**: anahtar geçerli mi, ElevenLabs'te kalan karakter.
@@ -102,6 +103,33 @@ Temel kurgu hiçbir bağlantı gerektirmez. **Ayarlar → Bağlantılar** (ana e
   - **Ürün arka planı:** Medya'daki bir ürün fotoğrafı + tarif + oran. Göndermeden önce hangi fotoğrafın gideceği ve kaç görsel üretileceği gösterilir, onayınız istenir. 2 seçenek gelir; **onaylamadan Medya'ya eklenmez**. Onaylananı *Ana ize* veya *Üst ize* koyun.
 - Üretilen her şey yerel medya olarak saklanır; servis kapansa da proje açılır. Kayıtlar: `~/İçerik Fabrikası/uretimler.json`.
 - Claude kullanımı (uygulama içi komut sayısı ve tahmini maliyet) Claude satırında görünür. Claude Code ise kendi aboneliğinizle MCP üzerinden çalışır.
+
+## Marka, kampanya ve kanal teslimi
+
+**Markalar** (ana ekran) bir markanın her şeyini bir arada tutar: logo (saydam PNG/SVG), yazı/vurgu renkleri ve palet, başlık ve altyazı yazı tipi (Inter, Montserrat, Poppins, Playfair Display), metin tonu, etiketler, LUT favorileri (ilki “marka görünümü”), referans görseller, tercih edilen ElevenLabs sesi, ürünler (ad + kısa not) ve varsayılan kanallar. Kayıt: `~/İçerik Fabrikası/markalar.json`.
+
+- **Marka kampanyası** (ana ekran): marka → ürün → kampanya seçilir; yeni Stüdyo projesi logosu, renkleri, yazı tipleri ve kanallarıyla açılır. Var olan projede üst çubuktaki **Marka seç** etiketinden aynı şey yapılır; ne değişeceği önceden listelenir, ⌘Z ile geri alınır. Ana ekranda projeler markaya göre süzülür, ürün · kampanya başlıklarıyla gruplanır.
+- **Kanallar:** YouTube video (16:9 + 1280×720 küçük resim, altyazı ayrı .srt/.vtt dosyası), YouTube Shorts, Instagram Reels, Story, Instagram post, 4:5 reklam. Aynı kurgudan her kanal ayrı çıktıdır: kadraj, yazı/logo konumu, altyazı (aç/kapa, konum) ve kapak kanal başına ayrı.
+- **Kanal paketi** (Stüdyo üst çubuğu): her kanal için yayın metni alanları (karakter sayacıyla: YouTube başlık 100, Instagram açıklama 2200 + en çok 30 etiket, reklam başlığı ~40 / metni ~125 önerilen), kapak karesi ve başlığı, teslim öncesi kontrol. **Metinleri yaz**: Claude bağlıysa marka tonu, ürün notu ve konuşmadan yazar; değilse internetsiz şablon.
+- **Teslim öncesi kontrol:** ürün/marka adı yazımı (“Kahvemz” → “Kahvemiz”?; Türkçe ekler sorun sayılmaz), onaylanmamış üretilmiş görsel, marka logosu, kanal süre sınırı, güvenli alan ve siyah bant, altyazı (kapalı/emin olunamayan kelimeler), müzik–konuşma dengesi, ses yüksekliği (hedef −14 LUFS ±2, tepe ≤ −1 dBTP; paketten sonra ölçülür), metin sınırları, kapak. Düzeltilebilenlerde tek tıkla düzeltme düğmesi var.
+- **Paketi hazırla:** seçilen kanallar render edilir; klasöre `marka_urun_kampanya_kanal.mp4`, kapaklar, `.srt/.vtt`, `metinler.txt` (kopyala-yapıştır), `kontrol.txt`, `paket.json` ve hepsinin `.zip`'i yazılır (`projeler/<id>/exports/paket_…`). **Onayla** ile paket `~/İçerik Fabrikası/teslim/<marka>/<ürün>/<kampanya>/` altına kopyalanır. Orijinaller (kütüphane), varyantlar (exports) ve onaylı sonuçlar ayrı kalır.
+- Claude Code (MCP): `marka_listele`, `marka_uygula`, `kanal_ekle`, `teslim_kontrol`, `yayin_metni_yaz`, `kanal_paketi`, `kanal_paketi_onayla`.
+
+Platform süre/metin sınırları yayımlanan değerlerden alınmıştır ve değişebilir; güvenli alanlar yaklaşıktır.
+
+## YouTube'a doğrudan yayın (isteğe bağlı)
+
+Onaylanmış kanal paketindeki YouTube video veya Shorts çıktısı, uygulamadan doğrudan kanalınıza yüklenebilir (küçük resim ve Türkçe altyazıyla).
+
+**Bir kerelik kurulum (~15 dk):**
+1. console.cloud.google.com → yeni proje → **YouTube Data API v3**'ü etkinleştirin.
+2. **OAuth izin ekranı:** Harici, uygulama adı “İçerik Fabrikası”, kendi Gmail adresinizi **test kullanıcısı** olarak ekleyin.
+3. **Kimlik bilgileri → OAuth istemci kimliği → Masaüstü uygulaması.** İstemci kimliği ve gizli anahtarı kopyalayın.
+4. Uygulamada ⚙ **Bağlantılar → YouTube → Anahtar ekle**: `İSTEMCİ_KİMLİĞİ:GİZLİ_ANAHTAR` → **Hesabı bağla** → Google'da izin verin. “Kanal: …” görünür. Belirteç Mac Anahtar Zinciri'nde saklanır.
+
+**Yayın:** Kanal paketi → paketi **Onayla** → YouTube satırında **YouTube'a gönder…** → ne gideceğini görün (kanal, dosya, başlık, açıklama, etiketler, kapak, altyazı) → görünürlük (Özel / Liste dışı / Herkese açık ya da zamanlanmış) → “çocuklara yönelik” ve “yapay zekâyla üretilmiş içerik” beyanı (projede üretilmiş görsel veya dış ses varsa önceden işaretli) → onay kutusu → **Yükle**. Durum “YouTube'da işleniyor” → “hazır” olur, bağlantı görünür. Aynı paket ikinci kez yüklenmez. Kontrolde hata olan veya onaylanmamış paket yüklenmez. Reklam ve bütçe kapsam dışıdır.
+
+YouTube'un günlük API kotası ve küçük resim yükleme için kanal doğrulaması (telefon) YouTube tarafındadır. Instagram'a doğrudan yayın yok: Instagram'ın API'si videonun internette herkese açık bir adreste durmasını ister.
 
 ## Kendi dosyalarınızla kabul testi
 
@@ -126,7 +154,7 @@ Aynı senaryonun otomatik sürümü: `npm run e2e` (üretilmiş test medyasıyla
 
 Bu klasörde Claude Code açıldığında `.mcp.json` sayesinde **icerik-fabrikasi** MCP sunucusu otomatik tanınır. Uygulama açıkken (`npm run fabrika`) Claude şunları yapabilir:
 
-`durum`, `proje_listele`, `proje_olustur`, `proje_ac`, `medya_ice_aktar`, `komut`, `islem_uygula`, `klip_kirp`, `kadraj_ayarla`, `gorunum_ayarla`, `muzik_ayarla`, `altyazi_getir`, `altyazi_kelime_duzelt`, `geri_al`, `yinele`, `disa_aktar`, `is_durumu`, `ciktilari_listele`.
+`durum`, `proje_listele`, `marka_listele`, `marka_uygula`, `kanal_ekle`, `teslim_kontrol`, `yayin_metni_yaz`, `kanal_paketi`, `kanal_paketi_onayla`, `youtube_onizleme`, `youtube_gonder`, `proje_olustur`, `proje_ac`, `medya_ice_aktar`, `komut`, `islem_uygula`, `klip_kirp`, `kadraj_ayarla`, `gorunum_ayarla`, `muzik_ayarla`, `altyazi_getir`, `altyazi_kelime_duzelt`, `geri_al`, `yinele`, `disa_aktar`, `is_durumu`, `ciktilari_listele`.
 
 Örnek: *"Kafe Story projesinde rengi film görünümüne al, yoğunluk %50; müziği arka planda kısık yap ve Story'yi dışa aktar."* Değişiklikler açık olan arayüze anında yansır ve arayüzden geri alınabilir.
 
@@ -184,6 +212,8 @@ Arayüz (React)   MCP (Claude)   [Faz 2] ses/yazı komutu
   baglantilar.json       bağlantı ayarları (anahtar yok)
   uretimler.json         dış ses / görsel üretim kayıtları
   kullanim.json          uygulama içi Claude kullanımı
+  markalar.json          marka profilleri
+  teslim/<marka>/<ürün>/<kampanya>/  onaylanmış kanal paketleri
 ```
 
 ## Geliştirme
@@ -200,6 +230,8 @@ npm run e2e:ritim  # Faz 4.4: vuruş algılama (128 BPM), kesimlerin vuruşa otu
 npm run e2e:grafik # Faz 4.3: logo/başlık render'ı — köşe, saydamlık, Story güvenli alanı, animasyon, orana özel yerleşim
 npm run e2e:ref    # Faz 4.2: referanstan renk eşleme, render'da renk farkı ölçümü
 npm run e2e:lut    # Faz 4: LUT toplu içe aktarma (.cube/.3dl/zip/bozuk), tür tahmini, render'da piksel ölçümü
+npm run e2e:yayin  # Faz 7: sahte Google sunucusuyla OAuth (PKCE), YouTube yükleme, küçük resim, altyazı, durum, sızıntı taraması
+npm run e2e:marka  # Faz 6: marka → kampanya → kanal paketi (render, kapak, altyazı dosyası, LUFS, zip, onay) + arayüz
 npm run e2e:baglanti # Faz 5: sahte ElevenLabs/Gemini/Claude sunucusuyla anahtar güvenliği, taşıma, maliyet, onay, arayüz
 npm run typecheck
 ```
@@ -209,7 +241,7 @@ Ortam değişkenleri: `FABRIKA_HOME` (veri klasörü), `FABRIKA_PORT` (4747), `F
 ## Bilinen sınırlar
 
 - RAW fotoğraf (CR3/ARW/NEF/DNG) yok; Lightroom'dan JPEG verin.
-- Hareketli grafik, `/KOMUT` sözlüğü ve doğrudan Instagram yayını sonraki fazlarda.
+- `/KOMUT` görsel komut sözlüğü yok. Doğrudan yayın yalnız YouTube'a (Instagram API'si herkese açık video adresi ister).
 - Claude bağlantısı kapalıyken Stüdyo komutları kural tabanlıdır: listedeki kalıplara yakın cümleleri anlar.
 - Kaynak oranında (ör. 4:3) çıktı ve Premiere'e aktarım henüz yok; 9:16, 16:9, 4:5 ve 1:1 çıktı verilir.
 - Instagram güvenli alan ölçüleri resmi değil, yaklaşıktır.

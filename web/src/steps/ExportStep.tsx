@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { outputTitle } from '../../../src/core/channels';
 import { Download, FolderOpen, Smartphone, Check, X, Loader2, Copy, History, Save } from 'lucide-react';
 import { outputLabel } from '../../../src/core/formats';
 import { api, fileHref, type ExportEntry, type Version } from '../api';
@@ -48,7 +49,7 @@ export const ExportStep: React.FC = () => {
         const failed = jobs.find((j) => j.type === 'render' && j.outputId === o.id && j.projectId === project.id && j.status === 'error');
         const list = exports.filter((e) => e.outputId === o.id).slice(0, 4);
         return (
-          <Section key={o.id} title={`${outputLabel(o.format, o.kind)} · ${RESOLUTION_LABELS[o.resolution ?? '1080']}`}>
+          <Section key={o.id} title={`${outputTitle(o)} · ${RESOLUTION_LABELS[o.resolution ?? '1080']}`}>
             {issues
               .filter((i) => i.outputId === o.id)
               .map((i) => (

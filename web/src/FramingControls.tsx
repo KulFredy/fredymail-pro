@@ -1,4 +1,5 @@
 import React from 'react';
+import { outputNameRatio } from '../../src/core/channels';
 import { Crosshair, Maximize2 } from 'lucide-react';
 import { FORMATS } from '../../src/core/formats';
 import type { Framing, Output } from '../../src/core/schema';
@@ -22,7 +23,7 @@ export const FramingControls: React.FC<{ output: Output; itemId: string; assetId
   return (
     <div className="stack framing">
       <small className="muted">
-        {FORMATS[output.format].label} {FORMATS[output.format].ratio} için · diğer oranları etkilemez
+        {outputNameRatio(output)} için · diğer oranları etkilemez
       </small>
       <Segmented
         size="sm"

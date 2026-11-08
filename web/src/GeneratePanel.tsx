@@ -105,10 +105,14 @@ const VoiceForm: React.FC<{ playhead: number; regen: RegenRequest | null; onDone
   const [sample, setSample] = useState<string | null>(null);
   const [target, setTarget] = useState<string | null>(null);
   useEffect(() => {
-    api.ttsCatalog().then(
-      (c) => {
+    const brandVoice = project.brand
+      ? api.brands().then((l) => l.find((b) => b.id === project.brand!.brandId)?.voice?.voiceId ?? null, () => null)
+      : Promise.resolve(null);
+    Promise.all([api.ttsCatalog(), brandVoice]).then(
+      ([c, bv]) => {
         setCat(c);
-        setVoiceId((v) => v || c.defaultVoiceId || '');
+        // Marka sesi varsa ve katalogda bulunuyorsa önce o
+        setVoiceId((v) => v || (bv && c.voices.some((x) => x.id === bv) ? bv : '') || c.defaultVoiceId || '');
         setModelId((m) => m || c.defaultModelId || '');
       },
       (e) => setErr((e as Error).message),

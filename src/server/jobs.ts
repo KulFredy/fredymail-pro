@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { newId } from './store';
 
-export type JobType = 'ingest' | 'transcribe' | 'render' | 'paket';
+export type JobType = 'ingest' | 'transcribe' | 'render' | 'paket' | 'yayin';
 export type Job = {
   id: string;
   type: JobType;
@@ -20,13 +20,13 @@ export type Job = {
 
 type Task = (update: (progress: number, message?: string) => void) => Promise<unknown>;
 
-const LANES: Record<JobType, number> = { ingest: 2, transcribe: 1, render: 1, paket: 1 };
+const LANES: Record<JobType, number> = { ingest: 2, transcribe: 1, render: 1, paket: 1, yayin: 1 };
 
 /** Basit iş kuyruğu: içe aktarma, çözümleme ve render ayrı şeritlerde */
 export class Jobs extends EventEmitter {
   jobs = new Map<string, Job>();
-  private queues: Record<JobType, { job: Job; task: Task }[]> = { ingest: [], transcribe: [], render: [], paket: [] };
-  private running: Record<JobType, number> = { ingest: 0, transcribe: 0, render: 0, paket: 0 };
+  private queues: Record<JobType, { job: Job; task: Task }[]> = { ingest: [], transcribe: [], render: [], paket: [], yayin: [] };
+  private running: Record<JobType, number> = { ingest: 0, transcribe: 0, render: 0, paket: 0, yayin: 0 };
 
   add(type: JobType, title: string, meta: Partial<Job>, task: Task): Job {
     const job: Job = { id: `j_${newId()}`, type, title, status: 'queued', progress: 0, message: 'Sırada', createdAt: new Date().toISOString(), ...meta };

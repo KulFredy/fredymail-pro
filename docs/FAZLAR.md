@@ -53,6 +53,9 @@
 - Aynı projeden YouTube 16:9 + küçük resim, 9:16 Shorts/Reels, Story, 4:5 reklam; kadraj, altyazı, yazı konumu, kapak her profilde ayrı. Başlık/açıklama/reklam metni ve altyazı dosyası paketlenir.
 - Bir ürünle gerçek kampanya paketi; sonra ikinci markada aynı akış. Teslimden önce ürün doğruluğu, ses dengesi, altyazı, kadraj kontrolü.
 
+## Durum (8 Kasım 2026)
+Faz 3–6 tamam; Faz 7 YouTube ile tamam (gerçek hesapla doğrulanmadı); Faz 8 için tasarım belgesi `docs/SAAS.md` (karar bekliyor). Ayrıntı: `docs/DEVAM.md`.
+
 ## Faz 7 ve 8 · İsteğe bağlı
 - **Faz 7 · Doğrudan yayın:** tek platformla başla; hesap bağlantısı, önizleme, açık yayın onayı, yayın durumu ayrı. Reklam yayını ve bütçe ayrı kapsam.
 - **Faz 8 · SaaS beta:** proje biçimi ve işlemler yeniden kullanılır; hesaplar, ekip/marka erişimi, depolama, sunucu render, faturalandırma çekirdeğin dışında. Mac localhost sürümü kalır.

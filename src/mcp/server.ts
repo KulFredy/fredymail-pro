@@ -429,4 +429,46 @@ server.registerTool(
   },
 );
 
+// ---------- Faz 7: YouTube'a doğrudan yayın ----------
+server.registerTool(
+  'youtube_onizleme',
+  {
+    title: "YouTube'a gönderim önizlemesi",
+    description: 'Onaylı paketteki bir YouTube (video/Shorts) çıktısı için ne gönderileceğini (kanal, dosya, başlık, açıklama, etiketler, kapak, altyazı) ve engelleri gösterir. Hiçbir şey yüklemez.',
+    inputSchema: { proje_id: z.string(), paket_id: z.string(), cikti_id: z.string() },
+  },
+  async ({ proje_id, paket_id, cikti_id }) => text(await call('GET', `/api/projects/${proje_id}/yayin/onizleme?pkgId=${encodeURIComponent(paket_id)}&outputId=${encodeURIComponent(cikti_id)}`)),
+);
+
+server.registerTool(
+  'youtube_gonder',
+  {
+    title: "YouTube'a yükle",
+    description:
+      "Onaylı paketteki videoyu bağlı YouTube kanalına yükler (küçük resim ve Türkçe altyazıyla). YALNIZ kullanıcı bu konuşmada görünürlüğü ve yüklemeyi açıkça onayladıysa kullanıcı_onayladi=true gönderin; önce youtube_onizleme sonucunu kullanıcıya gösterin. Aynı paket öğesi ikinci kez yüklenmez.",
+    inputSchema: {
+      proje_id: z.string(),
+      paket_id: z.string(),
+      cikti_id: z.string(),
+      gorunurluk: z.enum(['private', 'unlisted', 'public']).default('private'),
+      zaman: z.string().nullable().default(null).describe('ISO zaman (zamanlanmış yayın, en az 15 dk sonrası)'),
+      cocuklara_yonelik: z.boolean().default(false),
+      sentetik_icerik: z.boolean().describe('Yapay zekâyla üretilmiş/değiştirilmiş gerçekçi içerik var mı (YouTube beyanı)'),
+      kullanici_onayladi: z.boolean(),
+    },
+  },
+  async ({ proje_id, paket_id, cikti_id, gorunurluk, zaman, cocuklara_yonelik, sentetik_icerik, kullanici_onayladi }) => {
+    const r = await call('POST', `/api/projects/${proje_id}/yayin`, { pkgId: paket_id, outputId: cikti_id, privacy: gorunurluk, publishAt: zaman, madeForKids: cocuklara_yonelik, containsSyntheticMedia: sentetik_icerik, confirm: kullanici_onayladi });
+    if (!r.job) return text({ zaten_gonderildi: true, kayit: r.pub });
+    const end = Date.now() + 60 * 60_000;
+    while (Date.now() < end) {
+      await new Promise((res) => setTimeout(res, 2000));
+      const j = (await call<any[]>('GET', '/api/jobs')).find((x) => x.id === r.job.id);
+      if (j?.status === 'done') return text(j.result);
+      if (j?.status === 'error') throw new Error(j.error);
+    }
+    return text({ is_id: r.job.id, durum: 'sürüyor' });
+  },
+);
+
 await server.connect(new StdioServerTransport());

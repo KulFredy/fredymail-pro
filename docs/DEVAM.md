@@ -8,7 +8,10 @@
 - **Claude ile komut (isteğe bağlı):** Ayarlar'da "Her komutta" (varsayılan) veya "Yalnız kalıplar anlamazsa"; model Opus 5.5 / Sonnet 5.5 / Haiku 5.5; komut başına maliyet gösterilir; ulaşılamazsa yerel anlayıcı.
 - **Faz 4 · Referanslar, LUT ve hareket — tamam** (LUT'lar Mac'te doğrulandı; logo/hareket/müziğe oturtma Mac'te denenmedi).
 - **Faz 5 · Bağlantılar — tamam (bulutta sahte servislerle doğrulandı; gerçek ElevenLabs/Gemini anahtarıyla doğrulanmadı).**
-- **Testler (son çalıştırma):** birim 87/87 · `npm run e2e` 28/28 · `npm run e2e:studio` 12/12 · `npm run e2e:offline` 13/13 · `npm run e2e:ui` 40/40 · `npm run e2e:lut` 16/16 · `npm run e2e:ref` 8/8 · `npm run e2e:grafik` 9/9 · `npm run e2e:ritim` 6/6 · `npm run e2e:baglanti` 23/23.
+- **Faz 6 · Marka, kampanya ve kanal teslimi — tamam (bulutta gerçek render ve ölçümle doğrulandı; Mac'te denenmedi).**
+- **Faz 7 · Doğrudan yayın (YouTube) — tamam, sahte Google sunucusuyla doğrulandı; gerçek hesapla denenmedi (Google Cloud OAuth istemcisi gerekir).**
+- **Faz 8 · SaaS beta — tasarım belgesi `docs/SAAS.md`; karar bekliyor, kod yok.**
+- **Testler (son çalıştırma, 8 Kasım):** birim 98/98 · `npm run e2e` 28/28 · `e2e:studio` 12/12 · `e2e:ui` 40/40 · `e2e:grafik` 9/9 · `e2e:baglanti` 24/24 · `e2e:marka` 22/22 · `e2e:yayin` 14/14 · `e2e:offline` 13/13 · `e2e:lut` 16/16 · `e2e:ref` 8/8 · `e2e:ritim` 6/6.
 - **Kullanıcının Mac'i:** kurulum yapıldı (`scripts/setup-mac.sh`), güncelleme `bash scripts/guncelle.sh`. Gerçek Türkçe altyazı Mac'te çalıştı. Render için Chrome indirilemediğinde sistem Google Chrome'u kullanılıyor.
 
 ## Doğrulanmayanlar (kullanıcıyla kontrol et)
@@ -19,8 +22,10 @@ Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
 - **Gerçek ElevenLabs ve Gemini çağrıları** (anahtar gerekir; sahte sunucuyla API biçimi resmi SDK kaynaklarından birebir alındı). Gemini görsel fiyatı doğrulanmadı.
 - **Mac Anahtar Zinciri** (`security` komutu) gerçek Mac'te denenmedi; bulutta gizli dosya kullanıldı.
 - **Higgsfield** uç noktaları doğrulanmadı (belgelere erişilemedi); yalnız anahtar saklanıyor.
+- **YouTube yükleme** gerçek hesapla denenmedi (biçim resmi keşif belgesinden; sahte sunucuyla uçtan uca test edildi). Günlük API kotası ve küçük resim için kanal doğrulaması YouTube tarafındadır.
+- **Faz 6 kanal sınırları** (süre, karakter) yayımlanan değerlerden; platformlar değiştirebilir. Güvenli alanlar yaklaşık.
 
-### Mac'te test listesi (Faz 4–5, ~20 dk)
+### Mac'te test listesi (Faz 4–7)
 Önce güncelle: `bash scripts/guncelle.sh`, uygulamayı Ctrl+C ile kapatıp `npm run fabrika`, tarayıcıda ⌘R. (Faz 3 listesi 8 Kasım'da tamamlandı.)
 1. **Anahtar taşıma:** ⚙ → Bağlantılar. Claude satırında “Anahtar: ••••xxxx · Mac Anahtar Zinciri” yazmalı (Mac bir kez izin isteyebilir → *Her Zaman İzin Ver*). Terminalde `grep -c anthropicApiKey ~/İçerik\ Fabrikası/ayarlar.json` → `0` olmalı. Bir Claude komutu dene: çalışmalı.
 2. **Logo:** Medya'dan saydam PNG logo yükle → LOGO izine ekle; “logoyu sol alta al”, Story sekmesinde ızgaradan sağ üst; Dışa aktar'da uyarı çıkıyor mu?
@@ -28,6 +33,8 @@ Bulutta yapılamayan kontroller; her biri ayrı bir doğrulama kalemidir:
 4. **ElevenLabs (anahtar varsa):** Bağlantılar → ElevenLabs → Anahtar ekle → kalan karakter görünmeli. Üret → Dış ses: kısa bir Türkçe metin, *Örneği dinle*, sonra *Üret ve ekle*. Türkçe telaffuz nasıl? Aynı metni tekrar üret: kredi düşmemeli.
 5. **Gemini (anahtar varsa):** aistudio.google.com'dan anahtar, Üret → Ürün arka planı: bir ürün fotoğrafı + “mermer tezgah, yumuşak ışık”. Onay kutusunu oku → üret. 2 seçenekte ürün/etiket bozulmuş mu? Birini onayla → Ana ize.
 6. Hata olursa terminaldeki satırı bana gönder (anahtar loglara yazılmaz).
+7. **Marka (Faz 6, ~10 dk):** ana ekran → **Markalar** → Yeni marka: logonu (saydam PNG), iki renk, yazı tipleri, bir ürün (adını doğru yaz), kanallar (YouTube video, Shorts, Reels). Sonra **Marka kampanyası** → marka/ürün/kampanya → Uygula. Stüdyo'da bir video ekle; **Kanal paketi** → Metinleri yaz → YouTube'da kapak için imleçteki kareyi seç ve başlık yaz → kontrolleri oku (ürün adını bilerek yanlış yazıp uyarıyı gör) → Paketi hazırla → Klasör → dosyaları aç (kapak, .srt, metinler.txt) → Onayla. `~/İçerik Fabrikası/teslim/` altında marka/ürün/kampanya klasörü oluştu mu?
+8. **YouTube (isteğe bağlı, Faz 7, ~20 dk ilk kurulum):** Bağlantılar → YouTube satırındaki “Nereden” adımlarıyla Google Cloud'da masaüstü OAuth istemcisi oluştur, `KİMLİK:GİZLİ` biçiminde gir → **Hesabı bağla** → Google onayı → “Kanal: …” görünmeli. Onaylı paketteki YouTube satırında **YouTube'a gönder** → görünürlüğü **Özel** bırak → onay kutusu → Yükle. YouTube Studio'da video, küçük resim ve Türkçe altyazı var mı? (Küçük resim için kanalın telefonla doğrulanmış olması gerekebilir.)
 
 ## Sıradaki işler
 Faz sırası `docs/FAZLAR.md` dosyasındadır (esas). **Faz 3 · Yerel Stüdyo ve ince kurgu** (tamamlandı):
@@ -56,9 +63,19 @@ Mac'te gerçek LUT'larla doğrulandı (8 Kasım): Photoshop .cube + .3DL, Magic 
 5. ⚠ Higgsfield: anahtar saklanır, “doğrulanmadı” rozetiyle; uygulama içi üretim yok.
 Testler: `e2e:baglanti` 23/23 (sahte servis: sızıntı taraması, taşıma, eşzamanlı istek, 402 kredi hatası, Gemini istek gövdesi, onay, tarayıcıda Bağlantılar + Üret akışı).
 
-**Sıradaki somut iş:** Faz 6 · Marka, kampanya ve kanal teslimi (`docs/FAZLAR.md`). Kullanıcı Mac'te Faz 4–5 listesini dener; ElevenLabs/Gemini anahtarlarını ekler.
+**Faz 6 · Marka, kampanya ve kanal teslimi** (tamamlandı):
+1. ✅ Çekirdek (`src/core/brand.ts`, `channels.ts`, `delivery.ts`): marka profili, kanal profilleri (YouTube video + 1280×720 küçük resim, Shorts, Reels, Story, Instagram post, 4:5 reklam), çıktıya özel altyazı/kapak/yayın metni, `project.setBrand`, `output.addChannel`, geri alınabilir marka uygulama planı, teslim kontrolleri, SRT/VTT. Poppins ve Playfair Display eklendi.
+2. ✅ Sunucu (`src/server/brands.ts`, `delivery.ts`, `copywriter.ts`, `src/media/loudness.ts`): `markalar.json`, kanal paketi işi (render, LUFS/tepe ölçümü, kapak, altyazı dosyası, metinler.txt, kontrol.txt, zip), onay → `teslim/<marka>/<ürün>/<kampanya>/`, yayın metni (Claude veya yerel şablon), MCP araçları.
+3. ✅ Arayüz: Markalar penceresi, ana ekranda “Marka kampanyası” ve marka süzgeci/gruplama, Stüdyo'da marka etiketi ve **Kanal paketi** ekranı (kanal başına altyazı, kapak, metin alanları + sayaç, kontroller ve tek tık düzeltme, paket, onay), Üret'te marka sesi.
+Testler: `e2e:marka` 22/22, `e2e:baglanti` 24/24 (Claude metin yolu), birim 98/98.
 
-Sonra: Faz 6 → Faz 7 (doğrudan yayın, isteğe bağlı) → Faz 8 (SaaS beta, isteğe bağlı).
+**Faz 7 · Doğrudan yayın** (tamamlandı, gerçek hesapla doğrulanmadı):
+- İlk platform YouTube: yerel dosyayı doğrudan yükleyebilen tek platform (Instagram Graph API videonun herkese açık bir adreste olmasını ister; yerel Mac için uygun değil).
+- API biçimi Google'ın resmi keşif belgesinden alındı (youtube/v3 revizyon 20261106): videos.insert (resumable), thumbnails.set, captions.insert (multipart), videos.list durum, channels.list. OAuth: masaüstü istemcisi, geri dönüş `http://127.0.0.1:4747/api/youtube/callback`, PKCE S256; yenileme belirteci kasada.
+- Akış: onaylı paket → önizleme (kanal, dosya, başlık, etiket, kapak, altyazı, engeller) → görünürlük (özel/liste dışı/herkese açık/zamanlı), çocuklara yönelik, sentetik içerik beyanı (projede üretilmiş görsel/dış ses varsa önceden işaretli) → açık onay kutusu → yükleme işi → durum (işleniyor → hazır, bağlantı). Aynı paket öğesi ikinci kez yüklenmez. Reklam/bütçe kapsam dışı.
+- Testler: `e2e:yayin` 14/14 (sahte Google sunucusu: PKCE, bayt sayısı, küçük resim, SRT, durum, yinelenmeme, kota hatası, sızıntı taraması, arayüz). MCP: `youtube_onizleme`, `youtube_gonder` (yalnız kullanıcı açıkça onaylarsa).
+
+**Sıradaki somut iş:** Kullanıcı Mac'te Faz 4–7 listesini dener (aşağıda); ElevenLabs/Gemini anahtarları ve isterse YouTube için Google Cloud OAuth istemcisi. Faz 8 kararları (`docs/SAAS.md` §3).
 Küçükler (uygun fazda): RAW fotoğraf (LibRaw), kaynak oranında çıktı (ör. 4:3), Premiere'e aktarım (OpenTimelineIO / FCP XML), telefonda düzenleme ekranı, depoyu `main` dalına birleştirme.
 
 ## Bulut oturumu notları

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Clapperboard, Zap, Play, Trash2, Mic, Cpu, FolderOpen, Smartphone, Plug } from 'lucide-react';
+import { Clapperboard, Zap, Play, Trash2, Mic, Cpu, FolderOpen, Smartphone, Plug, Tag, Megaphone } from 'lucide-react';
+import { BrandApplyForm, BrandsModal } from './Brands';
+import { CHANNELS, isChannel } from '../../src/core/channels';
 import { ConnectionsModal } from './Connections';
 import { FORMATS } from '../../src/core/formats';
 import type { FormatId } from '../../src/core/schema';
@@ -74,6 +76,9 @@ export const Home: React.FC = () => {
   const [last, setLast] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [conns, setConns] = useState(false);
+  const [brandsOpen, setBrandsOpen] = useState(false);
+  const [campaign, setCampaign] = useState<string | null>(null);
+  const [brandFilter, setBrandFilter] = useState<string>('hepsi');
   const { health, library } = useApp();
   const load = () =>
     api.state().then((s) => {
@@ -84,6 +89,19 @@ export const Home: React.FC = () => {
     void load();
   }, []);
   const lastProject = projects?.find((p) => p.id === last) ?? projects?.[0];
+  const brandNames = [...new Set((projects ?? []).map((p) => p.brand?.brandName).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'tr'));
+  const visible = (projects ?? []).filter((p) => brandFilter === 'hepsi' || (brandFilter === 'markasiz' ? !p.brand : p.brand?.brandName === brandFilter));
+  /** Marka seçiliyken ürün · kampanya başlıklarıyla grupla */
+  const groups: [string, ProjectSummary[]][] =
+    brandFilter === 'hepsi' || brandFilter === 'markasiz'
+      ? [['', visible]]
+      : Object.entries(
+          visible.reduce<Record<string, ProjectSummary[]>>((acc, p) => {
+            const k = [p.brand?.productName || 'Genel', p.brand?.campaign].filter(Boolean).join(' · ');
+            (acc[k] ??= []).push(p);
+            return acc;
+          }, {}),
+        );
   return (
     <div className="home">
       <header className="home-head">
@@ -94,14 +112,37 @@ export const Home: React.FC = () => {
             <p className="muted">Telefondan gelen çekimleri dakikalar içinde Instagram'a hazırlayın.</p>
           </div>
         </div>
-        <button className="btn ghost" onClick={() => setConns(true)} title="Claude, ElevenLabs, Google Gemini…">
-          <Plug size={15} /> Bağlantılar
-        </button>
+        <div className="row-wrap">
+          <button className="btn ghost" onClick={() => setBrandsOpen(true)} title="Logo, renk, yazı tipi, ton, ürünler">
+            <Tag size={15} /> Markalar
+          </button>
+          <button className="btn ghost" onClick={() => setConns(true)} title="Claude, ElevenLabs, Google Gemini…">
+            <Plug size={15} /> Bağlantılar
+          </button>
+        </div>
       </header>
       {conns ? <ConnectionsModal onClose={() => setConns(false)} /> : null}
+      {brandsOpen ? <BrandsModal onClose={() => setBrandsOpen(false)} /> : null}
+      {campaign ? (
+        <Modal title="Marka kampanyası" onClose={() => setCampaign(null)} width={720}>
+          <p className="hint">Yeni Stüdyo projesi açılır; markanın logosu, renkleri, yazı tipleri ve kanalları (YouTube, Shorts, Reels…) hazır gelir.</p>
+          <BrandApplyForm
+            projectId={campaign}
+            onApply={async (ops) => {
+              await api.ops(campaign, ops, 'Marka kampanyası');
+              location.hash = `#/studyo/${campaign}`;
+            }}
+            onCancel={async () => {
+              await api.deleteProject(campaign);
+              setCampaign(null);
+            }}
+            openBrands={() => setBrandsOpen(true)}
+          />
+        </Modal>
+      ) : null}
 
       {lastProject ? (
-        <a className="continue" href={`#/proje/${lastProject.id}`}>
+        <a className="continue" href={`#/${(lastProject.outputs.length === 1 && lastProject.outputs[0] === 'landscape:video') || lastProject.outputs.some((o) => isChannel(o)) ? 'studyo' : 'proje'}/${lastProject.id}`}>
           <div className="continue-poster" style={{ backgroundImage: lastProject.poster ? `url(${fileHref(lastProject.poster)})` : undefined }}>
             <Play size={28} />
           </div>
@@ -133,6 +174,17 @@ export const Home: React.FC = () => {
           <h3>Kurgu Stüdyosu</h3>
           <p>Yatay video, çok izli zaman çizelgesi. Mikrofona veya yazarak Türkçe kurgu: “Buradan sonraki üç saniyeyi kes”.</p>
         </button>
+        <button
+          className="tile tile-brand"
+          onClick={async () => {
+            const st = await api.createProject(`Kampanya · ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`, [{ format: 'landscape', kind: 'video' }]);
+            setCampaign(st.project.id);
+          }}
+        >
+          <Megaphone size={30} />
+          <h3>Marka kampanyası</h3>
+          <p>Marka → ürün → kampanya. Aynı kurgudan YouTube + küçük resim, Shorts, Reels, Story ve 4:5 reklam; metinler, kontrol ve teslim paketi.</p>
+        </button>
       </div>
 
       <h3 className="list-title">Projeler</h3>
@@ -141,14 +193,28 @@ export const Home: React.FC = () => {
       ) : projects.length === 0 ? (
         <div className="empty">Henüz proje yok. “Instagram Hızlı Edit” ile başlayın.</div>
       ) : (
+        <>
+        {brandNames.length ? (
+          <div className="chips brand-filter" data-testid="brand-filter">
+            {['hepsi', ...brandNames, 'markasiz'].map((b) => (
+              <button key={b} className={`chip ${brandFilter === b ? 'on' : ''}`} onClick={() => setBrandFilter(b)}>
+                {b === 'hepsi' ? 'Tümü' : b === 'markasiz' ? 'Markasız' : b}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {groups.map(([title, list]) => (
+        <div key={title} className="project-group">
+        {title ? <h4 className="group-title">{title}</h4> : null}
         <div className="project-grid">
-          {projects.map((p) => (
-            <a key={p.id} className="project-card" href={`#/${p.outputs.length === 1 && p.outputs[0] === 'landscape:video' ? 'studyo' : 'proje'}/${p.id}`}>
+          {list.map((p) => (
+            <a key={p.id} className="project-card" href={`#/${(p.outputs.length === 1 && p.outputs[0] === 'landscape:video') || p.outputs.some((o) => isChannel(o)) ? 'studyo' : 'proje'}/${p.id}`}>
               <div className="poster" style={{ backgroundImage: p.poster ? `url(${fileHref(p.poster)})` : undefined }} />
               <div className="meta">
                 <b>{p.name}</b>
+                {p.brand ? <small className="brand-line">{[p.brand.brandName, p.brand.productName, p.brand.campaign].filter(Boolean).join(' · ')}</small> : null}
                 <small className="muted">
-                  {p.outputs.map((o) => FORMATS[o.split(':')[0] as FormatId]?.label).join(' · ')} · {ago(p.updatedAt)}
+                  {p.outputs.map((o) => (isChannel(o) ? CHANNELS[o].label : FORMATS[o.split(':')[0] as FormatId]?.label)).join(' · ')} · {ago(p.updatedAt)}
                 </small>
               </div>
               <button
@@ -167,6 +233,9 @@ export const Home: React.FC = () => {
             </a>
           ))}
         </div>
+        </div>
+        ))}
+        </>
       )}
 
       <footer className="status">

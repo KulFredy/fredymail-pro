@@ -8,6 +8,7 @@
  * Çalıştırma: npm run e2e:marka
  */
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
@@ -217,11 +218,75 @@ const main = async () => {
     const orig = await stat(path.join(home, 'kutuphane', 'originals')).then(() => true);
     check('Onaylanan paket teslim/marka/ürün/kampanya altında; orijinaller ve varyantlar ayrı', ap.approved && ap.approvedDir.startsWith('teslim/kose-kahve/kahvemiz/yaz-2026/') && tfiles.length === want.length && orig, ap.approvedDir);
 
+    // 6b) Arayüz (tarayıcıda)
+    const pw = (() => {
+      try {
+        return createRequire(import.meta.url)('playwright');
+      } catch {
+        return null;
+      }
+    })();
+    if (pw) {
+      await runOk('npx', ['vite', 'build', '--config', 'web/vite.config.ts', '--logLevel', 'error']);
+      const browser = await pw.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+      const page = await browser.newPage({ viewport: { width: 1512, height: 950 } });
+      const errors: string[] = [];
+      page.on('pageerror', (e: Error) => errors.push(e.message));
+      try {
+        await page.goto(`${base}/#/`);
+        await page.waitForSelector('[data-testid=brand-filter]');
+        await page.locator('[data-testid=brand-filter] .chip', { hasText: 'Köşe Kahve' }).click();
+        const groupTitle = await page.locator('.group-title').first().innerText();
+        const line = await page.locator('.brand-line').first().innerText();
+        check('Ana ekran: markaya göre süzme, ürün · kampanya grubu', groupTitle === 'Kahvemiz · Yaz 2026' && /Köşe Kahve · Kahvemiz · Yaz 2026/.test(line), `${groupTitle} | ${line}`);
+        // Markalar penceresinden yeni marka
+        await page.getByRole('button', { name: 'Markalar' }).click();
+        await page.getByRole('button', { name: /Yeni marka/ }).click();
+        await page.getByLabel('Marka adı').fill('Ada Sabun');
+        await page.getByRole('button', { name: /Ürün ekle/ }).click();
+        await page.getByLabel('Ürün 1 adı').fill('Lavanta Sabunu');
+        await page.getByLabel('Başlık yazı tipi').selectOption('Poppins');
+        await page.getByRole('button', { name: 'Kaydet' }).click();
+        await page.waitForSelector('.brand-item:has-text("Ada Sabun")');
+        const all = await api<any[]>('GET', '/api/markalar');
+        const ada = all.find((b) => b.name === 'Ada Sabun');
+        check('Markalar penceresinden marka oluşturuldu (ürün, yazı tipi)', ada?.products[0]?.name === 'Lavanta Sabunu' && ada.fonts.heading === 'Poppins');
+        await page.keyboard.press('Escape');
+        // Stüdyo: marka etiketi ve kanal paketi
+        await page.goto(`${base}/#/studyo/${pid}`);
+        const chip = await page.getByTestId('brand-chip').innerText();
+        await page.getByRole('button', { name: /Kanal paketi/ }).click();
+        await page.waitForSelector('[data-testid=checks] .check-row');
+        await page.locator('.dl-ch', { hasText: 'YouTube video' }).locator('.dl-ch-name').click();
+        const title = page.getByLabel('Başlık', { exact: true });
+        await title.fill('Yeni Kahvemiz geldi!');
+        await title.blur();
+        await waitFor(async () => (await api('GET', `/api/projects/${pid}`)).project.outputs.find((o: any) => o.id === yt.id).meta.title === 'Yeni Kahvemiz geldi!', 'başlık kaydı', 15000);
+        const rows = await page.locator('[data-testid=checks] .check-row').count();
+        const pk = await page.locator('[data-testid=packages] .dl-pkg').first().innerText();
+        check('Stüdyo: marka etiketi; Kanal paketinde başlık düzenlenip kaydedildi, kontroller ve onaylı paket görünüyor', /Köşe Kahve · Kahvemiz · Yaz 2026/.test(chip) && rows >= 5 && /Onaylandı/.test(pk), `${chip} · ${rows} kontrol`);
+        // Bir kanalda altyazıyı kapat → kontrol uyarır, düzeltme düğmesi geri açar
+        await page.locator('.dl-ch', { hasText: 'YouTube Shorts' }).locator('.dl-ch-name').click();
+        await page.locator('[data-testid=channel-editor] .toggle', { hasText: 'Görüntüye yaz' }).click();
+        await page.waitForSelector('[data-testid=checks] .check-row.uyari:has-text("altyazı kapalı")');
+        await page.getByRole('button', { name: 'Bu çıktıda aç' }).click();
+        await waitFor(async () => (await api('GET', `/api/projects/${pid}`)).project.outputs.find((o: any) => o.id === sh.id).captions?.enabled === true, 'altyazı düzeltme', 15000);
+        check('Kontrol uyarısındaki düzeltme düğmesi çalışıyor (Shorts altyazısı)', true);
+        check('Sayfada hata yok', !errors.length, errors.join(' | '));
+      } catch (e) {
+        await page.screenshot({ path: path.join(work, 'arayuz-hata.png') }).catch(() => undefined);
+        check('Arayüz akışı tamamlandı', false, (e as Error).message.split('\n')[0]);
+      } finally {
+        await browser.close();
+      }
+    } else console.log('(Playwright yok: arayüz kontrolleri atlandı)');
+
     // 7) Marka silinse de proje açılır
     await api('DELETE', `/api/markalar/${brand.id}`);
     const after = await api('GET', `/api/projects/${pid}`);
     const ks2 = await api<any[]>('GET', `/api/projects/${pid}/kontrol`);
     check('Marka silinince proje açılıyor, adlar korunuyor', after.project.brand.brandName === 'Köşe Kahve' && ks2.length === 4);
+    void stat;
   } catch (e) {
     check('Test akışı tamamlandı', false, (e as Error).message);
   } finally {

@@ -21,6 +21,8 @@ import { Connections } from './connections';
 import { GEMINI_IMAGE_MODELS, ProviderError } from './providers';
 import { BrandInput, BrandPatch, Brands } from './brands';
 import { Delivery } from './delivery';
+import { Publisher } from './publish';
+import { YouTube, YouTubeError } from './youtube';
 import { claudeMeta, localMeta } from './copywriter';
 import { DEFAULT_APPLY, brandPlan } from '../core/brand';
 import { Generator } from './generate';
@@ -63,7 +65,7 @@ export const createServer = async (home = defaultHome()) => {
   app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
     const isZod = err instanceof z.ZodError;
     // Dış servis hataları (anahtar, kredi, kota…): kullanıcıya anlaşılır ileti, sunucu hatası sayılmaz
-    const code = err instanceof OpError || isZod ? 400 : err instanceof ProviderError ? (err.kind === 'kredi' ? 402 : err.kind === 'sinir' ? 429 : err.kind === 'ag' || err.kind === 'sunucu' ? 502 : 400) : (err.statusCode ?? 500);
+    const code = err instanceof OpError || isZod ? 400 : err instanceof ProviderError ? (err.kind === 'kredi' ? 402 : err.kind === 'sinir' ? 429 : err.kind === 'ag' || err.kind === 'sunucu' ? 502 : 400) : err instanceof YouTubeError ? err.kind === 'istek' ? (err.status >= 400 && err.status < 500 ? err.status : 400) : err.kind === 'kota' ? 429 : err.kind === 'baglanti' ? 401 : 502 : (err.statusCode ?? 500);
     if (code >= 500) console.error(err);
     reply.code(code).send({ error: isZod ? `Geçersiz istek: ${err.issues.map((i) => i.path.join('.') + ' ' + i.message).join('; ')}` : err.message });
   });
@@ -219,7 +221,9 @@ export const createServer = async (home = defaultHome()) => {
   });
 
   // Bağlantılar: durum, anahtar ekle/test/kaldır, servis ayarları. Anahtarın kendisi asla dönmez.
-  const ConnIdSchema = z.enum(['anthropic', 'elevenlabs', 'gemini', 'higgsfield']);
+  const ConnIdSchema = z.enum(['anthropic', 'elevenlabs', 'gemini', 'higgsfield', 'youtube']);
+  const youtube = new YouTube(conns.secrets);
+  conns.youtube = youtube;
   app.get('/api/connections', async (req) => conns.list((req.query as { test?: string }).test === '1'));
   app.put('/api/connections/:id', async (req) => {
     const id = ConnIdSchema.parse((req.params as { id: string }).id);
@@ -347,6 +351,42 @@ export const createServer = async (home = defaultHome()) => {
       }
     }
     return { source: 'yerel', suggestions: localMeta(project, assets, brand, outputs) };
+  });
+
+  // ---------- Doğrudan yayın: YouTube (Faz 7) ----------
+  const publisher = new Publisher(svc, delivery, youtube);
+  const redirectUri = () => `http://127.0.0.1:${svc.port}/api/youtube/callback`;
+  app.get('/api/youtube/baglan', async (_req, reply) => reply.redirect(await youtube.authUrl(redirectUri())));
+  app.get('/api/youtube/callback', async (req, reply) => {
+    const q = req.query as { code?: string; state?: string; error?: string };
+    const page = (title: string, msg: string, ok: boolean) =>
+      reply
+        .code(ok ? 200 : 400)
+        .type('text/html; charset=utf-8')
+        .send(`<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font-family:system-ui;background:#111318;color:#eee;display:grid;place-items:center;height:100vh;margin:0"><div style="max-width:520px;text-align:center"><h2>${title}</h2><p>${msg}</p><p style="color:#999">Bu sekmeyi kapatıp İçerik Fabrikası'na dönebilirsiniz.</p></div><script>try{window.opener&&window.opener.postMessage('youtube-baglandi','*')}catch(e){}</script>`);
+    if (q.error || !q.code || !q.state) return page('Bağlanmadı', q.error === 'access_denied' ? 'İzin verilmedi.' : 'Google bir kod döndürmedi.', false);
+    try {
+      const ch = await youtube.finish(q.code, q.state);
+      return page('YouTube bağlandı', `Kanal: <b>${ch.title.replace(/[<>&]/g, '')}</b>`, true);
+    } catch (e) {
+      return page('Bağlanmadı', (e as Error).message.replace(/[<>&]/g, ''), false);
+    }
+  });
+  app.delete('/api/youtube/baglanti', async () => (await youtube.disconnect(), { ok: true }));
+  app.get('/api/projects/:id/yayin/onizleme', async (req) => {
+    const q = z.object({ pkgId: z.string(), outputId: z.string() }).parse(req.query);
+    return publisher.preview((req.params as { id: string }).id, q.pkgId, q.outputId);
+  });
+  app.post('/api/projects/:id/yayin', async (req) => {
+    const b = z
+      .object({ pkgId: z.string(), outputId: z.string(), privacy: z.enum(['private', 'unlisted', 'public']), publishAt: z.string().nullable().optional(), madeForKids: z.boolean().default(false), containsSyntheticMedia: z.boolean().default(false), confirm: z.boolean().default(false) })
+      .parse(req.body);
+    return publisher.publish((req.params as { id: string }).id, b);
+  });
+  app.get('/api/projects/:id/yayinlar', async (req) => publisher.list((req.params as { id: string }).id));
+  app.post('/api/projects/:id/yayinlar/:yid/durum', async (req) => {
+    const { id, yid } = req.params as { id: string; yid: string };
+    return publisher.refresh(id, yid);
   });
 
   // Yazılı/sesli komut → işlem planı (arayüz aynı planı yerelde de hesaplar; MCP ve testler için)

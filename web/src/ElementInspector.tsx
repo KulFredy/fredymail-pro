@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { outputNameRatio } from '../../src/core/channels';
 import { ShieldCheck, Trash2 } from 'lucide-react';
 import { FORMATS } from '../../src/core/formats';
 import { ANCHOR_LABELS, fixPlacement, logoBox, placementFor, safeAreaIssues, textBox } from '../../src/core/graphics';
@@ -9,7 +10,7 @@ import { useApp, useProject } from './state';
 import { Segmented, Slider, fmtPct, fmtSec } from './ui';
 
 const ANIM_LABELS: Record<(typeof ANIMS)[number], string> = { yok: 'Yok', solma: 'Solma', yukari: 'Yukarı', buyume: 'Büyüme' };
-const outLabel = (o: Output) => `${FORMATS[o.format].label} ${FORMATS[o.format].ratio}`;
+const outLabel = (o: Output) => outputNameRatio(o);
 
 type Kind = 'text' | 'logo';
 type El = (TextOverlay | Logo) & { placements: Record<string, Placement> };

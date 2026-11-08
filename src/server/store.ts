@@ -123,7 +123,7 @@ export class Store extends EventEmitter {
         name: pr.name,
         updatedAt: pr.updatedAt,
         clipCount: pr.clips.length,
-        outputs: pr.outputs.map((o) => `${o.format}:${o.kind}`),
+        outputs: pr.outputs.map((o) => o.channel ?? `${o.format}:${o.kind}`),
         poster: first?.poster ?? null,
         duration: pr.clips.reduce((s, c) => s + (c.out - c.in), 0),
         brand: pr.brand,

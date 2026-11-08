@@ -8,7 +8,7 @@ import path from 'node:path';
 import { DEFAULT_GEMINI_IMAGE_MODEL, GEMINI_IMAGE_MODELS, ProviderError, elevenlabs, gemini, pickElModel } from './providers';
 import { maskKey, type Secrets } from './secrets';
 
-export type ConnId = 'anthropic' | 'elevenlabs' | 'gemini' | 'higgsfield';
+export type ConnId = 'anthropic' | 'elevenlabs' | 'gemini' | 'higgsfield' | 'youtube';
 
 export const CONNECTIONS: {
   id: ConnId;
@@ -31,6 +31,15 @@ export const CONNECTIONS: {
     verified: false,
     note: 'Resmi API belgelerine (docs.higgsfield.ai) bu çalışma ortamından ulaşılamadı; yerel fotoğraf yükleme uç noktası doğrulanmadı. Anahtar güvenle saklanır; üretim şimdilik Higgsfield sitesinde veya Claude Code ile yapılıp sonuç Medya\'ya içe aktarılır.',
   },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    capabilities: ['Onaylı paketi kanalınıza yükleme (video/Shorts, küçük resim, Türkçe altyazı)', 'Yükleme durumu'],
+    env: [],
+    where:
+      'console.cloud.google.com → yeni proje → “YouTube Data API v3”ü etkinleştir → OAuth izin ekranı (Harici, kendinizi test kullanıcısı ekleyin) → Kimlik bilgileri → OAuth istemci kimliği → “Masaüstü uygulaması”. İstemci kimliğini ve gizli anahtarı “KİMLİK:GİZLİ” biçiminde girin, sonra “Hesabı bağla”.',
+    verified: true,
+  },
 ];
 
 export type ConnSettings = { elevenlabs?: { voiceId?: string; modelId?: string }; gemini?: { model?: string } };
@@ -39,6 +48,8 @@ export type UsageRow = { at: string; model: string; input: number; output: numbe
 export class Connections {
   private settingsFile: string;
   private usageFile: string;
+  /** YouTube hesabı (Faz 7); index.ts kurar */
+  youtube: import('./youtube').YouTube | null = null;
   constructor(
     home: string,
     public secrets: Secrets,
@@ -88,10 +99,16 @@ export class Connections {
         await gemini.model(k.value, model);
         return { ok: true, detail: `Anahtar geçerli · ${GEMINI_IMAGE_MODELS.find((m) => m.id === model)?.name ?? model}` };
       }
+      if (id === 'youtube') {
+        if (!/^[^:\s]+:[^:\s]+$/.test(k.value)) return { ok: false, detail: 'Biçim “İSTEMCİ_KİMLİĞİ:GİZLİ_ANAHTAR” olmalı' };
+        if (!this.youtube || !(await this.youtube.connected())) return { ok: false, detail: 'İstemci kaydedildi; “Hesabı bağla” ile Google hesabınızı bağlayın' };
+        const ch = await this.youtube.channel();
+        return { ok: true, detail: `Kanal: ${ch.title}` };
+      }
       return { ok: /^[^:\s]+:[^:\s]+$/.test(k.value), detail: /^[^:\s]+:[^:\s]+$/.test(k.value) ? 'Kaydedildi (bağlantı denemesi doğrulanmadı)' : 'Biçim “KEY_ID:SECRET” olmalı' };
     } catch (e) {
       const err = e as { status?: number; message?: string };
-      const msg = e instanceof ProviderError ? e.message : err.status === 401 ? 'Anahtar geçersiz' : `Bağlanılamadı: ${String(err.message ?? '').split(k.value).join('••••').slice(0, 160)}`;
+      const msg = e instanceof ProviderError || (e as Error).name === 'YouTubeError' || e instanceof Error && 'kind' in e ? (e as Error).message : err.status === 401 ? 'Anahtar geçersiz' : `Bağlanılamadı: ${String(err.message ?? '').split(k.value).join('••••').slice(0, 160)}`;
       return { ok: false, detail: msg };
     }
   }
@@ -110,6 +127,7 @@ export class Connections {
           status: withTest && k ? await this.test(c.id) : null,
           settings: c.id === 'elevenlabs' ? (st.elevenlabs ?? {}) : c.id === 'gemini' ? { model: st.gemini?.model ?? DEFAULT_GEMINI_IMAGE_MODEL, models: GEMINI_IMAGE_MODELS } : {},
           usage: c.id === 'anthropic' ? usage : undefined,
+          account: c.id === 'youtube' && k ? !!(await this.youtube?.connected()) : undefined,
         };
       }),
     );
@@ -124,6 +142,7 @@ export class Connections {
   }
   async remove(id: ConnId) {
     await this.secrets.remove(id);
+    if (id === 'youtube') await this.youtube?.disconnect();
   }
 
   /** Uygulama içi Claude kullanımı (Claude Code'un kendi aboneliği buraya girmez) */

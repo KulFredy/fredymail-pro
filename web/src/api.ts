@@ -3,7 +3,15 @@ import type { LutInfo } from '../../src/core/refs';
 import type { Asset, Project } from '../../src/core/schema';
 
 export type ProjectState = { project: Project; canUndo: boolean; canRedo: boolean; undoLabel: string | null; redoLabel: string | null };
-export type ProjectSummary = { id: string; name: string; updatedAt: string; clipCount: number; outputs: string[]; poster: string | null; duration: number };
+export type ProjectSummary = { id: string; name: string; updatedAt: string; clipCount: number; outputs: string[]; poster: string | null; duration: number; brand: Project['brand'] };
+export type Brand = import('../../src/core/brand').Brand;
+export type BrandInput = Omit<Brand, 'id' | 'createdAt' | 'updatedAt' | 'products'> & { products: { id?: string; name: string; notes: string }[] };
+export type DeliveryCheck = import('../../src/core/delivery').Check;
+export type OutputChecks = { outputId: string; label: string; checks: DeliveryCheck[]; errors: number; warnings: number };
+export type PackageEntry = import('../../src/server/delivery').PackageEntry;
+export type Publication = import('../../src/server/publish').Publication;
+export type PublishPreview = Awaited<ReturnType<import('../../src/server/publish').Publisher['preview']>>;
+export type MetaSuggestion = { outputId: string; meta: Partial<import('../../src/core/schema').OutputMeta> };
 export type Health = {
   ok: boolean;
   home: string;
@@ -14,7 +22,7 @@ export type Health = {
 };
 export type Job = {
   id: string;
-  type: 'ingest' | 'transcribe' | 'render';
+  type: 'ingest' | 'transcribe' | 'render' | 'paket' | 'yayin';
   title: string;
   status: 'queued' | 'running' | 'done' | 'error';
   progress: number;
@@ -27,7 +35,7 @@ export type Job = {
   createdAt: string;
 };
 export type Conn = {
-  id: 'anthropic' | 'elevenlabs' | 'gemini' | 'higgsfield';
+  id: 'anthropic' | 'elevenlabs' | 'gemini' | 'higgsfield' | 'youtube';
   name: string;
   capabilities: string[];
   where: string;
@@ -39,6 +47,8 @@ export type Conn = {
   status: { ok: boolean; detail: string } | null;
   settings: { voiceId?: string; modelId?: string; model?: string; models?: { id: string; name: string }[] };
   usage?: { commands: number; usd: number; todayCommands: number; todayUsd: number };
+  /** YouTube: Google hesabı bağlı mı */
+  account?: boolean;
 };
 export type TtsCatalog = {
   models: { id: string; name: string; tts: boolean; turkish: boolean; costMultiplier: number; maxChars: number | null }[];
@@ -139,6 +149,26 @@ export const api = {
   aiCommand: (id: string, text: string, playhead: number, selectedClipId: string | null) =>
     req<import('../../src/core/commands').Plan>('POST', `/api/projects/${id}/command/ai`, { text, playhead, selectedClipId }),
   transcribe: (assetId: string) => req('POST', `/api/assets/${assetId}/transcribe`),
+  // Faz 6: markalar ve kanal teslimi
+  brands: () => req<Brand[]>('GET', '/api/markalar'),
+  createBrand: (b: BrandInput) => req<Brand>('POST', '/api/markalar', b),
+  updateBrand: (id: string, b: Partial<BrandInput>) => req<Brand>('PUT', `/api/markalar/${id}`, b),
+  deleteBrand: (id: string) => req<Brand[]>('DELETE', `/api/markalar/${id}`),
+  brandPlan: (pid: string, body: { brandId: string; productId: string | null; campaign: string; options?: Partial<import('../../src/core/brand').BrandApplyOptions> }) =>
+    req<{ ops: OpInput[]; items: string[] }>('POST', `/api/projects/${pid}/marka-plan`, body),
+  checks: (pid: string) => req<OutputChecks[]>('GET', `/api/projects/${pid}/kontrol`),
+  makePackage: (pid: string, outputIds: string[]) => req<Job>('POST', `/api/projects/${pid}/paket`, { outputIds }),
+  packages: (pid: string) => req<PackageEntry[]>('GET', `/api/projects/${pid}/paketler`),
+  approvePackage: (pid: string, pkgId: string) => req<PackageEntry>('POST', `/api/projects/${pid}/paketler/${pkgId}/onayla`),
+  // Faz 7: YouTube'a yayın
+  disconnectYoutube: () => req('DELETE', '/api/youtube/baglanti'),
+  publishPreview: (pid: string, pkgId: string, outputId: string) => req<PublishPreview>('GET', `/api/projects/${pid}/yayin/onizleme?pkgId=${encodeURIComponent(pkgId)}&outputId=${encodeURIComponent(outputId)}`),
+  publish: (pid: string, b: { pkgId: string; outputId: string; privacy: 'private' | 'unlisted' | 'public'; publishAt: string | null; madeForKids: boolean; containsSyntheticMedia: boolean; confirm: boolean }) =>
+    req<{ pub: Publication; job: Job | null }>('POST', `/api/projects/${pid}/yayin`, b),
+  publications: (pid: string) => req<Publication[]>('GET', `/api/projects/${pid}/yayinlar`),
+  refreshPublication: (pid: string, id: string) => req<Publication>('POST', `/api/projects/${pid}/yayinlar/${id}/durum`),
+  writeMeta: (pid: string, outputIds: string[], ai: boolean) =>
+    req<{ source: 'claude' | 'yerel'; suggestions: MetaSuggestion[]; usage?: { usd: number }; note?: string }>('POST', `/api/projects/${pid}/metin-yaz`, { outputIds, ai }),
 };
 
 /** Dosya yükleme (ilerleme yüzdesiyle) */

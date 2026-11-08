@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   ArrowLeft, Mic, Square, Send, Undo2, Redo2, Zap, Download, Play, Check, X, Scissors, Trash2, Plus, Music2, Layers, Loader2, Wand2, Video, Image as ImageIcon,
-  PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal, Settings,
+  PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal, Settings, Package, Tag,
 } from 'lucide-react';
 import { COMMAND_EXAMPLES, planCommand, type Plan, type PlanCandidate } from '../../src/core/commands';
 import { describeImpact } from '../../src/core/impact';
@@ -18,6 +18,8 @@ import { LutPanel } from './LutPanel';
 import { LogoInspector, TextInspector } from './ElementInspector';
 import { ReferencePanel } from './ReferencePanel';
 import { ConnectionsModal } from './Connections';
+import { BrandApplyForm, BrandsModal } from './Brands';
+import { DeliveryModal } from './DeliveryPanel';
 import { GeneratePanel, type RegenRequest } from './GeneratePanel';
 import { Modal, Segmented, Slider, fmtDb, fmtSec } from './ui';
 
@@ -743,6 +745,8 @@ export const Studio: React.FC = () => {
   };
   const [cmdMode, setCmdMode] = useState<'talimat' | 'disses'>('talimat');
   const [connOpen, setConnOpen] = useState(false);
+  const [deliveryOpen, setDeliveryOpen] = useState(false);
+  const [brandOpen, setBrandOpen] = useState<'uygula' | 'markalar' | null>(null);
   const [regen, setRegen] = useState<RegenRequest | null>(null);
   const [marks, setMarks] = useState<Marks>({ in: null, out: null });
   const deleteMarks = () => {
@@ -841,6 +845,9 @@ export const Studio: React.FC = () => {
           onChange={(e) => setName(e.target.value)}
           onBlur={() => name.trim() && name !== project.name && apply([{ type: 'project.rename', name: name.trim() }])}
         />
+        <button className={`brand-chip ${project.brand ? 'on' : ''}`} onClick={() => setBrandOpen('uygula')} title="Marka → ürün → kampanya" data-testid="brand-chip">
+          <Tag size={13} /> {project.brand ? [project.brand.brandName, project.brand.productName, project.brand.campaign].filter(Boolean).join(' · ') : 'Marka seç'}
+        </button>
         <span className="muted save-state">{saving ? 'Kaydediliyor…' : 'Kaydedildi'}</span>
         <div className="spacer" />
         <button className="icon-btn" onClick={() => setConnOpen(true)} title="Ayarlar → Bağlantılar (Claude, ElevenLabs, Google Gemini…)" aria-label="Bağlantılar">
@@ -855,6 +862,9 @@ export const Studio: React.FC = () => {
         <a className="btn ghost" href={`#/proje/${project.id}`}>
           <Zap size={15} /> Hızlı Edit
         </a>
+        <button className="btn ghost" onClick={() => setDeliveryOpen(true)} title="YouTube, Shorts, Reels, Story, 4:5 reklam: kapak, altyazı dosyası, metinler, kontrol, zip">
+          <Package size={15} /> Kanal paketi
+        </button>
         <button className="btn primary" onClick={() => setExporting(true)}>
           <Download size={15} /> Dışa aktar
         </button>
@@ -960,6 +970,23 @@ export const Studio: React.FC = () => {
         }}
       />
       {connOpen ? <ConnectionsModal onClose={() => setConnOpen(false)} /> : null}
+      {deliveryOpen ? <DeliveryModal onClose={() => setDeliveryOpen(false)} openConnections={() => (setDeliveryOpen(false), setConnOpen(true))} /> : null}
+      {brandOpen === 'markalar' ? <BrandsModal onClose={() => setBrandOpen('uygula')} /> : null}
+      {brandOpen === 'uygula' ? (
+        <Modal title="Marka, ürün ve kampanya" onClose={() => setBrandOpen(null)} width={720}>
+          <BrandApplyForm
+            projectId={project.id}
+            initial={project.brand}
+            onApply={(ops, label) => {
+              apply(ops, { label });
+              setBrandOpen(null);
+              toast('Marka uygulandı; ⌘Z ile geri alınır');
+            }}
+            onCancel={() => setBrandOpen(null)}
+            openBrands={() => setBrandOpen('markalar')}
+          />
+        </Modal>
+      ) : null}
       {exporting ? (
         <Modal title="Dışa aktar" onClose={() => setExporting(false)} width={640}>
           <ExportStep />

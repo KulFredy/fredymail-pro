@@ -141,9 +141,43 @@ export const ConnectionsModal: React.FC<{ onClose: () => void }> = ({ onClose })
                   </label>
                 </div>
               ) : null}
+              {c.id === 'youtube' && c.configured ? (
+                <div className="row-wrap">
+                  {c.account ? (
+                    <button
+                      className="btn tiny ghost"
+                      onClick={async () => {
+                        if (!window.confirm('YouTube hesabının bağlantısı kesilsin mi? (İstemci kimliği kalır)')) return;
+                        await api.disconnectYoutube();
+                        await load(true);
+                      }}
+                    >
+                      Hesap bağlantısını kes
+                    </button>
+                  ) : (
+                    <button
+                      className="btn tiny primary"
+                      onClick={() => {
+                        const w = window.open('/api/youtube/baglan', 'youtube-baglan', 'width=520,height=680');
+                        const done = (e: MessageEvent) => {
+                          if (e.data === 'youtube-baglandi') {
+                            window.removeEventListener('message', done);
+                            void load(true);
+                          }
+                        };
+                        window.addEventListener('message', done);
+                        if (!w) location.href = '/api/youtube/baglan';
+                      }}
+                    >
+                      Hesabı bağla
+                    </button>
+                  )}
+                  <small className="muted">Yükleme yalnız onaylı paketten ve açık onayınızla yapılır.</small>
+                </div>
+              ) : null}
               {editing === c.id ? (
                 <div className="row-wrap">
-                  <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder={c.id === 'higgsfield' ? 'KEY_ID:SECRET' : 'Anahtarı yapıştırın'} autoComplete="off" aria-label={`${c.name} anahtarı`} />
+                  <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder={c.id === 'higgsfield' ? 'KEY_ID:SECRET' : c.id === 'youtube' ? 'İSTEMCİ_KİMLİĞİ:GİZLİ_ANAHTAR' : 'Anahtarı yapıştırın'} autoComplete="off" aria-label={`${c.name} anahtarı`} />
                   <button className="btn primary tiny" disabled={key.trim().length < 4 || busy === c.id} onClick={() => void save(c)}>
                     Kaydet ve dene
                   </button>

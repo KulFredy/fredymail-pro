@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { outputTitle } from '../../src/core/channels';
 import { Player, type PlayerRef } from '@remotion/player';
 import { Eye, EyeOff, Move, Plus } from 'lucide-react';
 import { FORMATS, RESOLUTION_LABELS, outputLabel, renderSize } from '../../src/core/formats';
@@ -202,7 +203,7 @@ export const Preview: React.FC<{ framingToggle?: boolean }> = ({ framingToggle }
       <div className="preview-tabs">
         {project.outputs.map((o) => (
           <button key={o.id} className={o.id === output.id ? 'on' : ''} onClick={() => setUi({ activeOutputId: o.id })}>
-            {outputLabel(o.format, o.kind)}
+            {outputTitle(o)}
           </button>
         ))}
         <AddFormat />
