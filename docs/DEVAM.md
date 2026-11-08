@@ -1,4 +1,9 @@
-# Devam notları (son güncelleme: 8 Kasım 2026)
+# Devam notları (son güncelleme: 9 Kasım 2026)
+
+## Yeni oturumda önce bunu oku
+- Kullanıcı Mac'te uygulama olarak kullanıyor: kod `~/Desktop/icerik-fabrikasi`, uygulama `/Applications/İçerik Fabrikası.app`, veri `~/İçerik Fabrikası/`, kayıt `~/Library/Logs/IcerikFabrikasi.log`. Güncelleme: pencereleri kapat (⌘W) → `cd ~/Desktop/icerik-fabrikasi && bash scripts/guncelle.sh`.
+- Geliştirme dalı `claude/kind-davinci-9kuqyj`. Her değişiklikten sonra ilgili `npm run e2e:*` testleri; kullanıcıya sade Türkçe, kopyalanabilir komutlar.
+- **Sıradaki işler:** (1) Zhiyun · Weebill 5 paketini onaylamak; Story için ≤60 sn kısa kurgu. (2) İkinci markada aynı akış → Faz 6 kabulü. (3) Gerçek Claude çevirisi ve otomatik dilli whisper'ı Mac'te doğrulamak. (4) Render sırasında macOS “node uygulamaları değiştirmesi engellendi” bildirimi (büyük olasılıkla render için açılan Chrome'un kendi güncellemesi; zararsız, tekrar ederse araştır). (5) Faz 8 kararları (`docs/SAAS.md`), gerçek ElevenLabs/Gemini/YouTube anahtarlarıyla doğrulama, Android telefon testi.
 
 ## Durum
 - **Faz 1 · Instagram Hızlı Edit — tamam.** 8 adım: Ekle (QR ile telefondan) · Biçim (9:16, 4:5, 1:1, 16:9; video/fotoğraf) · Sırala & kısalt · Kadraj (doldur/sığdır, %10–%400 boyut, köşeye) · Renk & ışık (görünümler, ayarlar, .cube LUT, 12 kamera log dönüşümü) · Ses & müzik (3 mod) · Yazı & altyazı (yerel Whisper, kelime düzeltme) · Teslim (720p–4K, doğrulama, müziksiz sürüm, telefona indir, sürümler).
@@ -8,7 +13,7 @@
 - **Claude ile komut (isteğe bağlı):** Ayarlar'da "Her komutta" (varsayılan) veya "Yalnız kalıplar anlamazsa"; model Opus 5.5 / Sonnet 5.5 / Haiku 5.5; komut başına maliyet gösterilir; ulaşılamazsa yerel anlayıcı.
 - **Faz 4 · Referanslar, LUT ve hareket — tamam** (LUT'lar Mac'te doğrulandı; logo/hareket/müziğe oturtma Mac'te denenmedi).
 - **Faz 5 · Bağlantılar — tamam (bulutta sahte servislerle doğrulandı; gerçek ElevenLabs/Gemini anahtarıyla doğrulanmadı).**
-- **Faz 6 · Marka, kampanya ve kanal teslimi — tamam (bulutta gerçek render ve ölçümle doğrulandı; Mac'te denenmedi).**
+- **Faz 6 · Marka, kampanya ve kanal teslimi — tamam (bulutta doğrulandı; 9 Kasım'da Mac'te ilk gerçek paket: Zhiyun · Weebill 5 · Lansman; ikinci marka bekliyor).**
 - **Faz 7 · Doğrudan yayın (YouTube) — tamam, sahte Google sunucusuyla doğrulandı; gerçek hesapla denenmedi (Google Cloud OAuth istemcisi gerekir).**
 - **Faz 8 · SaaS beta — tasarım belgesi `docs/SAAS.md`; karar bekliyor, kod yok.**
 - **İlk gerçek kampanya (9 Kasım, Mac'te):** Zhiyun · Weebill 5 · “Weebill5 Lansman” paketi kullanıcının Mac'inde üretildi (Reels + Story, kapak, metinler.txt, kontrol.txt; Claude ile yayın metni). Story 2:35 > 60 sn olduğu için hata olarak raporlandı (beklenen). Sırada: paketi onaylamak, ikinci markada aynı akış (Faz 6 kabulü).
