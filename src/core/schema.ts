@@ -125,19 +125,61 @@ export const CaptionsSchema = z.object({
 });
 export type Captions = z.infer<typeof CaptionsSchema>;
 
+/** Güvenli alan içinde 9 noktalı yerleşim: t/m/b (üst/orta/alt) + l/c/r (sol/orta/sağ) */
+export const ANCHORS = ['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'] as const;
+export type Anchor = (typeof ANCHORS)[number];
+/** Giriş/çıkış animasyonu (0,4 sn) */
+export const ANIMS = ['yok', 'solma', 'yukari', 'buyume'] as const;
+export type Anim = (typeof ANIMS)[number];
+
+/** Bir çıktıya özel yerleşim (ör. Story'de logo başka köşede) */
+export const PlacementSchema = z.object({
+  /** null → x/y serbest konum */
+  anchor: z.enum(ANCHORS).nullable().default(null),
+  x: pos(0.5),
+  y: pos(0.5),
+  scale: z.number().min(0.2).max(4).default(1),
+});
+export type Placement = z.infer<typeof PlacementSchema>;
+
 export const TextOverlaySchema = z.object({
   id: z.string(),
   text: z.string(),
   start: z.number().min(0),
   end: z.number().positive(),
+  /** Serbest konum (anchor yoksa): yazının merkezi, karenin oranı olarak */
   x: pos(0.5),
   y: pos(0.25),
+  /** Varsa konum her çıktının güvenli alanı içinde hesaplanır */
+  anchor: z.enum(ANCHORS).nullable().default(null),
   size: z.number().min(20).max(220).default(84),
   color: z.string().default('#FFFFFF'),
   font: z.enum(['Inter', 'Montserrat']).default('Montserrat'),
   style: z.enum(['shadow', 'box', 'outline']).default('shadow'),
+  /** Eski projelerdeki davranış: solarak ve hafifçe yukarı kayarak gelir */
+  anim: z.enum(ANIMS).default('yukari'),
+  placements: z.record(z.string(), PlacementSchema).default({}),
 });
 export type TextOverlay = z.infer<typeof TextOverlaySchema>;
+
+/** Logo / damga (saydam PNG veya SVG önerilir) */
+export const LogoSchema = z.object({
+  id: z.string(),
+  assetId: z.string(),
+  /** true: videonun tamamı boyunca (süre değişse de) */
+  full: z.boolean().default(true),
+  start: z.number().min(0).default(0),
+  end: z.number().positive().default(5),
+  anchor: z.enum(ANCHORS).nullable().default('tr'),
+  x: pos(0.85),
+  y: pos(0.15),
+  /** Genişlik, karenin kısa kenarına oranla */
+  size: z.number().min(0.03).max(0.9).default(0.18),
+  opacity: z.number().min(0).max(1).default(1),
+  anim: z.enum(ANIMS).default('solma'),
+  placements: z.record(z.string(), PlacementSchema).default({}),
+});
+export type Logo = z.infer<typeof LogoSchema>;
 
 /** Üst iz (B-roll): ana görüntünün üstünde gösterilir, ana ses devam eder */
 export const OverlaySchema = z.object({
@@ -200,6 +242,7 @@ export const ProjectSchema = z.object({
   overlays: z.array(OverlaySchema).default([]),
   voice: z.array(VoiceSchema).default([]),
   references: z.array(ReferenceSchema).default([]),
+  logos: z.array(LogoSchema).default([]),
   look: LookSchema.default(DEFAULT_LOOK),
   /** Instagram açıklama metni */
   description: z.string().default(''),
@@ -234,6 +277,8 @@ export const AssetSchema = z.object({
   kind: z.enum(['video', 'image', 'audio']),
   /** media: normal kaynak · voiceover: uygulamada kaydedilen dış ses */
   role: z.enum(['media', 'voiceover', 'reference']).default('media'),
+  /** Saydam görsel (PNG/SVG): önizleme/render kopyaları PNG tutulur */
+  alpha: z.boolean().default(false),
   name: z.string(),
   ext: z.string(),
   size: z.number(),
@@ -279,6 +324,7 @@ export type AssetRef = {
   height: number;
   duration: number;
   hasAudio: boolean;
+  alpha?: boolean;
   words: Word[];
   transcriptStatus: Transcript['status'];
   cameraDetected: string | null;

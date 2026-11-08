@@ -16,6 +16,8 @@ import {
   OverlaySchema,
   VoiceSchema,
   ReferenceSchema,
+  LogoSchema,
+  PlacementSchema,
   type Look,
   type Output,
   type Project,
@@ -102,6 +104,11 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('reference.add'), assetId: z.string(), at: z.number().min(0).optional() }),
   z.object({ type: z.literal('reference.update'), id: z.string(), patch: patchOf(ReferenceSchema.omit({ id: true, assetId: true })) }),
   z.object({ type: z.literal('reference.remove'), id: z.string() }),
+  z.object({ type: z.literal('logo.add'), assetId: z.string(), logo: patchOf(LogoSchema.omit({ id: true, assetId: true, placements: true })).optional() }),
+  z.object({ type: z.literal('logo.update'), id: z.string(), patch: patchOf(LogoSchema.omit({ id: true, assetId: true, placements: true })) }),
+  z.object({ type: z.literal('logo.remove'), id: z.string() }),
+  /** Yazı/logoyu yalnız bir çıktıda farklı yerleştir (null → genel yerleşime dön) */
+  z.object({ type: z.literal('element.place'), kind: z.enum(['text', 'logo']), id: z.string(), outputId: z.string(), place: PlacementSchema.nullable() }),
 ]);
 export type Op = z.infer<typeof OpSchema>;
 export type OpInput = z.input<typeof OpSchema>;
@@ -364,6 +371,10 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
       p.texts = p.texts
         .filter((t) => t.start < s0 || t.start >= e0)
         .map((t) => (t.start >= e0 ? { ...t, start: t.start - len, end: t.end - len } : t));
+      // Zamanı sabit logolar yazı gibi kayar; “tüm video boyunca” olanlar etkilenmez
+      p.logos = p.logos
+        .filter((l) => l.full || l.start < s0 || l.start >= e0)
+        .map((l) => (!l.full && l.start >= e0 ? { ...l, start: l.start - len, end: l.end - len } : l));
       p = ensureStills(p, ctx);
       if (!p.clips.some((c) => c.id === p.ui.selectedClipId)) p.ui.selectedClipId = p.clips[0]?.id ?? null;
       break;
@@ -415,6 +426,31 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
     case 'reference.remove':
       p.references = p.references.filter((x) => x.id !== op.id);
       break;
+    case 'logo.add': {
+      const a = ctx.assets[op.assetId];
+      if (!a || a.kind !== 'image') throw new OpError('Logo olarak bir görsel (PNG, SVG, JPG) ekleyin');
+      p.logos = [...p.logos, LogoSchema.parse({ ...(op.logo ?? {}), id: ctx.newId('g'), assetId: op.assetId })];
+      break;
+    }
+    case 'logo.update': {
+      const l = p.logos.find((x) => x.id === op.id);
+      if (!l) throw new OpError('Logo bulunamadı');
+      Object.assign(l, LogoSchema.parse({ ...l, ...op.patch }));
+      break;
+    }
+    case 'logo.remove':
+      p.logos = p.logos.filter((x) => x.id !== op.id);
+      break;
+    case 'element.place': {
+      if (!p.outputs.some((o) => o.id === op.outputId)) throw new OpError('Çıktı bulunamadı');
+      const el = op.kind === 'text' ? p.texts.find((x) => x.id === op.id) : p.logos.find((x) => x.id === op.id);
+      if (!el) throw new OpError(op.kind === 'text' ? 'Yazı bulunamadı' : 'Logo bulunamadı');
+      const next = { ...el.placements };
+      if (op.place) next[op.outputId] = op.place;
+      else delete next[op.outputId];
+      el.placements = next;
+      break;
+    }
   }
   p.updatedAt = ctx.now();
   return ProjectSchema.parse(p);
@@ -462,5 +498,9 @@ export const describeOp = (op: OpInput): string => {
     case 'reference.add': return 'Referans eklendi';
     case 'reference.update': return 'Referans karesi değişti';
     case 'reference.remove': return 'Referans kaldırıldı';
+    case 'logo.add': return 'Logo eklendi';
+    case 'logo.update': return 'Logo düzenlendi';
+    case 'logo.remove': return 'Logo kaldırıldı';
+    case 'element.place': return op.place ? 'Bu orana özel yerleşim' : 'Genel yerleşime döndü';
   }
 };

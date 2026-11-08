@@ -18,7 +18,7 @@ export type ProbeInfo = {
   formatName: string;
 };
 
-const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.avif', '.tif', '.tiff', '.bmp', '.gif']);
+const IMAGE_EXT = new Set(['.svg', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.avif', '.tif', '.tiff', '.bmp', '.gif']);
 const IMAGE_CODECS = new Set(['mjpeg', 'png', 'webp', 'hevc_image', 'bmp', 'tiff', 'gif', 'av1_image']);
 
 const parseRate = (r?: string) => {
@@ -28,6 +28,15 @@ const parseRate = (r?: string) => {
 };
 
 export const probe = async (file: string, ext: string): Promise<ProbeInfo> => {
+  if (ext === '.svg') {
+    // ffprobe SVG okuyamayabilir: ölçüyü sharp'tan al (vektör, 300 dpi'de)
+    const sharp = (await import('sharp')).default;
+    const m = await sharp(file, { density: 300 }).metadata();
+    return {
+      kind: 'image', width: m.width ?? 0, height: m.height ?? 0, duration: 0, fps: 0, hasAudio: false, hdr: false, bitDepth: 8,
+      codec: 'svg', rotation: 0, colorTransfer: '', tags: {}, pixFmt: 'rgba', audioCodec: '', formatName: 'svg',
+    } as ProbeInfo;
+  }
   const { ffprobe } = await getTools();
   const r = await runOk(ffprobe, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file]);
   const j = JSON.parse(r.stdout) as {

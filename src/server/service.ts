@@ -144,6 +144,7 @@ export class Service {
           render: rel(r.render),
           poster: rel(r.poster),
           waveform: rel(r.waveform),
+          alpha: !!r.alpha,
           width: r.width,
           height: r.height,
         });

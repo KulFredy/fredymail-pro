@@ -12,6 +12,7 @@ export const fileUrl = (base: string, rel: string | null) =>
 export const assetRef = (a: Asset, base: string, target: 'preview' | 'render'): AssetRef => ({
   id: a.id,
   kind: a.kind,
+  alpha: a.alpha,
   importedAt: a.importedAt,
   name: a.name,
   url: a.status === 'ready' ? fileUrl(base, target === 'render' ? a.render : a.preview) : '',

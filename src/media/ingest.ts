@@ -27,6 +27,8 @@ export type IngestResult = {
   waveform: string | null;
   width: number;
   height: number;
+  /** Saydam görsel (PNG/SVG): kopyalar PNG tutulur */
+  alpha?: boolean;
 };
 
 type Progress = (fraction: number, message: string) => void;
@@ -137,6 +139,23 @@ export const processMedia = async (orig: string, ext: string, cacheDir: string, 
       await convertHeic(orig, src);
     }
     onProgress(0.3, 'Fotoğraf hazırlanıyor');
+    // Saydam görsel (logo): saydamlık korunur, kopyalar PNG
+    const isSvg = ext === '.svg';
+    const open = () => sharp(src, isSvg ? { density: 300 } : {});
+    const m0 = await open().metadata();
+    const alpha = isSvg || (!!m0.hasAlpha && !(await open().stats()).isOpaque);
+    if (alpha) {
+      const render = path.join(cacheDir, 'render.png');
+      await open().rotate().resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: !isSvg }).png().toFile(render);
+      const meta = await sharp(render).metadata();
+      const preview = path.join(cacheDir, 'preview.png');
+      await sharp(render).resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true }).png().toFile(preview);
+      const poster = path.join(cacheDir, 'poster.jpg');
+      await sharp(render).resize({ width: 480, height: 480, fit: 'inside' }).flatten({ background: '#3a3f4b' }).jpeg({ quality: 80 }).toFile(poster);
+      Object.assign(res, { render, preview, poster, alpha: true, width: meta.width ?? info.width, height: meta.height ?? info.height });
+      onProgress(1, 'Hazır');
+      return res;
+    }
     const render = path.join(cacheDir, 'render.jpg');
     // EXIF yönü uygulanır (telefon fotoğrafı doğru görünür), en çok 4096 px
     await sharp(src).rotate().flatten({ background: '#000' }).resize({ width: 4096, height: 4096, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 93 }).toFile(render);
