@@ -74,7 +74,7 @@ export const mergeStats = (list: ColorStats[]): ColorStats => {
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** Sınırlar: aşırı uçları önler (gece fotoğrafı referansı gündüz videosunu karartıp mahvetmesin) */
-export const MATCH_LIMITS = { meanL: 18, meanAB: 14, ratioL: [0.7, 1.45] as const, ratioAB: [0.6, 1.8] as const };
+export const MATCH_LIMITS = { meanL: 20, meanAB: 20, ratioL: [0.7, 1.45] as const, ratioAB: [0.6, 1.8] as const };
 
 export type MatchParams = { shift: Lab; scale: Lab; from: Lab; to: Lab };
 export const matchParams = (target: ColorStats, ref: ColorStats): MatchParams => {

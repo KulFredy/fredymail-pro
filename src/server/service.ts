@@ -8,6 +8,9 @@ import { FORMATS, RESOLUTION_LABELS, renderSize, resolutionScale } from '../core
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import { parseCube } from '../core/lut';
+import { buildMatchLut, colorStats, describeMatch, labToRgb, mergeStats, type ColorStats } from '../core/colormatch';
+import { effectiveCamera } from '../core/looks';
+import { sampleLut } from '../core/lut';
 import { LutMetaSchema, classifyLut, lutFormat, parse3dl, toCube, unsupportedReason, type LutMeta } from '../core/lutlib';
 import { getTools, runOk } from '../media/proc';
 import { buildRefs, lutUrls, type LutInfo } from '../core/refs';
@@ -145,7 +148,7 @@ export class Service {
           height: r.height,
         });
         const cur = this.store.library.get(id)!;
-        const wantsWords = (cur.kind === 'video' && cur.hasAudio) || cur.role === 'voiceover';
+        const wantsWords = ((cur.kind === 'video' && cur.hasAudio) || cur.role === 'voiceover') && cur.role !== 'reference';
         if (wantsWords && cur.transcript.status !== 'done') this.enqueueTranscribe(id);
       } catch (e) {
         await this.store.patchAsset(id, { status: 'error', error: (e as Error).message });
@@ -189,6 +192,73 @@ export class Service {
   }
 
   /** Dış ses kaydı: kütüphaneye "voiceover" olarak girer, projede oynatma imlecine yerleşir */
+  /** Referans ekle (yeni yüklenen dosya Medya listesinde görünmesin diye rolü 'reference' olur) */
+  async addReference(projectId: string, asset: Asset, isNew: boolean) {
+    if (isNew) await this.store.patchAsset(asset.id, { role: 'reference' });
+    return this.store.applyOps(projectId, [{ type: 'reference.add', assetId: asset.id }], 'ui', 'Referans eklendi');
+  }
+
+  /** Bir kaynağın karesinin RGB pikselleri (gerekirse kamera dönüşümü uygulanmış) */
+  private async framePixels(assetId: string, t: number, camera: string | null) {
+    const sharp = (await import('sharp')).default;
+    const file = await this.assetFrame(assetId, t, 256);
+    const { data, info } = await sharp(file).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    if (!camera) return { data, channels: info.channels };
+    const lut = parseCube(await readFile(path.join(ROOT, 'assets', 'luts', 'kamera', `${camera}.cube`), 'utf8'));
+    const out = Buffer.alloc(data.length);
+    for (let i = 0; i < data.length; i += info.channels) {
+      const [r, g, b] = sampleLut(lut, data[i] / 255, data[i + 1] / 255, data[i + 2] / 255);
+      out[i] = Math.round(r * 255);
+      out[i + 1] = Math.round(g * 255);
+      out[i + 2] = Math.round(b * 255);
+    }
+    return { data: out, channels: info.channels };
+  }
+
+  /**
+   * Referanstan renk eşleme: referans karesi ile hedef klip(ler)in karelerini karşılaştırır,
+   * eşleme LUT'u üretip LUT'larım'a (#referans) kaydeder. Uygulamaz; arayüz önizletip onaylatır.
+   */
+  async colorMatch(projectId: string, referenceId: string, clipId: string | null) {
+    const project = await this.store.getProject(projectId);
+    const ref = project.references.find((r) => r.id === referenceId);
+    if (!ref) throw new Error('Referans bulunamadı');
+    const refAsset = this.store.library.get(ref.assetId);
+    if (!refAsset || refAsset.status !== 'ready') throw new Error('Referans henüz hazır değil');
+    const targets = (clipId ? project.clips.filter((c) => c.id === clipId) : project.clips).filter((c) => {
+      const a = this.store.library.get(c.assetId);
+      return a && a.kind !== 'audio' && a.status === 'ready';
+    });
+    if (!targets.length) throw new Error('Eşlenecek klip yok');
+    const rp = await this.framePixels(refAsset.id, ref.at, null);
+    const refStats = colorStats(rp.data, rp.channels);
+    const tStats: ColorStats[] = [];
+    for (const c of targets.slice(0, 8)) {
+      const a = this.store.library.get(c.assetId)!;
+      const cam = effectiveCamera(c, a.camera.detected ?? null);
+      const times = a.kind === 'video' ? [0.2, 0.5, 0.8].map((k) => c.in + (c.out - c.in) * k) : [0];
+      for (const t of times) {
+        const fp = await this.framePixels(a.id, t, cam);
+        tStats.push(colorStats(fp.data, fp.channels));
+      }
+    }
+    const target = mergeStats(tStats);
+    const lut = buildMatchLut(target, refStats, 33);
+    const refName = refAsset.name.replace(/\.[^.]+$/, '');
+    const name = `Referans · ${refName}`;
+    const [row] = await this.importLuts([{ name: `${name}.cube`, data: Buffer.from(toCube(lut, name)) }]);
+    if (!row.id) throw new Error(row.reason ?? 'LUT kaydedilemedi');
+    const meta = await this.updateLut(row.id, { tags: ['referans'] });
+    const hex = (lab: [number, number, number]) => '#' + labToRgb(lab).map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+    return {
+      lutId: row.id,
+      name: meta.name,
+      summary: describeMatch(target, refStats),
+      swatches: { reference: hex(refStats.mean), target: hex(target.mean) },
+      clips: targets.length,
+    };
+  }
+
   async addVoiceover(projectId: string, asset: Asset, at: number) {
     await this.store.patchAsset(asset.id, { role: 'voiceover' });
     return this.store.applyOps(projectId, [{ type: 'voice.add', assetId: asset.id, at }], 'ui', 'Dış ses kaydı eklendi');

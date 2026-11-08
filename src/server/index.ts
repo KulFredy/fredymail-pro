@@ -136,6 +136,13 @@ export const createServer = async (home = defaultHome()) => {
 
   app.post('/api/import', async (req) => {
     const q = req.query as { projectId?: string; role?: string; at?: string };
+    if (q.role === 'reference' && q.projectId) {
+      const known = new Set(store.library.keys());
+      const r = await handleUpload(req, undefined);
+      let state = null;
+      for (const a of r.assets) state = await svc.addReference(q.projectId, a, !known.has(a.id));
+      return { assets: r.assets, state };
+    }
     if (q.role === 'voiceover' && q.projectId) {
       const r = await handleUpload(req, undefined);
       let state = null;
@@ -247,6 +254,13 @@ export const createServer = async (home = defaultHome()) => {
   app.delete('/api/luts/:id', async (req) => {
     await svc.deleteLut((req.params as { id: string }).id);
     return { luts: await svc.listLuts() };
+  });
+  /** Referanstan renk eşleme → LUT üretir (uygulamaz) */
+  app.post('/api/projects/:id/color-match', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = z.object({ referenceId: z.string(), clipId: z.string().nullable().default(null) }).parse(req.body);
+    const r = await svc.colorMatch(id, body.referenceId, body.clipId);
+    return { ...r, luts: await svc.listLuts() };
   });
   app.get('/api/assets/:id/frame', async (req, reply) => {
     const { id } = req.params as { id: string };

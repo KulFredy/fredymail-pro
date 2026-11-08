@@ -16,7 +16,8 @@
     "e2e:offline": "tsx scripts/e2e-offline.ts",
     "e2e:ui": "tsx scripts/e2e-ui.ts",
     "e2e:lut": "tsx scripts/e2e-lut.ts",
-    "lut-ekle": "tsx scripts/lut-ekle.ts"
+    "lut-ekle": "tsx scripts/lut-ekle.ts",
+    "e2e:ref": "tsx scripts/e2e-ref.ts"
   },
   "engines": {
     "node": ">=20"
