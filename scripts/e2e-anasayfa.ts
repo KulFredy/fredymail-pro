@@ -305,6 +305,39 @@ const main = async () => {
     const c1 = (await api('GET', '/api/projects')).length;
     check('Marka kampanyası: “Marka oluştur” pencereyi kapatıp Markalar’ı açar; X ile çıkınca pencere geri açılmaz; boş proje yok', campaignGone && brandsOpen && dialogs === 0 && c1 === c0, `${c0} → ${c1}`);
 
+    // 9b) Media Pool → Logo: geri bildirim, Inspector'da seçili; iz başlıkları ve SMPTE zaman kodu
+    await page.goto(`${base}/#/studyo/${old.id}`);
+    await page.waitForSelector('.tl-item.clip');
+    await page.getByRole('tab', { name: 'Media' }).click();
+    const logos0 = (await projectOf(old.id)).logos.length;
+    await page.getByRole('button', { name: 'G1 logo ekle' }).first().click();
+    const toastTxt = await page.locator('.toast').last().innerText();
+    await page.waitForSelector('.anchor-grid', { timeout: 15000 });
+    const inspOn = await page.getByRole('tab', { name: 'Inspector' }).getAttribute('aria-selected');
+    const heads = await page.locator('.tl-label .trk-name').allInnerTexts();
+    const tc = await page.locator('.tl-tc').innerText();
+    check(
+      'Media Pool “Logo”: logo G1’e eklenir, ne olduğu söylenir, Inspector’da seçili açılır; izler ikon + ad, zaman kodu SMPTE',
+      (await projectOf(old.id)).logos.length === logos0 + 1 && /Logo G1'e eklendi/.test(toastTxt) && inspOn === 'true' && heads.slice(0, 4).join(',') === 'Video,Overlay,Voice Over,Music' && /^\d\d:\d\d:\d\d:\d\d$/.test(tc),
+      `${toastTxt} · ${heads.join('/')} · ${tc}`,
+    );
+    await page.keyboard.press('Control+z');
+
+    // 9c) Üretim hattı: dört adım, Premiere/Resolve XML
+    await page.getByRole('button', { name: 'Üretim hattı' }).click();
+    await page.waitForSelector('[data-testid=pipeline]');
+    const plTxt = await page.getByTestId('pipeline').innerText();
+    await page.getByTestId('xml-export').click();
+    await page.waitForSelector('[data-testid=pipeline] a[download]');
+    const xmlHref = await page.locator('[data-testid=pipeline] a[download]').getAttribute('href');
+    const xmlText = await (await fetch(base + xmlHref)).text();
+    check(
+      'Üretim hattı: Media Generator → Engine → Editor → Deliver; XML (xmeml, V1 klip, orijinal dosya yolu)',
+      /Media Generator/.test(plTxt) && /Engine/.test(plTxt) && /Editor/.test(plTxt) && /Deliver/.test(plTxt) && /CapCut/.test(plTxt) && xmlText.includes('<xmeml version="4">') && /<clipitem id="clipitem-1">/.test(xmlText) && /<pathurl>file:\/\/localhost\//.test(xmlText),
+      `${xmlHref} · ${xmlText.length} bayt`,
+    );
+    await page.keyboard.press('Escape');
+
     // 10) Dar ekran
     await page.setViewportSize({ width: 390, height: 844 });
     await goHome();

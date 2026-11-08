@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BookOpen, Clapperboard, Cpu, FolderOpen, Keyboard, Megaphone, Mic, MoreHorizontal, Pencil, Pin, PinOff, Play, Plug, Plus, Search, Smartphone, Tag, Trash2, X, Zap,
+  BookOpen, Power, Workflow, Clapperboard, Cpu, FolderOpen, Keyboard, Megaphone, Mic, MoreHorizontal, Pencil, Pin, PinOff, Play, Plug, Plus, Search, Smartphone, Tag, Trash2, X, Zap,
 } from 'lucide-react';
 import { CHANNELS, isChannel } from '../../src/core/channels';
 import { FORMATS } from '../../src/core/formats';
@@ -10,6 +10,7 @@ import { BrandApplyForm, BrandsModal } from './Brands';
 import { ConnectionsModal } from './Connections';
 import { GuideModal, ShortcutsModal } from './Help';
 import { PhoneTransferModal, type PhoneTarget } from './PhoneTransfer';
+import { PipelineModal } from './Pipeline';
 import { useApp } from './state';
 import { Modal, modalOpen } from './ui';
 
@@ -208,6 +209,7 @@ type Dialog =
   | { kind: 'kampanya' }
   | { kind: 'telefon'; initial?: PhoneTarget }
   | { kind: 'kilavuz' }
+  | { kind: 'hat' }
   | { kind: 'kisayol' }
   | { kind: 'markalar' }
   | { kind: 'baglantilar' }
@@ -277,6 +279,9 @@ export const Home: React.FC = () => {
           </div>
         </div>
         <nav className="home-links" aria-label="Yardım ve ayarlar">
+          <button className="btn ghost sm" onClick={() => setDialog({ kind: 'hat' })} title="Üretim → Claude → Kurgu → Teslim">
+            <Workflow size={15} /> Üretim hattı
+          </button>
           <button className="btn ghost sm" onClick={() => setDialog({ kind: 'kilavuz' })}>
             <BookOpen size={15} /> Kullanım kılavuzu
           </button>
@@ -288,6 +293,19 @@ export const Home: React.FC = () => {
           </button>
           <button className="btn ghost sm" onClick={() => setDialog({ kind: 'baglantilar' })} title="Claude, ElevenLabs, Google Gemini, YouTube">
             <Plug size={15} /> Bağlantılar
+          </button>
+          <button
+            className="icon-btn"
+            title="Uygulamayı kapat (arka plandaki sunucu durur; tekrar açmak için Uygulamalar'daki İçerik Fabrikası)"
+            aria-label="Uygulamayı kapat"
+            onClick={async () => {
+              if (!confirm('İçerik Fabrikası kapatılsın mı? Süren render veya içe aktarma varsa yarıda kalır.')) return;
+              await api.shutdown().catch(() => undefined);
+              document.body.innerHTML = '<div class="loading">İçerik Fabrikası kapatıldı. Bu pencereyi kapatabilirsiniz.</div>';
+              setTimeout(() => window.close(), 400);
+            }}
+          >
+            <Power size={16} />
           </button>
         </nav>
       </header>
@@ -495,6 +513,7 @@ export const Home: React.FC = () => {
         />
       ) : null}
       {dialog?.kind === 'kilavuz' ? <GuideModal onClose={close} /> : null}
+      {dialog?.kind === 'hat' ? <PipelineModal onClose={close} projects={projects ?? []} projectId={lastProject?.id ?? null} openConnections={() => setDialog({ kind: 'baglantilar' })} /> : null}
       {dialog?.kind === 'kisayol' ? <ShortcutsModal onClose={close} /> : null}
       {dialog?.kind === 'markalar' ? <BrandsModal onClose={close} onChanged={() => void load()} /> : null}
       {dialog?.kind === 'baglantilar' ? <ConnectionsModal onClose={close} /> : null}

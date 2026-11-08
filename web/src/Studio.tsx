@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import {
   ArrowLeft, Mic, Square, Send, Undo2, Redo2, Zap, Download, Play, Check, X, Scissors, Trash2, Plus, Music2, Layers, Loader2, Wand2, Video, Image as ImageIcon,
-  PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal, Settings, Package, Tag, FolderOpen, FileText, Palette, Pipette, Sparkles,
+  PanelRightClose, PanelRightOpen, MessageSquareText, SlidersHorizontal, Settings, Package, Tag, FolderOpen, FileText, Palette, Pipette, Sparkles, Workflow,
 } from 'lucide-react';
+import type { OpInput } from '../../src/core/ops';
 import { COMMAND_EXAMPLES, planCommand, type Plan, type PlanCandidate } from '../../src/core/commands';
 import { describeImpact } from '../../src/core/impact';
 import { FPS } from '../../src/core/schema';
@@ -20,6 +21,7 @@ import { ReferencePanel } from './ReferencePanel';
 import { ConnectionsModal } from './Connections';
 import { BrandApplyForm, BrandsModal } from './Brands';
 import { DeliveryModal } from './DeliveryPanel';
+import { PipelineModal } from './Pipeline';
 import { GeneratePanel, type RegenRequest } from './GeneratePanel';
 import { Modal, Segmented, Slider, fmtDb, fmtSec, modalOpen } from './ui';
 
@@ -488,9 +490,17 @@ const AiSettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   );
 };
 
-const MediaBin: React.FC = () => {
+const MediaBin: React.FC<{ onSelect?: (s: Selection) => void }> = ({ onSelect }) => {
   const { project, apply, frame, reload } = useProject();
   const { library, toast } = useApp();
+  const noClips = project.clips.length === 0;
+  const projectRef = useRef(project);
+  projectRef.current = project;
+  /** Ekleme + geri bildirim: ne nereye gitti; görünmesi için ne gerekli */
+  const addTo = (ops: OpInput[], msg: string, needsClip = true) => {
+    apply(ops);
+    toast(needsClip && noClips ? `${msg}. Önizlemede görünmesi için önce V1'e bir klip ekleyin.` : msg);
+  };
   const input = useRef<HTMLInputElement>(null);
   const playhead = frame / FPS;
   const items = [...library.values()].filter((a) => a.role === 'media').sort((a, b) => b.importedAt.localeCompare(a.importedAt));
@@ -534,27 +544,35 @@ const MediaBin: React.FC = () => {
               </span>
               <div className="row">
                 {a.kind === 'audio' ? (
-                  <button className="trk-btn a" title="Müzik izine (A2) koy" aria-label="A2 müzik yap" onClick={() => apply([{ type: 'music.set', music: { assetId: a.id } }])}>
+                  <button className="trk-btn a" title="Müzik izine (A2) koy" aria-label="A2 müzik yap" onClick={() => addTo([{ type: 'music.set', music: { assetId: a.id } }], `${a.name} müzik izine (A2) kondu`)}>
                     A2 · Music
                   </button>
                 ) : (
                   <>
-                    <button className="trk-btn v" title="Ana izin (V1) sonuna ekle" aria-label="V1 ana ize ekle" onClick={() => apply([{ type: 'clips.add', assetIds: [a.id] }])}>
+                    <button className="trk-btn v" title="Ana izin (V1) sonuna ekle" aria-label="V1 ana ize ekle" onClick={() => addTo([{ type: 'clips.add', assetIds: [a.id] }], `${a.name} V1'in sonuna eklendi`, false)}>
                       V1
                     </button>
                     <button
                       className="trk-btn v"
                       title="Oynatma imlecine üst iz (V2) olarak ekle; ana ses devam eder"
                       aria-label="V2 üst ize ekle"
-                      onClick={() => apply([{ type: 'overlay.add', assetId: a.id, at: playhead, duration: 2 }])}
+                      onClick={() => addTo([{ type: 'overlay.add', assetId: a.id, at: playhead, duration: 2 }], `${a.name} V2'ye (imleçte, 2 sn) eklendi`)}
                     >
                       <Layers size={11} /> V2
                     </button>
-                    <button className="trk-btn" title="Gallery: rengini/havasını örnek almak için referans (videoya girmez)" aria-label="Gallery referans yap" onClick={() => apply([{ type: 'reference.add', assetId: a.id }])}>
+                    <button className="trk-btn" title="Gallery: rengini/havasını örnek almak için referans (videoya girmez)" aria-label="Gallery referans yap" onClick={() => addTo([{ type: 'reference.add', assetId: a.id }], `${a.name} Gallery'ye referans olarak eklendi (videoya girmez)`, false)}>
                       Gallery
                     </button>
                     {a.kind === 'image' ? (
-                      <button className="trk-btn g" title="Logo izine (G1) ekle; saydam PNG/SVG önerilir" aria-label="G1 logo ekle" onClick={() => apply([{ type: 'logo.add', assetId: a.id }])}>
+                      <button className="trk-btn g" title="Logo izine (G1) ekle; saydam PNG/SVG önerilir" aria-label="G1 logo ekle" onClick={() => {
+                          const before = new Set(project.logos.map((l) => l.id));
+                          addTo([{ type: 'logo.add', assetId: a.id }], `Logo G1'e eklendi (sağ üst)${a.alpha ? '' : '; saydam PNG/SVG daha temiz görünür'}`);
+                          // Yeni logoyu seç: Inspector'da konum/boyut hemen ayarlanabilsin
+                          setTimeout(() => {
+                            const added = projectRef.current.logos.find((l) => !before.has(l.id));
+                            if (added) onSelect?.({ kind: 'logo', id: added.id });
+                          }, 400);
+                        }}>
                         Logo
                       </button>
                     ) : null}
@@ -747,6 +765,7 @@ export const Studio: React.FC = () => {
   const [cmdMode, setCmdMode] = useState<'talimat' | 'disses'>('talimat');
   const [connOpen, setConnOpen] = useState(false);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState<'uygula' | 'markalar' | null>(null);
   const [regen, setRegen] = useState<RegenRequest | null>(null);
   const [marks, setMarks] = useState<Marks>({ in: null, out: null });
@@ -852,6 +871,9 @@ export const Studio: React.FC = () => {
         </button>
         <span className="muted save-state">{saving ? 'Kaydediliyor…' : 'Kaydedildi'}</span>
         <div className="spacer" />
+        <button className="icon-btn" onClick={() => setPipelineOpen(true)} title="Üretim hattı: üretim → Claude → kurgu → teslim; Premiere/Resolve XML" aria-label="Üretim hattı">
+          <Workflow size={18} />
+        </button>
         <button className="icon-btn" onClick={() => setConnOpen(true)} title="Ayarlar → Bağlantılar (Claude, ElevenLabs, Google Gemini…)" aria-label="Bağlantılar">
           <Settings size={18} />
         </button>
@@ -889,7 +911,7 @@ export const Studio: React.FC = () => {
           ))}
         </div>
         <div className="tab-body">
-          {leftTab === 'medya' ? <MediaBin /> : null}
+          {leftTab === 'medya' ? <MediaBin onSelect={(sel) => (setSelection(sel), openRight('secili'))} /> : null}
           {leftTab === 'transkript' ? <TranscriptPanel onSelect={setSelection} /> : null}
           {leftTab === 'luts' ? <LutPanel selection={selection} /> : null}
           {leftTab === 'referans' ? <ReferencePanel selection={selection} /> : null}
@@ -973,6 +995,7 @@ export const Studio: React.FC = () => {
         }}
       />
       {connOpen ? <ConnectionsModal onClose={() => setConnOpen(false)} /> : null}
+      {pipelineOpen ? <PipelineModal onClose={() => setPipelineOpen(false)} projectId={project.id} openConnections={() => (setPipelineOpen(false), setConnOpen(true))} openDeliver={() => (setPipelineOpen(false), setDeliveryOpen(true))} /> : null}
       {deliveryOpen ? <DeliveryModal onClose={() => setDeliveryOpen(false)} openConnections={() => (setDeliveryOpen(false), setConnOpen(true))} /> : null}
       {brandOpen === 'markalar' ? <BrandsModal onClose={() => setBrandOpen(null)} /> : null}
       {brandOpen === 'uygula' ? (

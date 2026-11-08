@@ -332,7 +332,7 @@ const main = async () => {
     for (let i = 0; i < 200 * 100; i++) if (i % 200 < 100) lpx.set([230, 20, 20, 255], i * 4);
     const logoPng = await sharpMod(lpx, { raw: { width: 200, height: 100, channels: 4 } }).png().toBuffer();
     await page.locator('[data-testid=logo-input]').setInputFiles([{ name: 'marka.png', mimeType: 'image/png', buffer: logoPng }]);
-    await page.waitForSelector('.tl-item.logo', { timeout: 60000 }).catch(async (e) => {
+    await page.waitForSelector('.tl-item.logo', { timeout: 60000 }).catch(async (e: Error) => {
       await page.screenshot({ path: path.join(work, 'logo-hata.png') });
       console.log('logo yok:', JSON.stringify((await api('GET', `/api/projects/${pid}`)).project.logos), await page.locator('.toast').allInnerTexts());
       throw e;

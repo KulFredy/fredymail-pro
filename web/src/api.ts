@@ -125,6 +125,8 @@ export const api = {
   deleteLut: (id: string) => req<{ luts: LutInfo[] }>('DELETE', `/api/luts/${encodeURIComponent(id)}`),
   jobs: () => req<Job[]>('GET', '/api/jobs'),
   createProject: (name: string, formats: { format: string; kind?: string }[], mode?: Editor) => req<ProjectState>('POST', '/api/projects', { name, formats, mode }),
+  exportXml: (pid: string, outputId?: string) => req<{ file: string; name: string; clips: number }>('POST', `/api/projects/${pid}/xml`, { outputId }),
+  shutdown: () => req<{ ok: boolean }>('POST', '/api/kapat'),
   pinProject: (id: string, pinned: boolean) => req<{ ok: boolean }>('PUT', `/api/projects/${id}/sabit`, { pinned }),
   projectOpened: (id: string, editor: Editor) => req<{ ok: boolean }>('POST', `/api/projects/${id}/acildi`, { editor }),
   mobileStatus: (projectId: string, since: string) => req<MobileStatus>('GET', `/api/mobile/durum?projectId=${encodeURIComponent(projectId)}&since=${encodeURIComponent(since)}`),

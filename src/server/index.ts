@@ -9,7 +9,7 @@ import QRCode from 'qrcode';
 import { z } from 'zod';
 import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { planCommand } from '../core/commands';
 import { AI_MODELS, DEFAULT_AI_MODEL, planWithClaude } from './ai';
 import { FORMATS, outputLabel } from '../core/formats';
@@ -24,7 +24,8 @@ import { Delivery } from './delivery';
 import { Publisher } from './publish';
 import { YouTube, YouTubeError } from './youtube';
 import { claudeMeta, localMeta } from './copywriter';
-import { DEFAULT_APPLY, brandPlan } from '../core/brand';
+import { DEFAULT_APPLY, brandPlan, slug } from '../core/brand';
+import { buildXmeml, type XmlAsset } from '../core/xmeml';
 import { Generator } from './generate';
 import { createSecrets } from './secrets';
 import { getTools } from '../media/proc';
@@ -76,6 +77,15 @@ export const createServer = async (home = defaultHome()) => {
   if (existsSync(webDist)) await app.register(fastifyStatic, { root: webDist, prefix: '/' });
 
   // ---------- Genel ----------
+  /** Uygulamayı kapat (yalnız bu Mac'ten; telefon/ağdan çağrılamaz) */
+  app.post('/api/kapat', async (req, reply) => {
+    const ip = req.socket.remoteAddress ?? '';
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip)) return reply.code(403).send({ error: 'Yalnız bu bilgisayardan kapatılabilir' });
+    setTimeout(() => {
+      void app.close().finally(() => process.exit(0));
+    }, 300);
+    return { ok: true };
+  });
   app.get('/api/health', async () => {
     const t = await getTools();
     const lan = lanAddress();
@@ -330,6 +340,25 @@ export const createServer = async (home = defaultHome()) => {
     const blank = applyOps(newProject('yeni', 'Yeni', new Date().toISOString()), [{ type: 'output.add', format: 'landscape', kind: 'video' }], store.opContext());
     const lutNames = Object.fromEntries((await svc.listLuts()).map((l) => [l.id, l.meta?.name ?? l.title]));
     return brandPlan(blank, brand, { productId: b.productId, campaign: b.campaign }, { ...DEFAULT_APPLY, ...b.options }, lutNames);
+  });
+  /** Premiere Pro / DaVinci Resolve'a aktarma: FCP 7 XML (kurgu iskeleti; orijinal dosyalara bağlı) */
+  app.post('/api/projects/:id/xml', async (req) => {
+    const { id } = req.params as { id: string };
+    const b = z.object({ outputId: z.string().optional() }).parse(req.body ?? {});
+    const project = await store.getProject(id);
+    const assets: Record<string, XmlAsset> = {};
+    for (const a of store.library.values()) {
+      // HEIC gibi kurgu programlarının açamadığı görsellerde dönüştürülmüş kopya
+      const heic = /\.(heic|heif)$/i.test(a.original);
+      const rel = heic ? (a.render ?? a.preview ?? a.original) : a.original;
+      assets[a.id] = { id: a.id, name: a.name, path: store.abs(rel), kind: a.kind, duration: a.duration, width: a.width, height: a.height, hasAudio: a.hasAudio };
+    }
+    const xml = buildXmeml(project, assets, b.outputId);
+    const dir = store.exportsDir(id);
+    await mkdir(dir, { recursive: true });
+    const name = `${slug(project.name)}_premiere-resolve.xml`;
+    await writeFile(path.join(dir, name), xml);
+    return { file: store.rel(path.join(dir, name)), name, clips: project.clips.length };
   });
   app.get('/api/projects/:id/kontrol', async (req) => delivery.checks((req.params as { id: string }).id));
   app.post('/api/projects/:id/paket', async (req) => {

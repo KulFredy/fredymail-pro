@@ -429,6 +429,20 @@ server.registerTool(
   },
 );
 
+server.registerTool(
+  'premiere_xml',
+  {
+    title: 'Premiere / Resolve XML',
+    description: 'Projenin kurgu iskeletini (V1 klipler, V2 üst iz, klip sesi, dış ses, müzik) Final Cut Pro 7 XML olarak dışa aktarır; Premiere Pro ve DaVinci Resolve açar. Renk/LUT, yazı, altyazı ve logo taşınmaz.',
+    inputSchema: { proje_id: z.string() },
+  },
+  async ({ proje_id }) => {
+    const r = await call('POST', `/api/projects/${proje_id}/xml`, {});
+    const health = await call('GET', '/api/health');
+    return text({ dosya: `${health.home}/${r.file}`, klip: r.clips, nasil: 'Premiere: Dosya → İçe aktar. Resolve: Dosya → İçe aktar → Zaman çizelgesi.' });
+  },
+);
+
 // ---------- Faz 7: YouTube'a doğrudan yayın ----------
 server.registerTool(
   'youtube_onizleme',

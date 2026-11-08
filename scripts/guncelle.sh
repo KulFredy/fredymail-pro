@@ -27,10 +27,19 @@ npm install --no-fund --no-audit
 npm run build:web
 
 echo
+# Mac uygulaması (tek tıkla açılış) yoksa oluştur; varsa simge ve başlatıcıyı tazele
+if [ "$(uname)" = "Darwin" ]; then
+  bash scripts/mac-uygulama.sh >/dev/null && echo "▸ Uygulama: ~/Applications/İçerik Fabrikası.app"
+fi
+if curl -sf -m 2 http://localhost:4747/api/health >/dev/null 2>&1; then
+  # Eski sürüm açıksa durdur: yeni sürüm bir sonraki açılışta başlar
+  curl -sf -m 3 -X POST http://localhost:4747/api/kapat >/dev/null 2>&1 || true
+  sleep 1
+fi
 if lsof -ti tcp:4747 >/dev/null 2>&1; then
-  echo "⚠ Uygulama şu an açık ve ESKİ sürümle çalışıyor."
-  echo "  Açık olan Terminal penceresinde Ctrl+C'ye basın, sonra: npm run fabrika"
-  echo "  Tarayıcıda sayfayı yenileyin (⌘R)."
+  echo "⚠ Uygulama hâlâ ESKİ sürümle açık (Terminal'den başlatılmış olabilir)."
+  echo "  O Terminal penceresinde Ctrl+C'ye basın, sonra İçerik Fabrikası uygulamasını açın."
 else
-  echo "Güncellendi. Başlatmak için: npm run fabrika"
+  echo "Güncellendi. Launchpad / Spotlight'tan “İçerik Fabrikası”nı açın"
+  echo "(ya da Terminal'den: npm run fabrika)."
 fi

@@ -27,6 +27,7 @@ Veri: `~/İçerik Fabrikası/` (`FABRIKA_HOME`): `markalar.json`, `teslim/<marka
 ## Komutlar
 ```
 npm run fabrika        # derle + başlat → http://localhost:4747
+bash scripts/mac-uygulama.sh  # ~/Applications/İçerik Fabrikası.app (tek tıkla açılış)
 npm run dev            # API 4747 + Vite 5173
 npm test               # vitest (core, komutlar)
 npm run typecheck
@@ -34,6 +35,7 @@ npm run e2e            # Faz 1 kabul testi (gerçek render + ölçüm)
 npm run e2e:studio     # Faz 2 kabul testi
 npm run e2e:marka      # Faz 6 (marka → kanal paketi)
 npm run e2e:yayin      # Faz 7 (YouTube, sahte Google)
+npm run e2e:anasayfa   # ana sayfa, telefon hedefi, yardım, üretim hattı/XML
 ```
 
 ## Bulut oturumunda (Linux konteyner) test

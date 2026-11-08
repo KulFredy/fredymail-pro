@@ -8,6 +8,8 @@
     "fabrika": "npm run build:web && tsx src/server/index.ts",
     "dev": "concurrently -k -n api,web \"tsx watch src/server/index.ts\" \"vite --config web/vite.config.ts\"",
     "build:web": "vite build --config web/vite.config.ts",
+    "sunucu": "tsx src/server/index.ts",
+    "uygulama": "bash scripts/mac-uygulama.sh",
     "mcp": "tsx src/mcp/server.ts",
     "test": "vitest run",
     "e2e": "tsx scripts/e2e.ts",

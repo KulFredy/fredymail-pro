@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Plus, Scissors, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
+import { Captions, Film, Hexagon, Layers, Loader2, Mic, Music2, Plus, Scissors, Type, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
 import { logoSpan } from '../../src/core/graphics';
 import { captionPages, edgeGain, formatTime, layoutClips, timelineWords, toFrames, totalDuration } from '../../src/core/timeline';
@@ -66,7 +66,14 @@ const Wave: React.FC<{ file: string | null | undefined; from: number; to: number
   );
 };
 
-const LABEL_W = 132;
+const LABEL_W = 172;
+/** Kurgu programlarındaki gibi SMPTE zaman kodu: SS:DD:SN:KR (kare) */
+export const smpte = (sec: number) => {
+  const f = Math.max(0, Math.round(sec * FPS));
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(Math.floor(f / (FPS * 3600)))}:${p(Math.floor(f / (FPS * 60)) % 60)}:${p(Math.floor(f / FPS) % 60)}:${p(f % FPS)}`;
+};
+const LANE_ICON = { v1: Film, v2: Layers, a2: Mic, a1: Music2, c: Captions, t: Type, g: Hexagon } as const;
 
 /**
  * Çok izli zaman çizelgesi: cetvel, oynatma imleci, görüntü / üst iz / dış ses / müzik / altyazı / yazı izleri.
@@ -80,6 +87,18 @@ const LANE_ACTION: Record<string, string> = {
   c: 'Altyazıyı aç / kapat (videoda görünür)',
   t: 'Oynatma imlecine yazı ekle',
   g: 'Logo ekle (saydam PNG veya SVG)',
+};
+
+/** İz başlığı: ikon + ad + kod (CapCut/Premiere karışımı) */
+const LaneHead: React.FC<{ l: { key: string; code: string; label: string } }> = ({ l }) => {
+  const Icon = LANE_ICON[l.key as keyof typeof LANE_ICON] ?? Film;
+  return (
+    <>
+      <Icon size={15} className="trk-ico" aria-hidden />
+      <span className="trk-name">{l.label}</span>
+      <span className="trk-code">{l.code}</span>
+    </>
+  );
 };
 
 export const Timeline: React.FC<{
@@ -167,8 +186,8 @@ export const Timeline: React.FC<{
   return (
     <div className={`timeline ${compact ? 'compact' : ''}`} ref={wrap}>
       <div className="tl-head">
-        <b className="mono">{formatTime(t)}</b>
-        <span className="muted mono">/ {formatTime(total)}</span>
+        <b className="mono tl-tc" title="Zaman kodu (saat:dakika:saniye:kare)">{smpte(t)}</b>
+        <span className="muted mono">/ {smpte(total)}</span>
         {marks && (marks.in !== null || marks.out !== null) ? (
           <span className="tl-marks-info">
             <span className="mono">Giriş {marks.in !== null ? formatTime(marks.in) : '—'}</span>
@@ -199,14 +218,12 @@ export const Timeline: React.FC<{
           {lanes.filter((l) => l.show).map((l) =>
             onLaneAction ? (
               <button key={l.key} className={`tl-label lane-${l.key} trk-${l.kind} action`} title={LANE_ACTION[l.key]} onClick={() => onLaneAction(l.key)}>
-                <span className="trk-code">{l.code}</span>
-                <span className="trk-name">{l.label}</span>
-                <Plus size={12} />
+                <LaneHead l={l} />
+                <Plus size={12} className="trk-add" />
               </button>
             ) : (
               <div key={l.key} className={`tl-label lane-${l.key} trk-${l.kind}`}>
-                <span className="trk-code">{l.code}</span>
-                <span className="trk-name">{l.label}</span>
+                <LaneHead l={l} />
               </div>
             ),
           )}
@@ -225,7 +242,7 @@ export const Timeline: React.FC<{
             >
               {ticks.map((s) => (
                 <span key={s} className="tick" style={{ left: x(s) }}>
-                  {Number.isInteger(s) ? formatTime(s).replace(/\.\d$/, '') : ''}
+                  {Number.isInteger(s) ? `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : ''}
                 </span>
               ))}
             </div>

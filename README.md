@@ -26,6 +26,24 @@ Tarayıcıda **http://localhost:4747** açılır. Veriler `~/İçerik Fabrikası
 
 Çalışma anında hiçbir hesap, abonelik veya API ücreti gerekmez. Konuşma çözümü (Whisper), renk, render ve doğrulama tamamen Mac'te çalışır.
 
+## Tek tıkla uygulama (Mac)
+
+Bir kez çalıştırın (güncelleme betiği de bunu kendiliğinden yapar):
+
+```bash
+bash scripts/mac-uygulama.sh
+```
+
+`~/Applications/İçerik Fabrikası.app` oluşur: Launchpad, Spotlight (⌘ Boşluk → “İçerik”) veya Dock'tan açılır. Tıklayınca sunucu arka planda kendiliğinden başlar ve uygulama adres çubuğu olmayan ayrı bir pencerede açılır (Chrome/Edge/Brave varsa “uygulama modu”, yoksa varsayılan tarayıcı). Terminal gerekmez. Kapatmak: ana sayfada sağ üstteki **⏻** (yalnız bu Mac'ten çalışır). Kayıt: `~/Library/Logs/IcerikFabrikasi.log`. Proje klasörünü taşırsanız betiği yeniden çalıştırın. Chrome'da adres çubuğundaki “Yükle” simgesiyle ayrıca kendi Dock simgesi olan bir uygulama olarak da kurulabilir.
+
+## Üretim hattı ve dış kurgu programları
+
+Ana sayfada veya Stüdyo üst çubuğunda **Üretim hattı**: 01 Media Generator (ElevenLabs, Gemini; Higgsfield/Firefly/Envato siteden indirip Media'ya) → 02 Engine (Claude: uygulama içi ve Claude Code/Desktop MCP) → 03 Editor (Stüdyo; **Premiere / Resolve XML**) → 04 Deliver. Her adımda bağlantı durumu görünür.
+
+- **Premiere Pro / DaVinci Resolve:** “Premiere / Resolve XML” kurgu iskeletini (V1 klipler giriş/çıkışıyla, V2 üst iz, klip sesi, dış ses, müzik) Final Cut Pro 7 XML olarak verir; dosyalar orijinal yollarına bağlıdır. Premiere: Dosya → İçe aktar. Resolve: Dosya → İçe aktar → Zaman çizelgesi. Renk/LUT, yazı, altyazı ve logo taşınmaz (altyazı Deliver'da .srt olarak).
+- **CapCut:** proje içe aktarmanın resmi yolu yok; Deliver'daki video ve .srt dosyası kullanılır.
+- **Claude Code skill:** `.claude/skills/icerik-fabrikasi` Claude Code'a bu uygulamayı MCP araçlarıyla nasıl yöneteceğini öğretir (onaysız yükleme/ücretli iş yapmaz).
+
 ## Ana sayfa
 
 - **Son projeye dön:** son açtığınız proje (kapak, ad, Hızlı Edit/Stüdyo, çıktı profilleri, son düzenleme). **Devam et** onu en son kullandığınız düzenleyicide açar.
@@ -132,7 +150,7 @@ Temel kurgu hiçbir bağlantı gerektirmez. **Ayarlar → Bağlantılar** (ana e
 - **Kanal paketi** (Stüdyo üst çubuğu): her kanal için yayın metni alanları (karakter sayacıyla: YouTube başlık 100, Instagram açıklama 2200 + en çok 30 etiket, reklam başlığı ~40 / metni ~125 önerilen), kapak karesi ve başlığı, teslim öncesi kontrol. **Metinleri yaz**: Claude bağlıysa marka tonu, ürün notu ve konuşmadan yazar; değilse internetsiz şablon.
 - **Teslim öncesi kontrol:** ürün/marka adı yazımı (“Kahvemz” → “Kahvemiz”?; Türkçe ekler sorun sayılmaz), onaylanmamış üretilmiş görsel, marka logosu, kanal süre sınırı, güvenli alan ve siyah bant, altyazı (kapalı/emin olunamayan kelimeler), müzik–konuşma dengesi, ses yüksekliği (hedef −14 LUFS ±2, tepe ≤ −1 dBTP; paketten sonra ölçülür), metin sınırları, kapak. Düzeltilebilenlerde tek tıkla düzeltme düğmesi var.
 - **Paketi hazırla:** seçilen kanallar render edilir; klasöre `marka_urun_kampanya_kanal.mp4`, kapaklar, `.srt/.vtt`, `metinler.txt` (kopyala-yapıştır), `kontrol.txt`, `paket.json` ve hepsinin `.zip`'i yazılır (`projeler/<id>/exports/paket_…`). **Onayla** ile paket `~/İçerik Fabrikası/teslim/<marka>/<ürün>/<kampanya>/` altına kopyalanır. Orijinaller (kütüphane), varyantlar (exports) ve onaylı sonuçlar ayrı kalır.
-- Claude Code (MCP): `marka_listele`, `marka_uygula`, `kanal_ekle`, `teslim_kontrol`, `yayin_metni_yaz`, `kanal_paketi`, `kanal_paketi_onayla`.
+- Claude Code (MCP): `premiere_xml`, `marka_listele`, `marka_uygula`, `kanal_ekle`, `teslim_kontrol`, `yayin_metni_yaz`, `kanal_paketi`, `kanal_paketi_onayla`.
 
 Platform süre/metin sınırları yayımlanan değerlerden alınmıştır ve değişebilir; güvenli alanlar yaklaşıktır.
 
