@@ -188,3 +188,33 @@ describe('Türkçe komutlar', () => {
     expect(fill.outputs[0].framing[fill.clips[0].id]).toMatchObject({ mode: 'fill', zoom: 1 });
   });
 });
+
+describe('orijinale dön', () => {
+  it('kesilmiş, renkli, kadrajlı projeyi orijinaline döndürür; dış ses ve altyazı düzeltmesi kalır; “geri al” ayrı kalır', () => {
+    let p = base();
+    const first = p.clips[0];
+    p = applyOps(p, [
+      { type: 'timeline.deleteRange', start: 2, end: 4 },
+      { type: 'look.set', look: { preset: 'sicak', lut: 'kullanici:x.cube' } },
+      { type: 'output.setFraming', outputId: p.outputs[0].id, clipId: first.id, framing: { x: 0.2 } },
+      { type: 'captions.editWord', key: 'k:1', text: 'DÜZELTME' },
+    ], ctx);
+    expect(p.clips.length).toBe(2);
+    for (const cmd of ['orijinal dosyaya dön, yapılan değişiklikleri sil', 'Orijinal haline dön', 'tüm değişiklikleri geri al', 'projeyi sıfırla']) {
+      const r = plan(p, cmd);
+      expect(r.understood, cmd).toBe(true);
+      expect(r.action, cmd).toBeUndefined();
+      expect(r.ops, cmd).toEqual([{ type: 'project.restoreOriginal' }]);
+    }
+    const q = applyOps(p, plan(p, 'orijinal dosyaya dön').ops, ctx);
+    expect(q.clips).toHaveLength(1);
+    expect(q.clips[0]).toMatchObject({ in: 0, out: ctx.assets[first.assetId].duration, look: null });
+    expect(q.look.lut).toBeNull();
+    expect(q.look.preset).not.toBe('sicak');
+    expect(q.outputs[0].framing).toEqual({});
+    expect(q.captions.edits['k:1']).toBe('DÜZELTME');
+    // “geri al” hâlâ son değişikliği geri alır
+    expect(plan(p, 'geri al').action).toBe('undo');
+    expect(plan(p, 'rengi sıfırla').ops[0]?.type).not.toBe('project.restoreOriginal');
+  });
+});

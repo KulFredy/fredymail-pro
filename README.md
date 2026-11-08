@@ -71,6 +71,7 @@ Anlaşılan komutlar (örnekler):
 | Altyazıları biraz yukarı kaydır · altyazıyı ortaya al · altyazıları kaydır | Altyazı konumu (yön yoksa seçenek sunar) |
 | Görüntüyü %50 küçült · videoyu büyüt · sağ alt köşeye al · ortala · ekranı doldur · tüm klipleri sığdır | Kadraj: boyut (%10–%400) ve yer; küçülünce arkası bulanık dolar |
 | Geri al · yinele | Son değişikliği geri alır / yeniden uygular |
+| Orijinal haline dön · tüm değişiklikleri sil · projeyi sıfırla | Kesimler geri gelir, renk/LUT ve kadraj sıfırlanır; dış ses, müzik, yazılar ve altyazı düzeltmeleri kalır. Önce ne değişeceği gösterilir; ⌘Z ile geri alınır |
 | Müziği konuşurken kıs · müziği arka planda kısık yap · müziği kaldır | Müzik modu |
 
 Komut anlayıcı önce kendi kurallarıyla, tamamen yerel ve ücretsiz çalışır. Yön belirtmediğiniz komutlarda (ör. "altyazıları kaydır") seçenek sunar. "Geri al" / "yinele" de sesle çalışır.

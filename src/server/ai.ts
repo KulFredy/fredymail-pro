@@ -31,6 +31,7 @@ const OPS_DOC = `İşlemler (JSON). Zamanlar saniye. "timeline" = zaman çizelge
 - {"type":"captions.set","enabled":bool,"style":{"color":"#RRGGBB","highlight":"#RRGGBB","size":24..140,"maxLines":1..3,"uppercase":bool,"box":bool,"outline":bool,"position":"bottom|middle|top","offset":-600..600}}  offset: piksel, + yukarı
 - {"type":"captions.editWord","key":"assetId:index","text":"yeni" veya ""}
 - {"type":"text.add","text":{"text":"...","start":T,"end":T,"y":0..1,"size":20..220,"style":"shadow|box|outline"}} · {"type":"text.update","id":ID,"patch":{...}} · {"type":"text.remove","id":ID}
+- {"type":"project.restoreOriginal"} (orijinale dön: kesimler geri gelir, renk/LUT ve kadraj sıfırlanır; dış ses, müzik, yazı, altyazı kalır)
 - {"type":"voice.update","id":ID,"patch":{"at":T,"gainDb":dB,"fadeIn":sn,"fadeOut":sn}} · {"type":"voice.remove","id":ID}`;
 
 const SYSTEM = `Sen İçerik Fabrikası video kurgu uygulamasının komut yorumlayıcısısın. Kullanıcı Türkçe konuşarak veya yazarak kurgu talimatı verir. Görevin talimatı aşağıdaki işlemlere çevirip "kurgu_plani" aracını tam bir kez çağırmaktır. Metin yanıt yazma.

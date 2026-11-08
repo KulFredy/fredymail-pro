@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { FORMATS } from './formats';
 import { layoutClips } from './timeline';
 import {
+  DEFAULT_LOOK,
   AdjustSchema,
   CaptionStyleSchema,
   ClipSchema,
@@ -46,6 +47,8 @@ export const OpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('project.rename'), name: z.string().min(1) }),
   z.object({ type: z.literal('project.setDescription'), text: z.string() }),
   z.object({ type: z.literal('project.addNote'), text: z.string().min(1) }),
+  /** Orijinale dön: kesimler geri gelir (her kaynak bir kez, tam uzunlukta), renk/LUT ve kadraj sıfırlanır; dış ses, müzik, yazı, altyazı korunur */
+  z.object({ type: z.literal('project.restoreOriginal') }),
   z.object({
     type: z.literal('clips.add'),
     assetIds: z.array(z.string()).min(1),
@@ -149,6 +152,20 @@ export const applyOp = (project: Project, rawOp: OpInput, ctx: OpContext): Proje
     case 'project.addNote':
       p.notes = [...p.notes, op.text];
       break;
+    case 'project.restoreOriginal': {
+      const order: string[] = [];
+      for (const c of p.clips) if (!order.includes(c.assetId) && ctx.assets[c.assetId] && ctx.assets[c.assetId].kind !== 'audio') order.push(c.assetId);
+      p.clips = order.map((assetId) => {
+        const a = ctx.assets[assetId];
+        const dur = a.kind === 'image' ? (ctx.photoDuration ?? 3) : a.duration;
+        return ClipSchema.parse({ id: ctx.newId('c'), assetId, in: 0, out: Math.max(0.1, dur) });
+      });
+      p.look = structuredClone(DEFAULT_LOOK);
+      p.outputs = p.outputs.map((o) => ({ ...o, framing: {}, still: null }));
+      p = ensureStills(p, ctx);
+      p.ui.selectedClipId = p.clips[0]?.id ?? null;
+      break;
+    }
     case 'clips.add': {
       const newClips = op.assetIds.map((assetId) => {
         const a = ctx.assets[assetId];
@@ -395,6 +412,7 @@ export const describeOp = (op: OpInput): string => {
     case 'project.rename': return 'Proje adı değişti';
     case 'project.setDescription': return 'Açıklama düzenlendi';
     case 'project.addNote': return 'Proje notu eklendi';
+    case 'project.restoreOriginal': return 'Orijinal haline döndü';
     case 'clips.add': return `${op.assetIds.length} klip eklendi`;
     case 'clips.remove': return 'Klip çıkarıldı';
     case 'clips.reorder': return 'Klip sırası değişti';

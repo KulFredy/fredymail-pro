@@ -347,6 +347,23 @@ const ruleSplit = (_raw: string, t: string, ctx: CommandContext): Plan | null =>
   };
 };
 
+/** “Orijinal dosyaya dön, yapılan değişiklikleri sil” (geri al'dan önce bakılır) */
+const ruleRestore = (_raw: string, t: string, ctx: CommandContext): Plan | null => {
+  if (
+    !/(orijinal|aslına|asıl haline|ilk haline|en baştaki haline|baştan başla|her şeyi sıfırla|projeyi sıfırla)/.test(t) &&
+    !/(tüm|bütün|yapılan|yaptığım) (değişiklikleri|düzenlemeleri|ayarları) (sil|geri al|kaldır|sıfırla|iptal et)/.test(t)
+  )
+    return null;
+  const total = ctx.project.clips.reduce((s, c) => s + (c.out - c.in), 0);
+  return {
+    understood: true,
+    summary: 'Proje orijinal haline dönecek: kesimler geri gelir, renk/LUT ve kadraj sıfırlanır. Dış ses, müzik, yazılar ve altyazı düzeltmeleri korunur.',
+    ops: [{ type: 'project.restoreOriginal' }],
+    ranges: total > 0 ? [{ start: 0, end: total, kind: 'change' }] : [],
+    candidates: [],
+  };
+};
+
 const ruleUndo = (_raw: string, t: string): Plan | null => {
   if (/^(geri al|son (işlemi|değişikliği) geri al|bunu geri al|vazgeç|iptal et)$/.test(t) || /(geri al)$/.test(t))
     return { understood: true, summary: 'Son değişiklik geri alınacak.', ops: [], ranges: [], candidates: [], action: 'undo' };
@@ -449,7 +466,7 @@ const ruleScale = (_raw: string, t: string, ctx: CommandContext): Plan | null =>
   };
 };
 
-const RULES = [ruleUndo, ruleScale, ruleCaptionMove, ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
+const RULES = [ruleRestore, ruleUndo, ruleScale, ruleCaptionMove, ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
 
 export const planCommand = (raw: string, ctx: CommandContext): Plan => {
   const t = normalizeTr(raw);
@@ -472,4 +489,5 @@ export const COMMAND_EXAMPLES = [
   'Bu sefer siyah beyaz yap',
   'Bundan sonra altyazılarımı beyaz ve iki satır yap',
   'Müziği konuşurken kıs',
+  'Orijinal haline dön',
 ];

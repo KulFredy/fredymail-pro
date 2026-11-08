@@ -88,6 +88,28 @@ export const describeImpact = (project: Project, assets: Record<string, AssetRef
       case 'output.update':
       case 'output.remove':
         return { label, clips: [], range: null, scope: 'output', scopeLabel: `Yalnız ${outputLabel(project, op.outputId)} çıktısı` };
+      case 'project.restoreOriginal': {
+        const seen = new Set<string>();
+        let after = 0;
+        for (const c of project.clips) {
+          const a = assets[c.assetId];
+          if (seen.has(c.assetId) || !a || a.kind === 'audio') continue;
+          seen.add(c.assetId);
+          after += a.kind === 'image' ? 3 : a.duration;
+        }
+        const now = layout.length ? layout[layout.length - 1].end : 0;
+        return {
+          label,
+          clips: [],
+          range: null,
+          ...whole,
+          warnings: [
+            `Süre ${now.toFixed(1)} → yaklaşık ${after.toFixed(1)} sn (kesimler geri gelir)`,
+            'Renk, LUT ve bütün çıktıların kadrajı sıfırlanır',
+            'Dış ses, müzik, yazılar ve altyazı düzeltmeleri korunur · ⌘Z ile geri alınır',
+          ],
+        };
+      }
       case 'captions.set':
       case 'captions.editWord':
         return { label, clips: [], range: null, ...track('Altyazı') };
