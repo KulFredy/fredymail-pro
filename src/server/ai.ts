@@ -32,7 +32,10 @@ const OPS_DOC = `İşlemler (JSON). Zamanlar saniye. "timeline" = zaman çizelge
 - {"type":"music.set","music":{"mode":"bed|duck|fixed","gainDb":dB,"bedDb":dB,"duckDb":dB,"start":K}} veya {"type":"music.set","music":null}
 - {"type":"captions.set","enabled":bool,"style":{"color":"#RRGGBB","highlight":"#RRGGBB","size":24..140,"maxLines":1..3,"uppercase":bool,"box":bool,"outline":bool,"position":"bottom|middle|top","offset":-600..600}}  offset: piksel, + yukarı
 - {"type":"captions.editWord","key":"assetId:index","text":"yeni" veya ""}
-- {"type":"text.add","text":{"text":"...","start":T,"end":T,"y":0..1,"size":20..220,"style":"shadow|box|outline"}} · {"type":"text.update","id":ID,"patch":{...}} · {"type":"text.remove","id":ID}
+- {"type":"text.add","text":{"text":"...","start":T,"end":T,"anchor":"tl|tc|tr|ml|mc|mr|bl|bc|br","size":20..220,"style":"shadow|box|outline","anim":"yok|solma|yukari|buyume"}} · {"type":"text.update","id":ID,"patch":{...}} · {"type":"text.remove","id":ID}
+- Konum (anchor): t/m/b = üst/orta/alt, l/c/r = sol/orta/sağ; her oranın Instagram güvenli alanı içinde hesaplanır. Serbest konum için anchor:null ve x,y (0..1).
+- {"type":"logo.add","assetId":ID,"logo":{"anchor":"tr","size":0.03..0.9,"opacity":0..1,"anim":"yok|solma|yukari|buyume","full":true}} (logo: görsel kaynak; full=false ise start/end) · {"type":"logo.update","id":ID,"patch":{...aynı alanlar}} · {"type":"logo.remove","id":ID}
+- Yalnız bir oranda farklı yerleşim: {"type":"element.place","kind":"text|logo","id":ID,"outputId":ID,"place":{"anchor":"bl","x":0.5,"y":0.5,"scale":1}} (place:null → genel yerleşime döner)
 - {"type":"project.restoreOriginal"} (orijinale dön: kesimler geri gelir, renk/LUT ve kadraj sıfırlanır; dış ses, müzik, yazı, altyazı kalır)
 - {"type":"voice.update","id":ID,"patch":{"at":T,"gainDb":dB,"fadeIn":sn,"fadeOut":sn}} · {"type":"voice.remove","id":ID}`;
 
@@ -101,7 +104,12 @@ export const buildContext = (project: Project, assets: Record<string, AssetRef>,
     })),
     ust_iz: project.overlays.map((o) => ({ id: o.id, kaynak: assets[o.assetId]?.name, at: o.at, sure: o.out - o.in })),
     dis_ses: project.voice.map((v) => ({ id: v.id, at: v.at, sure: v.out - v.in })),
-    yazilar: project.texts.map((t) => ({ id: t.id, metin: t.text, start: t.start, end: t.end })),
+    yazilar: project.texts.map((t) => ({ id: t.id, metin: t.text, start: t.start, end: t.end, konum: t.anchor ?? `serbest ${t.x.toFixed(2)},${t.y.toFixed(2)}`, boyut: t.size, ozel_oranlar: Object.keys(t.placements) })),
+    logolar: project.logos.map((l) => ({ id: l.id, kaynak: assets[l.assetId]?.name, konum: l.anchor ?? `serbest ${l.x.toFixed(2)},${l.y.toFixed(2)}`, boyut: l.size, saydamlik: l.opacity, tum_video: l.full, ozel_oranlar: Object.keys(l.placements) })),
+    gorseller: Object.values(assets)
+      .filter((a) => a.kind === 'image')
+      .slice(0, 20)
+      .map((a) => ({ id: a.id, ad: a.name, saydam: !!a.alpha })),
     muzik: project.music ? { mod: project.music.mode, seviye_db: project.music.gainDb } : null,
     renk: { gorunum: project.look.preset, yogunluk: project.look.intensity, lut: project.look.lut, lut_yogunluk: project.look.lutIntensity },
     /** Kullanıcının LUT kütüphanesi (look.lut olarak id verilir) */

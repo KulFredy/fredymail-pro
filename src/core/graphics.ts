@@ -106,7 +106,9 @@ const overflow = (b: Box, r: Rect) => {
   if (b.cx + b.w / 2 > r.right + 1) sides.push('sağ');
   return sides;
 };
-const ZONE: Record<string, string> = { üst: 'Instagram üst bilgisinin', alt: 'yanıt alanının', sol: 'sol kenarın', sağ: 'sağ kenarın' };
+/** Dikey (Story/Reel) oranlarda üstte/altta Instagram arayüzü var; diğerlerinde yalnız kenar payı */
+const zoneText = (side: string, vertical: boolean) =>
+  vertical && side === 'üst' ? 'Instagram üst bilgisinin altında kalıyor' : vertical && side === 'alt' ? 'yanıt alanının altında kalıyor' : `${side} kenara çok yakın`;
 
 /** Hangi yazı/logo hangi çıktıda güvenli alanın dışına taşıyor? */
 export const safeAreaIssues = (project: Project, assets: Record<string, AssetRef>, onlyOutputId?: string): SafeIssue[] => {
@@ -117,7 +119,8 @@ export const safeAreaIssues = (project: Project, assets: Record<string, AssetRef
     const label = `${FORMATS[o.format].label} ${FORMATS[o.format].ratio}`;
     const push = (kind: 'text' | 'logo', id: string, name: string, b: Box) => {
       const s = overflow(b, r);
-      if (s.length) out.push({ outputId: o.id, outputLabel: label, kind, id, name, text: `${label}: “${name}” ${s.map((x) => ZONE[x]).join(' ve ')} altında kalıyor` });
+      const vertical = o.format === 'story' || o.format === 'reel';
+      if (s.length) out.push({ outputId: o.id, outputLabel: label, kind, id, name, text: `${label}: “${name}” ${s.map((x) => zoneText(x, vertical)).join(', ')}` });
     };
     for (const t of project.texts) push('text', t.id, t.text.slice(0, 24) || 'yazı', textBox(t, o));
     if (o.kind === 'video' || o.kind === 'image')

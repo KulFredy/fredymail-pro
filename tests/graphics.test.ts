@@ -81,3 +81,12 @@ describe('logo ve yerleşim', () => {
     expect(animAt('yok', 0, 90, 30)).toEqual({ opacity: 1, dy: 0, scale: 1 });
   });
 });
+
+describe('uyarı metni orana göre', () => {
+  it('Story: Instagram alanı · yatay: kenar payı', () => {
+    const p = applyOps(base(), [{ type: 'text.add', text: { text: 'Üstte', start: 0, end: 2, y: 0.02 } }], ctx);
+    const texts = safeAreaIssues(p, refs).map((i) => i.text);
+    expect(texts.find((t) => t.startsWith('Story'))).toMatch(/Instagram üst bilgisinin altında kalıyor/);
+    expect(texts.find((t) => t.startsWith('Yatay'))).toMatch(/üst kenara çok yakın/);
+  });
+});

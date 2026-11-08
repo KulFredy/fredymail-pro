@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, Scissors, X as XIcon, ZoomIn, ZoomOut } from 'lucide-react';
 import { FPS } from '../../src/core/schema';
+import { logoSpan } from '../../src/core/graphics';
 import { captionPages, edgeGain, formatTime, layoutClips, timelineWords, toFrames, totalDuration } from '../../src/core/timeline';
 import { fileHref } from './api';
 import { useApp, useProject } from './state';
 
-export type Selection = { kind: 'clip' | 'overlay' | 'voice' | 'text'; id: string } | null;
+export type Selection = { kind: 'clip' | 'overlay' | 'voice' | 'text' | 'logo'; id: string } | null;
 /** Giriş/çıkış işaretleri (I / O tuşları): kare hassasiyetinde aralık */
 export type Marks = { in: number | null; out: number | null };
 
@@ -78,6 +79,7 @@ const LANE_ACTION: Record<string, string> = {
   a1: 'Müzik ekle',
   c: 'Altyazıyı aç / kapat (videoda görünür)',
   t: 'Oynatma imlecine yazı ekle',
+  g: 'Logo ekle (saydam PNG veya SVG)',
 };
 
 export const Timeline: React.FC<{
@@ -149,6 +151,7 @@ export const Timeline: React.FC<{
     // Stüdyo'da altyazı izi kapalıyken de görünür kalır: yoksa “+” ile kapatılan altyazı geri açılamaz
     { key: 'c', label: 'Altyazı', show: compact ? project.captions.enabled && pages.length > 0 : true },
     { key: 't', label: 'Yazı', show: !compact || project.texts.length > 0 },
+    { key: 'g', label: 'Logo', show: !compact || project.logos.length > 0 },
   ];
 
   if (!project.clips.length)
@@ -205,7 +208,7 @@ export const Timeline: React.FC<{
             ),
           )}
         </div>
-        <div className="tl-scroll">
+        <div className="tl-scroll" onScroll={(e) => { if (e.currentTarget.scrollTop) e.currentTarget.scrollTop = 0; }}>
           <div className="tl-content" style={{ width: contentW }}>
             <div
               className="tl-ruler"
@@ -320,16 +323,34 @@ export const Timeline: React.FC<{
                                 <span className="tl-name">{p.lines.flat().map((w) => w.text).join(' ')}</span>
                               </div>
                             ))
-                          : project.texts.map((tx) => (
-                              <div
-                                key={tx.id}
-                                className={`tl-item text ${selection?.kind === 'text' && selection.id === tx.id ? 'sel' : ''}`}
-                                style={{ left: x(tx.start), width: Math.max(2, x(tx.end - tx.start) - 1) }}
-                                onClick={() => select({ kind: 'text', id: tx.id })}
-                              >
-                                <span className="tl-name">T {tx.text}</span>
-                              </div>
-                            ))}
+                          : l.key === 'g'
+                            ? project.logos.map((lg) => {
+                                const span = logoSpan(lg, project);
+                                const a = library.get(lg.assetId);
+                                return (
+                                  <div
+                                    key={lg.id}
+                                    data-logo={lg.id}
+                                    className={`tl-item logo ${selection?.kind === 'logo' && selection.id === lg.id ? 'sel' : ''}`}
+                                    style={{ left: x(span.start), width: Math.max(2, x(span.end - span.start) - 1) }}
+                                    onClick={() => select({ kind: 'logo', id: lg.id })}
+                                    title={`${a?.name ?? 'logo'}${lg.full ? ' · videonun tamamı' : ''}`}
+                                  >
+                                    {a?.poster ? <img className="tl-logo-thumb" src={fileHref(a.poster)} alt="" /> : null}
+                                    <span className="tl-name">{a?.name ?? 'Logo'}</span>
+                                  </div>
+                                );
+                              })
+                            : project.texts.map((tx) => (
+                                <div
+                                  key={tx.id}
+                                  className={`tl-item text ${selection?.kind === 'text' && selection.id === tx.id ? 'sel' : ''}`}
+                                  style={{ left: x(tx.start), width: Math.max(2, x(tx.end - tx.start) - 1) }}
+                                  onClick={() => select({ kind: 'text', id: tx.id })}
+                                >
+                                  <span className="tl-name">T {tx.text}</span>
+                                </div>
+                              ))}
               </div>
             ))}
 

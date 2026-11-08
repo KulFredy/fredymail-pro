@@ -7,10 +7,12 @@ import { useApp, useProject } from '../state';
 import { Progress, Section, Segmented, Toggle, fmtBytes } from '../ui';
 import { RESOLUTION_LABELS, renderSize } from '../../../src/core/formats';
 import { RESOLUTIONS } from '../../../src/core/schema';
+import { safeAreaIssues } from '../../../src/core/graphics';
 
 export const ExportStep: React.FC = () => {
-  const { project, apply } = useProject();
+  const { project, apply, refs } = useProject();
   const { jobs, library, toast, onExportEvent } = useApp();
+  const issues = safeAreaIssues(project, refs);
   const [exports, setExports] = useState<ExportEntry[]>([]);
   const [versions, setVersions] = useState<Version[]>([]);
   const [noMusic, setNoMusic] = useState<Record<string, boolean>>({});
@@ -47,6 +49,13 @@ export const ExportStep: React.FC = () => {
         const list = exports.filter((e) => e.outputId === o.id).slice(0, 4);
         return (
           <Section key={o.id} title={`${outputLabel(o.format, o.kind)} · ${RESOLUTION_LABELS[o.resolution ?? '1080']}`}>
+            {issues
+              .filter((i) => i.outputId === o.id)
+              .map((i) => (
+                <small key={i.kind + i.id} className="impact-warn">
+                  ⚠ {i.text} — Stüdyo'da öğeyi seçip “Güvenli alana al”
+                </small>
+              ))}
             <div className="row-wrap">
               <Segmented
                 size="sm"

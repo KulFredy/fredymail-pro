@@ -218,3 +218,19 @@ describe('orijinale dön', () => {
     expect(plan(p, 'rengi sıfırla').ops[0]?.type).not.toBe('project.restoreOriginal');
   });
 });
+
+describe('logo komutları', () => {
+  it('sol alta al, küçült, saydam yap, kaldır; logo yoksa yol gösterir', () => {
+    const ctxL = { ...ctx, assets: { ...ctx.assets, lg: { kind: 'image' as const, duration: 0, width: 400, height: 200 } } };
+    let p = base();
+    expect(plan(p, 'logoyu sol alta al').understood).toBe(false);
+    p = applyOps(p, [{ type: 'logo.add', assetId: 'lg' }], ctxL);
+    const r1 = plan(p, 'logoyu sol alta al');
+    expect(r1.ops).toEqual([{ type: 'logo.update', id: p.logos[0].id, patch: { anchor: 'bl' } }]);
+    expect(r1.summary).toMatch(/sol alt/);
+    expect(plan(p, 'logoyu biraz küçült').ops[0]).toMatchObject({ patch: { size: 0.135 } });
+    expect(plan(p, 'logoyu biraz saydam yap').ops[0]).toMatchObject({ patch: { opacity: 0.6 } });
+    expect(plan(p, 'logoyu ortala').ops[0]).toMatchObject({ patch: { anchor: 'mc' } });
+    expect(plan(p, 'logoyu kaldır').ops[0]).toMatchObject({ type: 'logo.remove' });
+  });
+});

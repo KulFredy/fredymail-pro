@@ -15,6 +15,7 @@ import { ExportStep } from './steps/ExportStep';
 import { Timeline, type Marks, type Selection } from './Timeline';
 import { TranscriptPanel } from './TranscriptPanel';
 import { LutPanel } from './LutPanel';
+import { LogoInspector, TextInspector } from './ElementInspector';
 import { ReferencePanel } from './ReferencePanel';
 import { Modal, Segmented, Slider, fmtDb, fmtSec } from './ui';
 
@@ -540,6 +541,11 @@ const MediaBin: React.FC = () => {
                     <button className="link small" title="Rengini/havasını örnek almak için referans yap (videoya girmez)" onClick={() => apply([{ type: 'reference.add', assetId: a.id }])}>
                       Referans
                     </button>
+                    {a.kind === 'image' ? (
+                      <button className="link small" title="Logo olarak ekle (saydam PNG/SVG önerilir)" onClick={() => apply([{ type: 'logo.add', assetId: a.id }])}>
+                        Logo
+                      </button>
+                    ) : null}
                     <button
                       className="link small"
                       title="Oynatma imlecine üst iz olarak ekle (ana ses devam eder)"
@@ -668,19 +674,13 @@ const Inspector: React.FC<{ selection: Selection; onClear: () => void }> = ({ se
       </div>
     );
   }
+  if (selection.kind === 'logo') {
+    const lg = project.logos.find((x) => x.id === selection.id);
+    return lg ? <LogoInspector logo={lg} onClear={onClear} /> : null;
+  }
   const tx = project.texts.find((x) => x.id === selection.id);
   if (!tx) return null;
-  return (
-    <div className="stack">
-      <b>Yazı</b>
-      <input value={tx.text} onChange={(e) => apply([{ type: 'text.update', id: tx.id, patch: { text: e.target.value } }], { key: `tt:${tx.id}` })} />
-      <Slider label="Başlangıç" value={tx.start} min={0} max={Math.max(0.1, tx.end - 0.3)} step={0.1} format={fmtSec} onChange={(v) => apply([{ type: 'text.update', id: tx.id, patch: { start: v } }], { key: `ts:${tx.id}` })} />
-      <Slider label="Bitiş" value={tx.end} min={tx.start + 0.3} max={Math.max(tx.start + 0.4, layoutClips(project).at(-1)?.end ?? 1)} step={0.1} format={fmtSec} onChange={(v) => apply([{ type: 'text.update', id: tx.id, patch: { end: v } }], { key: `te:${tx.id}` })} />
-      <button className="btn tiny danger" onClick={() => (apply([{ type: 'text.remove', id: tx.id }]), onClear())}>
-        <Trash2 size={13} /> Sil
-      </button>
-    </div>
-  );
+  return <TextInspector tx={tx} onClear={onClear} />;
 };
 
 export const Studio: React.FC = () => {
@@ -719,6 +719,7 @@ export const Studio: React.FC = () => {
     apply([{ type: 'clip.split', clipId: item.clip.id, at: t }], { label: 'İmleçte bölündü' });
   };
   const musicInput = useRef<HTMLInputElement>(null);
+  const logoInput = useRef<HTMLInputElement>(null);
   const { toast } = useApp();
   const addMusic = async (files: File[]) => {
     if (!files.length) return;
@@ -739,7 +740,8 @@ export const Studio: React.FC = () => {
       openRight('komut');
       setCmdMode('disses');
       toast('Dış ses modu: mikrofona basıp konuşun');
-    } else if (key === 'a1') musicInput.current?.click();
+    } else if (key === 'g') logoInput.current?.click();
+    else if (key === 'a1') musicInput.current?.click();
     else if (key === 'c') apply([{ type: 'captions.set', enabled: !project.captions.enabled }]);
     else if (key === 't') {
       const t = frame / FPS;
@@ -885,6 +887,27 @@ export const Studio: React.FC = () => {
         />
       </footer>
       <input ref={musicInput} type="file" accept="audio/*" hidden onChange={(e) => void addMusic([...(e.target.files ?? [])])} />
+      <input
+        ref={logoInput}
+        type="file"
+        accept="image/png,image/svg+xml,image/webp,image/*"
+        hidden
+        data-testid="logo-input"
+        onChange={async (e) => {
+          const files = [...(e.target.files ?? [])];
+          e.target.value = '';
+          if (!files.length) return;
+          try {
+            const r = await upload('/api/import', files, () => undefined);
+            const imgs = (r.assets as { id: string; kind: string }[]).filter((a) => a.kind === 'image');
+            if (!imgs.length) return toast('Logo için bir görsel seçin (PNG, SVG)', 'error');
+            apply(imgs.map((a) => ({ type: 'logo.add' as const, assetId: a.id })), { label: 'Logo eklendi' });
+            toast('Logo sağ üste eklendi; Seçili öğe panelinden konumunu değiştirebilirsiniz');
+          } catch (err) {
+            toast((err as Error).message, 'error');
+          }
+        }}
+      />
       {exporting ? (
         <Modal title="Dışa aktar" onClose={() => setExporting(false)} width={640}>
           <ExportStep />

@@ -310,6 +310,8 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .tl-head b { font-size: 15px; }
 .tl-body { flex: 1; display: flex; min-height: 0; overflow-y: auto; }
 .tl-labels { flex: none; display: flex; flex-direction: column; }
+.tl-labels > * { flex-shrink: 0; }
+.tl-content > * { flex-shrink: 0; }
 .tl-ruler-label { height: 20px; }
 .tl-label { height: 34px; display: flex; align-items: center; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .timeline.compact .tl-label, .timeline.compact .tl-lane { height: 26px; }
@@ -507,6 +509,18 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius
 .swatches span { display: inline-flex; gap: 5px; align-items: center; }
 .swatches i { width: 16px; height: 16px; border-radius: 4px; display: inline-block; border: 1px solid rgba(255,255,255,.25); }
 .ref-split { height: 170px; }
+
+/* Logo ve yerleşim */
+.tl-item.logo { background: rgba(255,179,92,.16); border-color: rgba(255,179,92,.45); }
+.tl-logo-thumb { height: 70%; max-width: 40px; object-fit: contain; position: relative; z-index: 1; }
+.placement { display: flex; flex-direction: column; gap: 8px; }
+.anchor-grid { display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 24px); gap: 4px; padding: 6px; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; width: max-content; }
+.anchor-grid button { border: 1px solid var(--line); background: var(--card); border-radius: 4px; cursor: pointer; display: grid; place-items: center; padding: 0; }
+.anchor-grid button i { width: 8px; height: 8px; border-radius: 2px; background: var(--muted); }
+.anchor-grid button.on { border-color: var(--accent); }
+.anchor-grid button.on i { background: var(--accent); }
+.safe-ok { color: var(--ok); display: inline-flex; gap: 4px; align-items: center; }
+.color-field input[type=color] { width: 44px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
 
 /* Komut etkisi */
 .asked q { color: var(--text); }

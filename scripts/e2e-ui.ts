@@ -324,9 +324,52 @@ const main = async () => {
     await page.waitForTimeout(800);
     check('⌘Z: renk eşleme geri alındı', JSON.stringify((await api('GET', `/api/projects/${pid}`)).project.clips) === JSON.stringify(before.clips));
 
+    // 12) Logo: LOGO izinden saydam PNG yükle → sağ üst; sol alta al; yalnız Story'de farklı; güvenli alana al
+    await fetch(`${base}/api/projects/${pid}/ops`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ops: [{ type: 'output.add', format: 'story' }] }) });
+    await page.reload();
+    await page.waitForSelector('.tl-item.clip');
+    const lpx = Buffer.alloc(200 * 100 * 4);
+    for (let i = 0; i < 200 * 100; i++) if (i % 200 < 100) lpx.set([230, 20, 20, 255], i * 4);
+    const logoPng = await sharpMod(lpx, { raw: { width: 200, height: 100, channels: 4 } }).png().toBuffer();
+    await page.locator('[data-testid=logo-input]').setInputFiles([{ name: 'marka.png', mimeType: 'image/png', buffer: logoPng }]);
+    await page.waitForSelector('.tl-item.logo', { timeout: 60000 });
+    let pl = (await api('GET', `/api/projects/${pid}`)).project;
+    check('Logo eklendi: sağ üst, videonun tamamı', pl.logos.length === 1 && pl.logos[0].anchor === 'tr' && pl.logos[0].full === true);
+    await page.locator('.tl-item.logo').click();
+    await page.getByRole('tab', { name: 'Seçili öğe' }).click().catch(() => undefined);
+    await page.waitForSelector('.anchor-grid');
+    await page.getByRole('button', { name: 'sol alt', exact: true }).click();
+    await page.waitForTimeout(500);
+    pl = (await api('GET', `/api/projects/${pid}`)).project;
+    check('Izgaradan “sol alt” seçildi (bütün oranlar)', pl.logos[0].anchor === 'bl' && Object.keys(pl.logos[0].placements).length === 0);
+    const storyId = pl.outputs.find((o: any) => o.format === 'story').id;
+    await page.getByRole('button', { name: /Story · 9:16/ }).first().click(); // önizlemede Story'ye geç
+    await page.waitForTimeout(300);
+    await page.locator('.placement').getByRole('button', { name: /Yalnız Story/ }).click();
+    await page.getByRole('button', { name: 'sağ üst', exact: true }).click();
+    await page.waitForTimeout(500);
+    pl = (await api('GET', `/api/projects/${pid}`)).project;
+    check('Yalnız Story için “sağ üst”; genel ayar sol altta kaldı', pl.logos[0].anchor === 'bl' && pl.logos[0].placements[storyId]?.anchor === 'tr');
+    // Güvenli alan: serbest konumlu yazı Story'de üstte → uyarı ve düzeltme
+    await fetch(`${base}/api/projects/${pid}/ops`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ops: [{ type: 'text.add', text: { text: 'Kampanya', start: 0, end: 3, y: 0.04 } }] }) });
+    await page.reload();
+    await page.waitForSelector('.tl-item.text');
+    await page.locator('.tl-item.text', { hasText: 'Kampanya' }).click({ force: true });
+    await page.getByRole('tab', { name: 'Seçili öğe' }).click().catch(() => undefined);
+    const warnTxt = await page.locator('.impact-warn').first().innerText({ timeout: 10000 });
+    check('Güvenli alan uyarısı gösterildi', /Instagram üst bilgisinin|kenara çok yakın/.test(warnTxt), warnTxt.split('\n')[0]);
+    const nWarn = await page.locator('.impact-warn').count();
+    await page.locator('.impact-warn').getByRole('button', { name: 'Güvenli alana al' }).first().click();
+    await page.waitForTimeout(600);
+    const nWarn2 = await page.locator('.impact-warn').count();
+    pl = (await api('GET', `/api/projects/${pid}`)).project;
+    const tx = pl.texts.find((t: any) => t.text === 'Kampanya');
+    check('“Güvenli alana al” o oran için düzeltti', nWarn2 === nWarn - 1 && Object.keys(tx.placements).length === 1, `${nWarn} → ${nWarn2} uyarı`);
+
     if (process.env.FABRIKA_UI_SHOT) await page.screenshot({ path: process.env.FABRIKA_UI_SHOT });
     check('Sayfada hata yok', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {
+    if (process.env.FABRIKA_UI_SHOT) await page.screenshot({ path: process.env.FABRIKA_UI_SHOT.replace(/\.png$/, '-hata.png') }).catch(() => undefined);
     check('Test akışı tamamlandı', false, (e as Error).message.split('\n')[0]);
   } finally {
     await browser.close();

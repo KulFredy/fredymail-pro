@@ -364,6 +364,32 @@ const ruleRestore = (_raw: string, t: string, ctx: CommandContext): Plan | null 
   };
 };
 
+/** “Logoyu sol alta al / küçült / büyüt / biraz saydam yap / kaldır” */
+const ruleLogo = (_raw: string, t: string, ctx: CommandContext): Plan | null => {
+  if (!/\blogo/.test(t)) return null;
+  const logos = ctx.project.logos;
+  if (!logos.length) return fail('Projede logo yok.', 'Zaman çizelgesindeki LOGO izinin + düğmesiyle saydam PNG veya SVG logo ekleyin.');
+  const l = logos[logos.length - 1];
+  if (/(kaldır|sil|çıkar|gizle)/.test(t)) return { understood: true, summary: 'Logo kaldırılacak.', ops: [{ type: 'logo.remove', id: l.id }], ranges: [], candidates: [] };
+  const row = /(sol|sağ)? ?üst|üste|yukarı/.test(t) ? 't' : /(sol|sağ)? ?alt|alta|aşağı/.test(t) ? 'b' : /ortala|ortaya|merkez/.test(t) ? 'm' : null;
+  const col = /\bsol/.test(t) ? 'l' : /\bsağ/.test(t) ? 'r' : /ortala|ortaya|orta|merkez/.test(t) ? 'c' : null;
+  const patch: Record<string, unknown> = {};
+  const parts: string[] = [];
+  if (row || col) {
+    const cur = l.anchor ?? 'tr';
+    const anchor = `${row ?? cur[0]}${col ?? (row === 'm' ? 'c' : cur[1])}` as (typeof logos)[number]['anchor'];
+    patch.anchor = anchor;
+    parts.push(`${ANCHOR_NAMES[anchor as string] ?? anchor} köşeye`);
+  }
+  if (/küçült|küçük/.test(t)) (patch.size = Math.max(0.04, +(l.size * 0.75).toFixed(3))), parts.push('küçültülecek');
+  if (/büyüt|büyük/.test(t)) (patch.size = Math.min(0.6, +(l.size * 1.3).toFixed(3))), parts.push('büyütülecek');
+  if (/saydam|şeffaf|soluk/.test(t)) (patch.opacity = /tam|hiç/.test(t) ? 1 : 0.6), parts.push(`saydamlık %${Math.round((patch.opacity as number) * 100)}`);
+  if (/opak|net yap|belirgin/.test(t)) (patch.opacity = 1), parts.push('tam görünür');
+  if (!parts.length) return fail('Logo için ne yapılacağını anlayamadım.', 'Örnek: “logoyu sol alta al”, “logoyu küçült”, “logoyu biraz saydam yap”, “logoyu kaldır”.');
+  return { understood: true, summary: `Logo ${parts.join(', ')} (bütün oranlarda güvenli alan içinde).`, ops: [{ type: 'logo.update', id: l.id, patch }], ranges: [], candidates: [] };
+};
+const ANCHOR_NAMES: Record<string, string> = { tl: 'sol üst', tc: 'üst orta', tr: 'sağ üst', ml: 'sol orta', mc: 'orta', mr: 'sağ orta', bl: 'sol alt', bc: 'alt orta', br: 'sağ alt' };
+
 const ruleUndo = (_raw: string, t: string): Plan | null => {
   if (/^(geri al|son (işlemi|değişikliği) geri al|bunu geri al|vazgeç|iptal et)$/.test(t) || /(geri al)$/.test(t))
     return { understood: true, summary: 'Son değişiklik geri alınacak.', ops: [], ranges: [], candidates: [], action: 'undo' };
@@ -466,7 +492,7 @@ const ruleScale = (_raw: string, t: string, ctx: CommandContext): Plan | null =>
   };
 };
 
-const RULES = [ruleRestore, ruleUndo, ruleScale, ruleCaptionMove, ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
+const RULES = [ruleRestore, ruleLogo, ruleUndo, ruleScale, ruleCaptionMove, ruleOverlay, ruleRepeatedSentence, ruleRelativeCut, ruleCaptionStyle, ruleLook, ruleMusic, ruleMuteClip, ruleSplit];
 
 export const planCommand = (raw: string, ctx: CommandContext): Plan => {
   const t = normalizeTr(raw);
@@ -490,4 +516,5 @@ export const COMMAND_EXAMPLES = [
   'Bundan sonra altyazılarımı beyaz ve iki satır yap',
   'Müziği konuşurken kıs',
   'Orijinal haline dön',
+  'Logoyu sol alta al',
 ];

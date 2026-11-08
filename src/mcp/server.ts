@@ -130,7 +130,7 @@ clips.add {assetIds[]} · clips.remove {clipId} · clips.reorder {order[]} · cl
 project.restoreOriginal {} (orijinale dön) · clip.update {clipId,patch:{camera,gainDb,muted,musicMuted,audioFadeIn,audioFadeOut}} · clip.setLook {clipId,look|null} · look.set {look} · look.applyToAll {fromClipId?} ·
 output.add {format,kind} · output.remove {outputId} · output.setFraming {outputId,clipId,framing:{mode:fill|fit-blur|fit,x,y,zoom}} · output.setStill {outputId,clipId,at} ·
 music.set {music:{assetId,mode:bed|duck|fixed,gainDb,bedDb,duckDb,start,fadeIn,fadeOut}|null} · captions.set {enabled,style} · captions.editWord {key,text|null} ·
-text.add {text:{text,start,end,x,y,size,style}} · text.update {id,patch} · text.remove {id} · project.rename {name} · project.setDescription {text} · project.addNote {text}.
+text.add {text:{text,start,end,anchor(tl..br)|x,y,size,style,anim}} · logo.add {assetId,logo?:{anchor,size,opacity,anim,full}} · logo.update {id,patch} · logo.remove {id} · element.place {kind:text|logo,id,outputId,place:{anchor,x,y,scale}|null} · text.update {id,patch} · text.remove {id} · project.rename {name} · project.setDescription {text} · project.addNote {text}.
 Görünüm hazırları: ${PRESETS.map((p) => p.id).join(', ')}.`;
 
 server.registerTool(
